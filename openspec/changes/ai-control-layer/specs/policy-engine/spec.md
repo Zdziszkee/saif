@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provides the single centralized policy source that defines all controls, tool and action permissions, sensitivity thresholds, strictness profiles, model allowlists, network egress allowlists, and budget rules, and makes changes effective at runtime without a restart. The policy is a zod-validated JSON document stored with full version history and editable through the dashboard.
+Provides the single centralized policy source that defines all controls, tool and action permissions, the deterministic detection rules, the semantic check definitions, sensitivity thresholds, strictness profiles, model allowlists, network egress allowlists, and budget rules, and makes changes effective at runtime without a restart. The policy is a zod-validated JSON document stored with full version history and editable through the dashboard.
 
 ## ADDED Requirements
 

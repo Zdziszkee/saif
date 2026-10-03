@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provides fast, non-AI checks (secrets, PII, allowlists, known signatures) that decide or sanitize the common case without invoking any model, keeping the hybrid defense cheap and deterministic.
+Provides fast, non-AI checks (secrets, PII, custom policy rules, allowlists, known signatures) that decide or sanitize the common case without invoking any model, keeping the hybrid defense cheap and deterministic.
 
 ## ADDED Requirements
 
