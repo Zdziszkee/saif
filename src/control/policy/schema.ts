@@ -26,7 +26,7 @@ const HUGE_REPEAT = /\{\s*\d{4,}\s*,?\s*\d*\s*\}/;
  * must not carry catastrophic-backtracking shapes (unbounded quantifiers over
  * groups that already contain unbounded quantifiers) or enormous repeat counts.
  */
-function patternComplexityProblem(pattern: string): string {
+export function patternComplexityProblem(pattern: string): string {
 	try {
 		new RegExp(pattern);
 	} catch {
