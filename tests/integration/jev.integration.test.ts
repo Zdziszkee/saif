@@ -33,6 +33,7 @@ const PROBE_TIMEOUT_MS = 20_000;
 const GEN_TIMEOUT_MS = 60_000;
 const PARALLEL_TIMEOUT_MS = 90_000;
 const CONSTRUCT_TIMEOUT_MS = 30_000;
+const PARALLELISM_RATIO = 0.8;
 
 const checks: readonly SemanticCheck[] = [
 	{
@@ -126,6 +127,44 @@ describe("without an API key (hermetic)", () => {
 	});
 });
 
+interface ConcurrentBurst {
+	attacked: SemanticEvidence;
+	first: SemanticEvidence;
+	second: SemanticEvidence;
+	wallClock: number;
+}
+
+let cachedBurst: ConcurrentBurst | undefined;
+
+/**
+ * Fire three real evaluations at once. Shared by several focused assertions.
+ *
+ * Only reached when `SEMANTIC_LIVE=1` and a key is configured, so `bun test`
+ * never pays for a network call.
+ */
+async function loadConcurrentBurst(): Promise<ConcurrentBurst> {
+	cachedBurst ??= await runConcurrentBurst();
+	return cachedBurst;
+}
+
+async function runConcurrentBurst(): Promise<ConcurrentBurst> {
+	const classifier = createJevClassifier({ checks, timeoutMs: PROBE_TIMEOUT_MS });
+
+	const startedAt = Date.now();
+	const [first, attacked, second] = await Promise.all([
+		classifier.evaluate(benign),
+		classifier.evaluate(injection),
+		classifier.evaluate(benign),
+	]);
+
+	return {
+		attacked,
+		first,
+		second,
+		wallClock: Date.now() - startedAt,
+	};
+}
+
 describe("live decision model: configuration (opt-in via SEMANTIC_LIVE=1)", () => {
 	it.skipIf(!(LIVE && !keyPresent))(
 		"reports a clear configuration error when credentials are missing",
@@ -189,6 +228,48 @@ describe("live decision model: answer contract (opt-in via SEMANTIC_LIVE=1)", ()
 			expect(probabilityOf(attacked, "prompt_injection")).toBeGreaterThan(
 				probabilityOf(clean, "prompt_injection"),
 			);
+		},
+		PARALLEL_TIMEOUT_MS,
+	);
+});
+
+describe("live decision model: concurrency (opt-in via SEMANTIC_LIVE=1)", () => {
+	it.skipIf(!(LIVE && keyPresent))(
+		"attributes each concurrent answer to its own request",
+		async () => {
+			const burst = await loadConcurrentBurst();
+
+			// The injected prompt must not have been answered for a benign one.
+			expect(probabilityOf(burst.attacked, "prompt_injection")).toBeGreaterThan(
+				probabilityOf(burst.first, "prompt_injection"),
+			);
+			expect(probabilityOf(burst.attacked, "prompt_injection")).toBeGreaterThan(
+				probabilityOf(burst.second, "prompt_injection"),
+			);
+
+			for (const evidence of [burst.first, burst.attacked, burst.second]) {
+				expect(evidence.meta.classifier).toBe("typesafe");
+				expect(evidence.meta.usage.totalTokens).toBeGreaterThan(0);
+				expect(Object.keys(evidence.answers).sort()).toEqual([
+					"insider_trading",
+					"prompt_injection",
+				]);
+			}
+		},
+		PARALLEL_TIMEOUT_MS,
+	);
+
+	it.skipIf(!(LIVE && keyPresent))(
+		"overlaps concurrent calls instead of running them serially",
+		async () => {
+			const burst = await loadConcurrentBurst();
+
+			// Self-calibrating: each call reports its own latencyMs, so a serial run
+			// would put the wall clock near their sum. Comparing against the sum
+			// avoids depending on absolute network speed.
+			const sumLatency =
+				burst.first.meta.latencyMs + burst.attacked.meta.latencyMs + burst.second.meta.latencyMs;
+			expect(burst.wallClock).toBeLessThan(sumLatency * PARALLELISM_RATIO);
 		},
 		PARALLEL_TIMEOUT_MS,
 	);
