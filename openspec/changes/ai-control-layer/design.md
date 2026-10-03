@@ -32,19 +32,17 @@ installed. Constraints that shape this design:
 - Training or fine-tuning any classifier; Jev is consumed as a hosted decision model.
 - Identity/authn provider integration; consumer keys are presented via header and mapped
   to policy subjects, not authenticated against an IdP.
-- A full multi-step human-review workflow; the approvals queue resolves tool calls with
-  approve/deny, while content escalations stay record-only in the dashboard.
-- Multi-provider model routing; the hub owns one OpenAI-compatible model connection
-  (env-configured endpoint, model, key) and the governed agentic tool loop.
+- A full human-review workflow; escalations are recorded and surfaced in the dashboard,
+  resolution is out of scope.
+- Multi-provider model routing; the layer wraps one configured OpenAI-compatible model
+  connection.
 
 ## Decisions
 
 ### D1. In-process middleware pipeline inside TanStack Start, not a separate proxy service
 The control layer is a `src/control/` pipeline module invoked by three enforcement seams:
-the generic guard API (`src/routes/api.guard.ts`), the MCP safety hub's `askModel`
-prompt/answer direction (the chat demo page is a client of the hub; no separate
-model-reaching route is exposed), and the hub's tool-call surface (`src/routes/mcp.ts`,
-which also proxies user-connected external MCP servers). A thin `guardInteraction()`
+the generic guard API (`src/routes/api.guard.ts`), a chat seam (the guarded chat demo page
+and its prompt/answer direction), and the tool-call surface (`src/routes/mcp.ts`). A thin `guardInteraction()`
 wrapper exposes the SDK-style integration the challenge mentions. Alternative: standalone reverse proxy (extra deployable, harder for judges to
 run) or SDK-only (trivially bypassed, no central reporting). Single-process keeps the
 "lightweight" requirement and reuses the existing Nitro deployment story.
@@ -76,9 +74,8 @@ Custom checks trade compile-time narrowing for tunability; their answers flow th
 generic typed-answer path, never free-form text.
 
 ### D4. Cheap-first pipeline order
-`shape validation -> model allowlist -> tool authorization -> egress allowlist ->
-signature feed -> deterministic PII/secrets -> budget pre-flight -> semantic tier ->
-verdict mapping`. Deterministic `block` is final and
+`shape validation -> model allowlist -> signature feed -> deterministic PII/secrets ->
+budget pre-flight -> semantic tier -> verdict mapping`. Deterministic `block` is final and
 skips the semantic call; deterministic `redact` is applied before semantic evaluation sees
 the text. Rationale: latency and cost stay near zero for the common case, and signature
 detections never depend on model availability. Alternative (parallel tiers) reduces
@@ -92,10 +89,7 @@ profile's failure verdict (default `block` for failures, `escalate` for low conf
 Escalation = audit entry flagged for review, content not forwarded. This is the
 "classification is advisory to policy" boundary: identical Jev answers can yield different
 verdicts under different profiles, which is also what makes the threshold behavior
-unit-testable. Tool calls carry an additional authorization decision
-(`allow | deny | require-approval`) from the policy engine's grants and confirmation
-rules; `require-approval` maps to `escalate` (call held for the approvals queue) and
-deletions are hard-gated to it.
+unit-testable.
 
 ### D6. Policy as versioned zod-validated JSON, stored in SQLite and edited via the dashboard
 One policy document (plus seed variants `policy.permissive.json`, `policy.strict.json`)
@@ -231,8 +225,7 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
   before `decide()`; residual sensitive span → policy `residualSensitiveAction`
   (`block` default / `escalate` / `redact-and-send`).
 - **Routing**: `controls.semantic.egress.mode`: `minimized` (default) | `off`
-  (deterministic-only for sensitive consumers/routes). The earlier `local-only` fallback
-  classifier mode is gone: the product path runs only the real decision model.
+  (deterministic-only for sensitive consumers/routes).
 - **Consumption**: confidence floors per action; below floor → profile's uncertainty verdict
   (default `escalate`). Timeout bounded, failure verdict fail-closed. Classification is
   advisory: only `applyPolicy()` maps answers to verdicts (D5).

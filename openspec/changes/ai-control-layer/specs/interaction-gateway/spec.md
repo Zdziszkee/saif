@@ -7,14 +7,14 @@ Intercepts AI interactions at every seam (chat, MCP tool calls, generic guard AP
 ## ADDED Requirements
 
 ### Requirement: Interaction interception
-The system SHALL route every governed AI interaction through the same control pipeline before forwarding, and SHALL inspect both inbound prompts and outbound model or tool output. Chat prompts and MCP tool calls are intercepted at the MCP safety hub (see `interaction-gateway/mcp-safety-hub`); generic guard API requests are intercepted at the guard endpoint.
+The system SHALL route every governed AI interaction through the same control pipeline before forwarding, and SHALL inspect both inbound prompts and outbound model or tool output. Chat prompts, tool calls, and generic guard API requests are intercepted at their respective seams and flow through the shared pipeline.
 
 #### Scenario: Guard API request intercepted
 - **WHEN** a client sends a request to the generic guard API
 - **THEN** the request passes through the control pipeline and is forwarded only if the resulting verdict allows it
 
 ### Requirement: Verdict enforcement
-The system SHALL apply exactly one verdict per inspected direction: `allow`, `redact`, `block`, or `escalate`. Redaction MUST replace flagged content with typed placeholders before forwarding; block MUST NOT forward the content; escalate MUST record the interaction for review and MUST NOT forward the content while unresolved. For tool calls, `escalate` manifests as `require-approval`: the call is held and routed to the approvals queue and executes only on the agent's next attempt after user approval.
+The system SHALL apply exactly one verdict per inspected direction: `allow`, `redact`, `block`, or `escalate`. Redaction MUST replace flagged content with typed placeholders before forwarding; block MUST NOT forward the content; escalate MUST record the interaction for review and MUST NOT forward the content while unresolved.
 
 #### Scenario: Redaction applied
 - **WHEN** the pipeline returns `redact` for a prompt containing detected sensitive data
@@ -23,10 +23,6 @@ The system SHALL apply exactly one verdict per inspected direction: `allow`, `re
 #### Scenario: Block response shape
 - **WHEN** the pipeline returns `block` for a request
 - **THEN** the caller receives a defined rejection response identifying the blocking control and no content reaches the downstream model or tool
-
-#### Scenario: Tool call held for approval
-- **WHEN** the pipeline returns `escalate` (`require-approval`) for a tool call
-- **THEN** the tool does not execute, the call is queued for user approval, and only an approved subsequent attempt reaches the tool
 
 ### Requirement: Fail-closed behavior
 The control pipeline MUST fail closed: when any enabled control errors, times out, or returns an unusable result, the system SHALL apply the policy's configured failure verdict (default `block`) and record the failure.

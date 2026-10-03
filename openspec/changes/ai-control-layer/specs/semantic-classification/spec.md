@@ -48,14 +48,3 @@ Semantic answers MUST NOT directly authorize or reject an action: only the polic
 #### Scenario: Same answers, different verdicts
 - **WHEN** identical semantic answers are evaluated under the `permissive` and `strict` profiles with different thresholds
 - **THEN** each profile produces its own verdict from the same answers
-
-### Requirement: Real decision model in the product path
-The semantic tier SHALL run on a real decision model (Jev) in the product path. Test doubles MUST NOT be selectable as a semantic classifier through policy or runtime configuration.
-
-#### Scenario: Product path uses the real model
-- **WHEN** the semantic tier evaluates an interaction in a running system
-- **THEN** the answers come from the configured real decision model
-
-#### Scenario: No mock classifier selectable
-- **WHEN** policy or runtime configuration names a classifier
-- **THEN** only real classifier implementations are accepted
