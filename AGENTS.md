@@ -41,14 +41,10 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   rendering idioms and SolidJS component-hoisting conventions don't apply here),
   `noJsxLiterals`, `useExportsLast` (fight TanStack route conventions),
   `noQwikValidLexicalScope` (Qwik-only serialization rule; it fires on the plain
-<<<<<<< HEAD
   factory closures this codebase is built from), `useSolidForComponent` (Solid-only
   rule; its `.map` advice is wrong for React list rendering), and
   `noSolidDestructuredProps` (Solid-only reactivity rule; its destructure warnings
   are false positives on plain React function components).
-=======
-  factory closures this codebase is built from).
->>>>>>> origin/master
 - Scoped overrides relax rules only where the stack demands it: node/process usage in
   server files (mcp, db, control, drizzle.config, scripts), `noDefaultExport` in config files,
   `noHeadElement` and `useUniqueElementIds` in `src/routes/__root.tsx` (stable
