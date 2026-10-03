@@ -87,7 +87,8 @@
 			"linter": {
 				"rules": {
 					"correctness": {
-						"noUnresolvedImports": "off"
+						"noUnresolvedImports": "off",
+						"useQwikValidLexicalScope": "off"
 					},
 					"style": {
 						"noJsxLiterals": "off",
@@ -106,6 +107,29 @@
 					},
 					"suspicious": {
 						"noReactSpecificProps": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/tests/**"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noExcessiveLinesPerFunction": "off"
+					},
+					"style": {
+						"noMagicNumbers": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/src/hub/model.ts"],
+			"linter": {
+				"rules": {
+					"style": {
+						"useNamingConvention": "off"
 					}
 				}
 			}
@@ -134,7 +158,10 @@
 			"includes": [
 				"**/mcp-todos.ts",
 				"**/mcp-handler.ts",
+				"**/control/**",
 				"**/db/**",
+				"**/tests/policy-loader.test.ts",
+				"**/tests/policy-samples.test.ts",
 				"**/routes/mcp.ts",
 				"**/vite.config.ts",
 				"**/vitest.config.ts",
