@@ -43,11 +43,7 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   non-serializable capture — added when `src/control/semantic/` introduced
   abort/deadline callbacks).
 - Scoped overrides relax rules only where the stack demands it: node/process usage in
-<<<<<<< HEAD
-  server files (mcp, db, drizzle.config, scripts), `noDefaultExport` in config files,
-=======
-  server files (mcp, db, control, drizzle.config), `noDefaultExport` in config files,
->>>>>>> origin/master
+  server files (mcp, db, control, drizzle.config, scripts), `noDefaultExport` in config files,
   `noHeadElement` in `src/routes/__root.tsx`, and CONSTANT_CASE object keys for env
   vars and HTTP method keys. The `control` entry exists because the policy loader needs
   `node:fs` file-watch and `node:crypto` sha256.
