@@ -7,7 +7,7 @@ Provides the AI-based semantic tier: Jev (TypeSafe AI's decision model) evaluate
 ## ADDED Requirements
 
 ### Requirement: Semantic evaluation of interactions
-For each interaction reaching the semantic tier, the system SHALL evaluate the semantic check definitions enabled in the policy — binary yes/no questions — in a single evaluation round trip and receive one probability per check. The questions asked SHALL be exactly those the policy defines; checks not defined or disabled in the policy are never evaluated, and adding a check to the policy MUST make it evaluate without a code change.
+For each interaction reaching the semantic tier, the system SHALL evaluate the enabled checks defined in `policy.jev.json` at the project root — binary yes/no questions — in a single evaluation round trip and receive one probability per check. That document is the only home of the question catalog: the questions asked SHALL be exactly those it defines, checks not defined or disabled there are never evaluated, and adding a check MUST make it evaluate without a code change.
 
 #### Scenario: Injection attempt classified
 - **WHEN** a prompt containing a prompt-injection attempt is evaluated against a policy-defined `prompt_injection` check
@@ -20,6 +20,17 @@ For each interaction reaching the semantic tier, the system SHALL evaluate the s
 #### Scenario: Judge-authored check takes effect
 - **WHEN** the policy gains a new binary check such as "Does this text contain insider trading information?"
 - **THEN** the decision model is asked that question on the next interaction and its answer is consumed under the new check's identifier
+
+### Requirement: Check catalog is configuration, not code
+The question catalog — which binary checks exist, their wording, and their per-check thresholds — SHALL be read from `policy.jev.json` at the project root and validated at load time. The semantic tier MUST NOT hard-code questions, and a malformed catalog MUST fail loudly rather than silently running a reduced guardrail set.
+
+#### Scenario: Judge-authored check takes effect
+- **WHEN** a new binary check is appended to `policy.jev.json`
+- **THEN** the decision model is asked that question on the next evaluation with no code change
+
+#### Scenario: Malformed catalog rejected
+- **WHEN** `policy.jev.json` contains a check with an empty identifier, a duplicate identifier, a reserved identifier, non-binary type, or an out-of-range threshold
+- **THEN** the load fails with a configuration error naming the offending check and the previous valid catalog stays in effect
 
 ### Requirement: Schema-constrained answers
 Semantic answers MUST be schema-constrained to the declared check definitions (no free-form output). Every binary check answer SHALL carry its probability P(true) in the closed interval [0, 1] and the derived boolean value. Binary answers carry no confidence value, so uncertainty SHALL NOT be inferred from one.

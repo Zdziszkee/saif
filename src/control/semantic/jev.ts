@@ -1,6 +1,7 @@
 import { createTypesafeDecider, getTypesafeApiKeyFromEnv } from "@tanstack/ai-typesafe";
 import type { SemanticClassifierOptions } from "./classifier.ts";
-import { createSemanticClassifier, DEFAULT_TIMEOUT_MS } from "./classifier.ts";
+import { createSemanticClassifier } from "./classifier.ts";
+import { SEMANTIC_DEFAULTS } from "./config.ts";
 import { SemanticConfigurationError } from "./errors.ts";
 import type { SemanticClassifier } from "./types.ts";
 
@@ -22,7 +23,7 @@ export interface JevClassifierOptions extends Omit<SemanticClassifierOptions, "n
 	apiKey?: string;
 	/** Override the transport `fetch`, primarily for tests. */
 	fetch?: typeof fetch;
-	/** Jev model id. Defaults to {@link JEV_MODEL}. */
+	/** Overrides `SEMANTIC_DEFAULTS.model` from `./policy.json`. */
 	model?: string;
 }
 
@@ -34,12 +35,13 @@ export interface JevClassifierOptions extends Omit<SemanticClassifierOptions, "n
  * failure verdict (fail closed) — a guardrail must never silently downgrade
  * itself and report "all clear".
  *
+ * All settings default from `./policy.json`; pass overrides to deviate.
+ *
  * @example
  * ```ts
- * const classifier = createJevClassifier({
- *   checks: policy.controls.semantic.checks,
- *   timeoutMs: 2500,
- * })
+ * const classifier = createJevClassifier()
+ * // or with the app policy's checks taking precedence over the defaults:
+ * const classifier = createJevClassifier({ checks: policy.controls.semantic.checks })
  * const evidence = await classifier.evaluate({
  *   role: "user",
  *   direction: "inbound",
@@ -48,10 +50,10 @@ export interface JevClassifierOptions extends Omit<SemanticClassifierOptions, "n
  * ```
  */
 export function createJevClassifier(options: JevClassifierOptions): SemanticClassifier {
-	const { apiKey, model = JEV_MODEL, fetch: fetchFn, ...classifierOptions } = options;
+	const { apiKey, fetch: fetchFn, model = SEMANTIC_DEFAULTS.model, ...classifierOptions } = options;
 
 	const key = apiKey ?? readApiKeyFromEnv();
-	const timeoutMs = classifierOptions.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+	const timeoutMs = classifierOptions.timeoutMs ?? SEMANTIC_DEFAULTS.timeoutMs;
 	const transportTimeout = timeoutMs + TRANSPORT_TIMEOUT_GRACE_MS;
 
 	const adapter = createTypesafeDecider(

@@ -58,7 +58,7 @@ of prompt-parseable.
   generic guard API) and enforcement of verdicts (allow/redact/block/escalate), including
   redaction application and fail-closed behavior.
 - `policy-engine`: the single policy source — schema, custom regex detection rules,
-  semantic check definitions, strictness profiles, thresholds, control enable/disable,
+  strictness profiles, thresholds, control enable/disable,
   model allowlists, budget rules, signature severity mapping — with validation and
   hot-swap reload.
 - `deterministic-controls`: non-AI checks — secret/PII detection and redaction,
@@ -67,7 +67,7 @@ of prompt-parseable.
   canonicalized and decoded forms, structural suspicion signals, feed integrity and
   provenance) — with defined precedence against the semantic tier.
 - `semantic-classification`: Jev-based semantic decisions — typed questions defined as
-  policy check definitions, parallel evaluation, confidence floors, degradation/fallback
+  check definitions from `policy.jev.json`, parallel evaluation, decisiveness floors, degradation/fallback
   behavior when the model is unavailable or uncertain.
 - `budget-governance`: budget definition, accounting, and enforcement for token spend,
   request counts, and compute time across commercial and local model backends.

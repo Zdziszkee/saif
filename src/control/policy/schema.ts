@@ -82,53 +82,6 @@ export const detectionConfigSchema = z.strictObject({
 	rules: z.array(detectionRuleSchema),
 });
 
-/** Threshold chain for one semantic check in one direction: >= block -> block, >= redact -> redact, >= flag -> flag, else allow. */
-export const checkThresholdsSchema = z.strictObject({
-	block: probabilitySchema,
-	flag: probabilitySchema,
-	redact: probabilitySchema,
-});
-
-/** One typed question the semantic decision model evaluates. */
-export const semanticCheckSchema = z
-	.strictObject({
-		criteria: z.string().min(1),
-		enabled: z.boolean(),
-		id: z.string().min(1),
-		options: z.array(z.string().min(1)).min(2).optional(),
-		thresholds: z.strictObject({
-			inbound: checkThresholdsSchema,
-			outbound: checkThresholdsSchema,
-		}),
-		type: z.enum(["boolean", "choice", "score"]),
-		wording: z.string().min(1),
-	})
-	.superRefine((check, ctx) => {
-		const hasOptions = check.options !== undefined;
-		if (check.type === "choice" && !hasOptions) {
-			ctx.addIssue({
-				code: "custom",
-				message: "choice checks require an options set",
-				path: ["options"],
-			});
-		}
-		if (check.type !== "choice" && hasOptions) {
-			ctx.addIssue({
-				code: "custom",
-				message: "only choice checks may declare options",
-				path: ["options"],
-			});
-		}
-	});
-
-export type SemanticCheck = z.infer<typeof semanticCheckSchema>;
-
-/** Semantic tier configuration: the check definitions and the confidence floor. */
-export const semanticConfigSchema = z.strictObject({
-	checks: z.array(semanticCheckSchema),
-	confidenceFloor: probabilitySchema,
-});
-
 /** Structural-suspicion configuration for the signature engine. */
 export const suspectConfigSchema = z.strictObject({
 	action: verdictSchema,
@@ -250,7 +203,6 @@ export const policySchema = z
 			detection: detectionConfigSchema,
 			enabled: z.boolean(),
 			redaction: redactionConfigSchema,
-			semantic: semanticConfigSchema,
 			shape: shapeConfigSchema,
 			signatures: signatureConfigSchema,
 		}),
@@ -276,17 +228,6 @@ export const policySchema = z
 				});
 			}
 			seenRuleIds.add(rule.id);
-		});
-		const seenCheckIds = new Set<string>();
-		policy.controls.semantic.checks.forEach((check, index) => {
-			if (seenCheckIds.has(check.id)) {
-				ctx.addIssue({
-					code: "custom",
-					message: `duplicate semantic check id: ${check.id}`,
-					path: ["controls", "semantic", "checks", index, "id"],
-				});
-			}
-			seenCheckIds.add(check.id);
 		});
 	});
 

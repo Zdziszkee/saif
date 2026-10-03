@@ -32,6 +32,15 @@ export {
 	type SemanticClassifierOptions,
 } from "./classifier.ts";
 export {
+	checkShapeSchema,
+	loadSemanticConfig,
+	parseChecks,
+	parseSemanticConfig,
+	SEMANTIC_DEFAULTS,
+	SEMANTIC_POLICY_PATH,
+	type SemanticConfig,
+} from "./config.ts";
+export {
 	SemanticConfigurationError,
 	SemanticInvalidAnswerError,
 	SemanticTimeoutError,
