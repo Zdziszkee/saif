@@ -33,6 +33,14 @@ export const env = createEnv({
 	 */
 	runtimeEnv: import.meta.env,
 	server: {
+		/** Comma-separated egress allowlist for external MCP connections (URLs or origins). */
+		MCP_EGRESS_ALLOWLIST: z.string().optional(),
+		/** API key for the OpenAI-compatible model connection used by the hub's `askModel`. */
+		MODEL_API_KEY: z.string().optional(),
+		/** Base URL of the OpenAI-compatible model endpoint (local or hosted). */
+		MODEL_BASE_URL: z.string().url().optional(),
+		/** Model name served by the OpenAI-compatible endpoint. */
+		MODEL_NAME: z.string().optional(),
 		SERVER_URL: z.string().url().optional(),
 	},
 });

@@ -1,51 +1,57 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createFileRoute } from "@tanstack/react-router";
-import z from "zod";
-import { addTodo } from "#/mcp-todos.ts";
-import { handleMcpRequest } from "#/utils/mcp-handler.ts";
+import { auditEvent } from "#/control/audit.ts";
+import { consumerKeyFromRequest } from "#/control/subjects.ts";
+import { getHub } from "#/hub/runtime.ts";
 
-const server = new McpServer({
-	name: "start-server",
-	version: "1.0.0",
-});
+/**
+ * The MCP safety hub surface, served over standard MCP protocol (HTTP) via
+ * `createMCPServer` from `@tanstack/ai-mcp/server`. Any standards-compliant
+ * MCP client can connect, enumerate the governed tool catalog, and invoke
+ * tools; every call is subject to the same tool-call governance. The consumer
+ * key header identifies the policy subject the caller acts as (multi-consumer
+ * connections).
+ */
 
-server.registerTool(
-	"addTodo",
-	{
-		description: "Add a todo to a list of todos",
-		inputSchema: {
-			title: z.string().describe("The title of the todo"),
-		},
-		title: "Tool to add a todo to a list of todos",
-	},
-	({ title }) => ({
-		content: [{ text: String(addTodo(title)), type: "text" }],
-	}),
-);
+async function handle(request: Request): Promise<Response> {
+	const hub = await getHub();
+	const resolution = hub.consumers.resolve(consumerKeyFromRequest(request));
 
-// server.registerResource(
-//   "counter-value",
-//   "count://",
-//   {
-//     title: "Counter Resource",
-//     description: "Returns the current value of the counter",
-//   },
-//   async (uri) => {
-//     return {
-//       contents: [
-//         {
-//           uri: uri.href,
-//           text: `The counter is at 20!`,
-//         },
-//       ],
-//     };
-//   }
-// );
+	if (!resolution.ok) {
+		hub.audit.record(
+			auditEvent("interaction", {
+				controlId: "consumer-key",
+				detail: `consumer key rejected: ${resolution.reason}`,
+				verdict: "block",
+			}),
+		);
+		return Response.json(
+			{
+				control: "consumer-key",
+				error: "rejected",
+				reason: resolution.reason,
+				verdict: "block",
+			},
+			{ status: 403 },
+		);
+	}
+	if (resolution.kind === "default-subject") {
+		hub.audit.record(
+			auditEvent("interaction", {
+				detail: `consumer key resolved to default subject: ${resolution.key ?? "(none)"}`,
+				subject: resolution.subject,
+			}),
+		);
+	}
+
+	return hub.server(resolution.subject).fetch(request);
+}
 
 export const Route = createFileRoute("/mcp")({
 	server: {
 		handlers: {
-			POST: async ({ request }) => handleMcpRequest(request, server),
+			DELETE: ({ request }) => handle(request),
+			GET: ({ request }) => handle(request),
+			POST: ({ request }) => handle(request),
 		},
 	},
 });
