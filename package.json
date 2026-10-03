@@ -15,6 +15,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "verify": "tsc --noEmit && biome check .",
+    "intent": "node node_modules/@tanstack/intent/dist/cli.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
