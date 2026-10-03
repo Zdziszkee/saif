@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the executable self-testing suite with a credential-free unit tier and a real-model integration tier, proving both positive (allowed) and negative (blocked/redacted) behavior of every control.
+Defines the executable, credential-free self-testing suite, proving both positive (allowed) and negative (blocked/redacted) behavior of every control.
 
 ## ADDED Requirements
 
