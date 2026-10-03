@@ -134,7 +134,9 @@
 			"includes": [
 				"**/mcp-todos.ts",
 				"**/mcp-handler.ts",
+				"**/control/**",
 				"**/db/**",
+				"**/tests/policy-loader.test.ts",
 				"**/routes/mcp.ts",
 				"**/vite.config.ts",
 				"**/vitest.config.ts",
