@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Detects and blocks patterns associated with historical AI exploits by matching interactions against an externally managed signature feed that can be updated at runtime, with matching that resists known evasion transforms and inspection surfaces that cover tool schemas as well as message content.
+Detects and blocks patterns associated with historical AI exploits by matching interactions against an externally managed signature feed — ingested from live threat-intel sources (MITRE ATLAS STIX 2.1, OSV/OpenSSF malicious-package reports, vendor-style corpus feeds) — that can be updated at runtime, with matching that resists known evasion transforms and inspection surfaces that cover tool schemas as well as message content.
 
 ## ADDED Requirements
 
@@ -78,6 +78,32 @@ Each feed SHALL carry a version hash computed over its canonical content. Signat
 #### Scenario: Tampered feed rejected
 - **WHEN** a feed with a detached signature that fails verification is presented
 - **THEN** the feed is not loaded and the previously loaded feed remains in force
+
+### Requirement: External feed sources and ingestion
+The system SHALL ingest signatures from externally managed systems through format adapters that normalize into the internal signature schema: MITRE ATLAS STIX 2.1 bundles (AI-attack techniques and procedures), OSV malicious-package reports (OpenSSF Malicious Packages, `MAL-` identifiers) for supply-chain signatures, and vendor-style JSON feeds compiled from public exploit corpora (for example JailbreakBench artifacts, in-the-wild jailbreak prompt collections, the AISec 2026 prompt-injection benchmark, and public payload collections). Each ingested signature MUST retain its external identifiers — MITRE ATLAS technique ids, OWASP category ids (LLM Top 10 2026, Agentic AI Top 10, MCP Top 10), and `MAL-` package ids — in its reference list. An unreachable or invalid source MUST NOT prevent signatures from other sources from loading.
+
+#### Scenario: ATLAS technique ingested
+- **WHEN** a MITRE ATLAS STIX 2.1 bundle containing an attack procedure is presented to the STIX adapter
+- **THEN** the procedure's patterns become active signatures whose references cite the ATLAS technique identifier
+
+#### Scenario: Malicious package pulled from OSV
+- **WHEN** the OSV source reports a malicious package matching the configured ecosystems
+- **THEN** a supply-chain signature for it is active at runtime and matches against tool calls and outputs
+
+#### Scenario: Source outage contained
+- **WHEN** one external source is unreachable while other sources are available
+- **THEN** signatures from reachable sources remain active and the outage is reported without failing the system
+
+### Requirement: Feed currency
+External sources SHALL be refreshed on a configurable poll interval using conditional requests (ETag or Last-Modified) so that newly published signatures take effect at runtime without operator action. The system SHALL retain the last-known-good feed across refresh failures and record the last successful refresh time per source.
+
+#### Scenario: New upstream signature reaches the running system
+- **WHEN** an external source publishes a new signature and the next poll succeeds
+- **THEN** the signature is active for subsequent interactions and its audit matches cite the source and refresh time
+
+#### Scenario: Refresh failure keeps last-known-good
+- **WHEN** a poll fails or returns an invalid payload
+- **THEN** the previously loaded feed remains in force and the failure is recorded
 
 ### Requirement: Match safety
 Signature patterns MUST be compiled under bounded matching: a fixed per-pattern and per-content match budget, no unbounded backtracking, and a bounded number of patterns per feed. A pattern that exhausts its budget MUST be reported and skipped without stalling the pipeline or disabling other signatures.

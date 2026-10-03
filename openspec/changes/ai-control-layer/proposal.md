@@ -36,9 +36,11 @@ of prompt-parseable.
   atomic typed questions (prompt injection, jailbreak, data exfiltration, malicious code,
   threat category, severity score), answered in parallel, mapped to verdicts by the policy
   engine. Includes confidence floors and a fail-closed degradation path.
-- Add **historical attack mitigation**: an externally managed signature feed (patterns from
-  known AI exploits: prompt injection and jailbreak payloads, malicious tool calls, unsafe
-  deserialization, model-repo supply-chain markers, MCP tool poisoning, exfiltration)
+- Add **historical attack mitigation**: an externally managed signature feed ingested from
+  live SOTA-2026 threat-intel sources (MITRE ATLAS STIX 2.1, OSV/OpenSSF malicious-package
+  reports, public exploit corpora), covering patterns from known AI exploits — prompt
+  injection and jailbreak payloads, malicious tool calls, unsafe
+  deserialization, model-repo supply-chain markers, MCP tool poisoning, exfiltration —
   matched deterministically and evasion-resistant — matching over raw, canonicalized, and
   decoded forms with spans mapped back to raw content — plus tool-schema scanning at MCP
   registration, structural suspicion signals, feed integrity (version hash, provenance,

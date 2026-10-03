@@ -236,15 +236,23 @@ surface, not just message content.
   `prompt_injection | jailbreak | tool_abuse | unsafe_deserialization | supply_chain |
   mcp_tool_poisoning | exfiltration`. `references[]` carries external technique ids
   (MITRE ATLAS / OWASP). Feed-level `version` hash computed over canonical content.
-  Plain JSON core (judge-editable, zod-validated) with STIX-style metadata; a STIX 2.1 /
-  Sigma importer is an optional adapter, not the wire format.
+  Plain JSON core (judge-editable, zod-validated); external sources are first-class
+  ingestion adapters normalizing into the internal schema with external ids retained in
+  `references[]` — MITRE ATLAS STIX 2.1 (`mitre-atlas/atlas-data`), OSV API
+  malicious-package reports (OpenSSF `MAL-`), and an offline corpus importer
+  (JailbreakBench artifacts, in-the-wild jailbreak prompts, the AISec 2026 prompt-injection
+  benchmark, tldrsec, PayloadsAllTheThings) — classified against OWASP LLM Top 10 2026,
+  Agentic AI Top 10 (2025), and MCP Top 10 (2025).
 - **Lifecycle**: loaded at startup and hot-reloaded like the policy (file watch + atomic
   snapshot swap); per-entry validation, invalid entries skipped with an audit warning (one
   bad row never kills the feed); deterministic dedup of repeated ids; `enabled: false`
   tombstones signatures without losing history; optional detached-signature verification
   (e.g. ed25519) for externally managed feeds — a feed failing verification is not loaded
-  and the previous feed stays in force. An optional HTTP puller (conditional GET) is a
-  later adapter on the same loader.
+  and the previous feed stays in force. External sources are refreshed on a configurable
+  poll interval with conditional GET (ETag/Last-Modified) so newly published signatures
+  reach the running system without operator action; refresh failures keep the
+  last-known-good feed and record per-source last-success. A vendored feed snapshot keeps
+  the hermetic suite and offline demos fully functional.
 - **Inspection surfaces**: raw prompts, tool calls and arguments, tool schemas and
   descriptions at MCP registration (poisoned tool descriptions are rejected at catalog
   admission, before any call), and outbound model/tool output.
