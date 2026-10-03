@@ -15,9 +15,6 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "verify": "tsc --noEmit && biome check .",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:live": "vitest run --config vitest.live.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -35,7 +32,6 @@
     "@tanstack/ai-ollama": "0.11.12",
     "@tanstack/ai-openai": "0.26.0",
     "@tanstack/ai-react": "0.29.4",
-    "@tanstack/ai-typesafe": "^0.1.7",
     "@tanstack/react-devtools": "0.10.13",
     "@tanstack/react-router": "1.170.41",
     "@tanstack/react-router-devtools": "1.167.2",
@@ -73,8 +69,7 @@
     "dotenv": "^17.3.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
-    "vite": "^8.0.0",
-    "vitest": "^5.0.3"
+    "vite": "^8.0.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
