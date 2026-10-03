@@ -20,6 +20,11 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `bun test`, `bunx <bin>`. Never `npm`, `pnpm`, or `yarn`. `bun.lock` is the one
   and only lockfile — `package-lock.json`/`pnpm-lock.yaml` must not be committed.
   CI (`.github/workflows/ci.yml`) runs the same toolchain on an Alpine bun image.
+- **One branch per session, everything lands via pull request.** Never push to
+  `master`/`main` directly — a GitHub ruleset blocks it. Each work session runs on
+  its own branch named `session/<slug>` (e.g. `session/bun-sqlite`): branch off
+  `master`, commit the session's work there, push the branch, open a PR into
+  `master`, and merge only with the `unit-tests`/`verify` checks green.
 - `bun run verify` (or `tsc --noEmit && biome check .`) must pass before committing;
   `bun run build` is gated on `tsc --noEmit`.
 - `tsconfig.json`: all strict + lint-grade flags on (`noUncheckedIndexedAccess`,
