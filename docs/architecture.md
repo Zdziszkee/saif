@@ -210,8 +210,10 @@ concurrently. Every seam is a stateless request handler: resolve the subject,
 run the pipeline against an immutable policy snapshot, answer. Bun serves the
 routes from a single async event loop, so concurrent requests interleave at
 await points: the semantic round trip is awaited I/O, not a blocking call, and
-the deterministic stages are small bounded CPU work per request. No request
-state lives in process memory between requests.
+the deterministic stages are small bounded CPU work per request. No
+per-request state is kept in process memory between requests; shared mutable
+state is limited to subject state (hub grants, in memory today) and read-only
+caches.
 
 **Isolation axes.** The governance identity is the consumer key: policy
 resolution, budget windows, and audit records are keyed by subject, so one
@@ -234,11 +236,17 @@ consumer key per subject.
   (e.g. Postgres) behind the existing repository seams, or a single writer
   service.
 - **Hub state** (grants, connections) is keyed per subject, and per-connection
-  credentials belong to one connection and are never shared across subjects.
+  credentials belong to one connection, travel only as a transport header to
+  the target endpoint, and are never retained in records or audit. Grant state
+  lives in process memory today: fine for one instance, but durable or
+  centralized storage is required before scale-out or whenever grants must
+  survive a restart.
 - **Long-running agent loops run outside the web process**, as clients of the
-  seams (guard API, chat seam, hub). A runaway agent then costs its own
-  resources and its own budget window, never the instance's memory or
-  scheduler.
+  seams (guard API, chat seam, hub). The hub's own `askModel` loop
+  (`src/hub/loop.ts`) runs in-process but is bounded by request-count and
+  compute-time budgets and terminates with an over-budget verdict, so a runaway
+  agent costs its own resources and its own budget window, never the instance's
+  memory or scheduler.
 
 **Scaling path.** Run one instance first: it covers a whole team's agents and
 users. Scale vertically while the store is file-based. Scale horizontally
@@ -296,3 +304,6 @@ error or timeout fails closed to the policy failure verdict).
 | Budget pre-flight / settlement | in progress |
 | Durable audit store, metrics, export | in progress (in-memory sink today) |
 | Dashboard route | in progress |
+| Human-user authentication (sessions/tokens in front of the seams) | not started (consumer keys only) |
+| Atomic budget reservation across concurrent requests | in progress (pre-flight reservation to be transactional) |
+| Durable hub grants | in process memory today |
