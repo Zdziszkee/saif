@@ -44,7 +44,9 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   server files (mcp, db, control, drizzle.config, scripts), `noDefaultExport` in config files,
   `noHeadElement` in `src/routes/__root.tsx`, and CONSTANT_CASE object keys for env
   vars and HTTP method keys. The `control` entry exists because the policy loader needs
-  `node:fs` file-watch and `node:crypto` sha256. Test files (`tests/**`) additionally
+  `node:fs` file-watch and `node:crypto` sha256. `scripts/build-fixture-env.ts` turns off
+  `security/noSecrets` because it assembles obviously-fake detector fixtures (never real
+  credentials) that trip the entropy scanner. Test files (`tests/**`) additionally
   turn off `noMagicNumbers` (fixtures pin literal thresholds and status codes) and
   `noExcessiveLinesPerFunction` (one `describe` per scenario set is idiomatic);
   `src/hub/model.ts` turns off `useNamingConvention` because OpenAI-compatible

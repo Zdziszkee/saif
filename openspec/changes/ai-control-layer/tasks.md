@@ -22,8 +22,8 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 ## 4. Deterministic tier
 
-- [ ] 4.1 Implement detectors for secrets (API keys, tokens) and PII (email, phone, card, government-ID-like) returning kind and span, and wire policy-defined custom regex rules into the same detection pass (rule id as detector id, per-rule direction scope and mapped action); verify positive and negative detector tests pass, including a custom-rule fixture (verify: detector tests pass)
-- [ ] 4.2 Implement typed-placeholder redaction of detected spans and verify redaction preserves surrounding content (verify: redaction tests pass)
+- [x] 4.1 Implement detectors for secrets (API keys, tokens) and PII (email, phone, card, government-ID-like) returning kind and span, and wire policy-defined custom regex rules into the same detection pass (rule id as detector id, per-rule direction scope and mapped action); verify positive and negative detector tests pass, including a custom-rule fixture (verify: detector tests pass)
+- [x] 4.2 Implement typed-placeholder redaction of detected spans and verify redaction preserves surrounding content (verify: redaction tests pass)
 - [ ] 4.3 Document detection kinds and placeholder formats in `docs/controls.md`; verify documented examples match test fixtures (verify: examples in docs correspond 1:1 to passing fixtures)
 
 ## 5. Signature engine (historical attack mitigation)

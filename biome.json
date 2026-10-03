@@ -113,6 +113,16 @@
 			}
 		},
 		{
+			"includes": ["**/build-fixture-env.ts"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noSecrets": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["**/tests/**"],
 			"linter": {
 				"rules": {
