@@ -208,7 +208,7 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
   the signature engine, R4). Catches light obfuscation of secrets/injection.
 - **Output contract**: `Detection { kind, span, detectorId, confidence, validated }`.
   Redaction maps kinds to typed placeholders (`[EMAIL]`, `[CARD_LAST4:4242]`, `[API_KEY]`),
-  per-kind action (allow/redact/block) comes from policy. Redacted text is the only input
+  per-kind action (allow/redact/block/flag) comes from policy. Redacted text is the only input
   later stages (semantic tier) may see (D4 + R2b egress rules).
 - **Implementation choice**: in-house typed pattern catalog (tables in code), no heavy
   dependency — judge-tunable, license-clean, fixture-tested. Per-pattern length cap and
