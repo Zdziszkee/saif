@@ -34,6 +34,5 @@ export const env = createEnv({
 	runtimeEnv: import.meta.env,
 	server: {
 		SERVER_URL: z.string().url().optional(),
-		VAULT_SECRET: z.string().min(1).optional(),
 	},
 });

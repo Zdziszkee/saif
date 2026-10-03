@@ -160,6 +160,7 @@
 				"**/mcp-handler.ts",
 				"**/db/**",
 				"**/routes/mcp.ts",
+				"**/routes/api.guard.ts",
 				"**/signature-store.ts",
 				"**/signatures.ts",
 				"**/vault.ts",

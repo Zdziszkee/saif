@@ -2,8 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { handleGuardRequest } from "#/control/guard-api.ts";
 import { createSignatureStore } from "#/control/signature-store.ts";
+import { createPiiVault } from "#/control/vault.ts";
 
 const signatureStore = createSignatureStore("signatures.json", { watch: true });
+const { VAULT_SECRET } = process.env;
+const serverVault = VAULT_SECRET === undefined ? null : createPiiVault(VAULT_SECRET);
 
 export const Route = createFileRoute("/api/guard")({
 	server: {
@@ -22,6 +25,7 @@ export const Route = createFileRoute("/api/guard")({
 				const response = handleGuardRequest(payload, {
 					feed: snapshot.feed,
 					feedOk: snapshot.ok,
+					vault: serverVault,
 				});
 				return Response.json(response.body, { status: response.status });
 			},

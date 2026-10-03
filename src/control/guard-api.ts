@@ -5,12 +5,9 @@ import { type FilterOptions, filterContent } from "#/control/filter.ts";
 import type { FirstLayerPolicy, Verdict } from "#/control/policy.ts";
 import { surfaceSchema } from "#/control/policy.ts";
 import type { SignatureFeed, SignatureMatch } from "#/control/signatures.ts";
-import { createPiiVault, type PiiVault } from "#/control/vault.ts";
-import { env } from "#/env.ts";
+import type { PiiVault } from "#/control/vault.ts";
 
 const MaxContentLength = 65_536;
-
-const sharedVault = env.VAULT_SECRET === undefined ? null : createPiiVault(env.VAULT_SECRET);
 
 export const guardRequestSchema = z.object({
 	anonymization: z.enum(["placeholder", "tokenize"]).optional(),
@@ -65,7 +62,7 @@ export function handleGuardRequest(payload: unknown, options: GuardOptions): Gua
 			status: 503,
 		};
 	}
-	const vault = options.vault === undefined ? sharedVault : options.vault;
+	const vault = options.vault ?? null;
 	if (parsed.data.anonymization === "tokenize" && vault === null) {
 		return invalidRequest("reversible tokenization requires VAULT_SECRET");
 	}
