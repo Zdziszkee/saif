@@ -60,4 +60,14 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `unit-tests` check — failed tests block PR merges to `master`/`main`, and
   direct pushes to those branches are disabled via a GitHub ruleset.
 
+## Pull requests
+
+Every PR carries a compact, textbook-style summary of the change: what changed,
+why it matters, and how it was verified. Structure it as `## Summary` (bulleted
+scope), `## Design` (one short paragraph, only when non-obvious decisions were
+made), and `## Validation` (the exact commands or tests run and their results).
+Plain declarative sentences; no marketing tone and no restating the diff. Draft
+it as `docs/pr/<branch-slug>.md` on the PR branch so it is reviewable with the
+code, and use it as the PR body.
+
 Installed skill catalog: see [skills.md](./skills.md).
