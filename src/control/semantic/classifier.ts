@@ -2,6 +2,7 @@ import type { AnyEvaluateAdapter, BooleanAnswer } from "@tanstack/ai";
 import { decide } from "@tanstack/ai";
 
 import { buildQuestions, validateChecks } from "./checks.ts";
+import { SEMANTIC_DEFAULTS } from "./config.ts";
 import {
 	SemanticInvalidAnswerError,
 	SemanticTimeoutError,
@@ -19,16 +20,6 @@ import type {
 	SemanticMeta,
 	SemanticUsage,
 } from "./types.ts";
-
-/** Default deadline for a single evaluation round trip. */
-export const DEFAULT_TIMEOUT_MS = 2500;
-
-/**
- * Minimum decisiveness `max(p, 1 - p)` for an answer to be trusted.
- * `0.5` is always satisfied (a coin flip is "decisive" by definition), so
- * anything above 0.5 starts rejecting uncertain answers.
- */
-const DEFAULT_FLOORS: SemanticFloors = { decisiveness: 0.65 };
 
 /** Sentinel used to cut an in-flight evaluation short. */
 const ABORTED = Symbol("semantic:aborted");
@@ -72,12 +63,12 @@ export function createSemanticClassifier(
 	adapter: AnyEvaluateAdapter,
 	options: SemanticClassifierOptions,
 ): SemanticClassifier {
-	validateChecks(options.checks);
+	const defaultChecks = options.checks ?? SEMANTIC_DEFAULTS.checks;
+	validateChecks(defaultChecks);
 
-	const defaultChecks = options.checks;
-	const floors = options.floors ?? DEFAULT_FLOORS;
-	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-	const maxChars = options.maxChars;
+	const floors = options.floors ?? SEMANTIC_DEFAULTS.floors;
+	const timeoutMs = options.timeoutMs ?? SEMANTIC_DEFAULTS.timeoutMs;
+	const maxChars = options.maxChars ?? SEMANTIC_DEFAULTS.maxChars;
 	const name = options.name ?? adapter.name;
 
 	return {
@@ -89,7 +80,7 @@ export function createSemanticClassifier(
 			validateChecks(checks);
 
 			const questions = buildQuestions(checks);
-			const state = buildSemanticState(input, maxChars === undefined ? undefined : { maxChars });
+			const state = buildSemanticState(input, { maxChars });
 			const deadline = openDeadline(timeoutMs, evaluateOptions?.signal);
 
 			try {

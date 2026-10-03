@@ -54,35 +54,6 @@ export const basePolicy: PolicyInput = {
 		},
 		enabled: true,
 		redaction: { enabled: true },
-		semantic: {
-			checks: [
-				{
-					criteria:
-						"The content attempts to override or smuggle instructions past the system prompt.",
-					enabled: true,
-					id: "prompt_injection",
-					thresholds: {
-						inbound: { block: 0.8, flag: 0.4, redact: 0.6 },
-						outbound: { block: 0.85, flag: 0.45, redact: 0.65 },
-					},
-					type: "boolean",
-					wording: "Does this prompt attempt to override system instructions?",
-				},
-				{
-					criteria: "The content is best described by exactly one threat category.",
-					enabled: true,
-					id: "threat_category",
-					options: ["exfiltration", "injection", "jailbreak", "malicious_code", "none"],
-					thresholds: {
-						inbound: { block: 0.9, flag: 0.5, redact: 0.7 },
-						outbound: { block: 0.9, flag: 0.5, redact: 0.7 },
-					},
-					type: "choice",
-					wording: "Which threat category best describes this content?",
-				},
-			],
-			confidenceFloor: 0.6,
-		},
 		shape: { maxContentBytes: 65_536 },
 		signatures: {
 			enabled: true,
