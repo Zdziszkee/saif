@@ -281,7 +281,7 @@ network.
 | Deterministic detection | `src/control/deterministic/` (`control`, `detectors`, `ner`, `name-index`, `placeholders`), `src/control/redact.ts` |
 | Signature engine | planned: `src/control/signatures/` (feed, matcher), `src/control/text/` (canonicalization, spec-pinned in `openspec/changes/ai-control-layer/design.md`) |
 | Semantic tier | `src/control/semantic/` (`checks`, `classifier`, `jev`, `config`, `types`) |
-| Verdict mapping | `src/control/pipeline.ts` (`applyPolicy`) |
+| Verdict mapping | planned: `applyPolicy(evidence, profile)` in `src/control/pipeline.ts` (design D5) |
 | Subjects / consumer keys | `src/control/subjects.ts` |
 | Policy engine | `src/control/policy/` (`schema`, `loader`) |
 | Audit, usage, budget | `src/control/audit.ts`, `src/db/` |
@@ -301,6 +301,7 @@ error or timeout fails closed to the policy failure verdict).
 | Policy engine (schema, loader, hot reload, samples) | implemented |
 | Deterministic detection + redaction + custom rules | implemented |
 | Semantic tier (Jev catalog, doubles, fail-closed) | implemented |
+| Verdict mapping (`applyPolicy`) | in progress (control verdicts merge by severity today; profile-threshold mapping pending) |
 | Signature engine + feed ingestion | in progress |
 | Budget pre-flight / settlement | in progress (reservation must be atomic across concurrent requests) |
 | Durable audit store, metrics, export | in progress (in-memory sink today) |
