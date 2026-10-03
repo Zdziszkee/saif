@@ -1,36 +1,160 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
-	"vcs": {
-		"enabled": false,
-		"clientKind": "git",
-		"useIgnoreFile": false
+	"$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
+	"assist": {
+		"actions": {
+			"recommended": true,
+			"source": {
+				"noDuplicateClasses": "on",
+				"organizeImports": "on",
+				"useSortedAttributes": "on",
+				"useSortedInterfaceMembers": "on",
+				"useSortedKeys": "on",
+				"useSortedProperties": "on"
+			}
+		},
+		"enabled": true
 	},
 	"files": {
-		"ignoreUnknown": false,
+		"ignoreUnknown": true,
 		"includes": [
 			"**/src/**/*",
 			"**/.vscode/**/*",
 			"**/index.html",
 			"**/vite.config.ts",
+			"**/drizzle.config.ts",
 			"!**/src/routeTree.gen.ts",
 			"!**/src/styles.css"
 		]
 	},
 	"formatter": {
 		"enabled": true,
-		"indentStyle": "tab"
-	},
-	"assist": { "actions": { "source": { "organizeImports": "on" } } },
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"recommended": true
-		}
+		"indentStyle": "tab",
+		"lineWidth": 100
 	},
 	"javascript": {
 		"formatter": {
-			"quoteStyle": "double"
+			"quoteStyle": "double",
+			"semicolons": "always",
+			"trailingCommas": "all"
 		}
+	},
+	"linter": {
+		"domains": {
+			"react": "all",
+			"test": "all",
+			"types": "all"
+		},
+		"enabled": true,
+		"rules": {
+			"a11y": "error",
+			"complexity": "error",
+			"correctness": "error",
+			"nursery": {
+				"noDuplicatedSpreadProps": "error",
+				"noDuplicateVariableNames": "error",
+				"noEqualsToNull": "error",
+				"noFloatingPromises": "error",
+				"noMisusedPromises": "error",
+				"noMultiAssign": "error",
+				"noNestedPromises": "error",
+				"noProto": "error",
+				"noReturnAssign": "error",
+				"noScriptUrl": "error",
+				"noShadow": "error",
+				"noUndeclaredEnvVars": "error",
+				"noUnnecessaryConditions": "error",
+				"noUselessReturn": "error",
+				"useArraySome": "error",
+				"useArraySortCompare": "error",
+				"useAwaitThenable": "error",
+				"useErrorCause": "error",
+				"useExhaustiveSwitchCases": "error",
+				"useFind": "error",
+				"useGlobalThis": "error"
+			},
+			"performance": "error",
+			"recommended": true,
+			"security": "error",
+			"style": "error",
+			"suspicious": "error"
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["**/*"],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noUnresolvedImports": "off"
+					},
+					"style": {
+						"noJsxLiterals": "off",
+						"useExportsLast": "off",
+						"useNamingConvention": {
+							"level": "error",
+							"options": {
+								"conventions": [
+									{
+										"formats": ["camelCase", "PascalCase", "CONSTANT_CASE"],
+										"selector": { "kind": "objectLiteralMember" }
+									}
+								]
+							}
+						}
+					},
+					"suspicious": {
+						"noReactSpecificProps": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/vite.config.ts", "**/drizzle.config.ts"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noDefaultExport": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/src/routes/__root.tsx"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noHeadElement": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"**/mcp-todos.ts",
+				"**/mcp-handler.ts",
+				"**/db/**",
+				"**/routes/mcp.ts",
+				"**/drizzle.config.ts"
+			],
+			"linter": {
+				"rules": {
+					"correctness": {
+						"noNodejsModules": "off",
+						"noProcessGlobal": "off"
+					},
+					"style": {
+						"noProcessEnv": "off"
+					},
+					"suspicious": {
+						"noConsole": "off"
+					}
+				}
+			}
+		}
+	],
+	"vcs": {
+		"clientKind": "git",
+		"enabled": true,
+		"useIgnoreFile": true
 	}
 }
-
