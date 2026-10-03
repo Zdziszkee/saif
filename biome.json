@@ -194,6 +194,19 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["**/src/components/ui/**"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noSecrets": "off"
+					},
+					"style": {
+						"useComponentExportOnlyModules": "off"
+					}
+				}
+			}
 		}
 	],
 	"vcs": {

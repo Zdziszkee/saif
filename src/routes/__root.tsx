@@ -1,7 +1,14 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Link, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-
+import { Button } from "#/components/ui/button.tsx";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "#/components/ui/card.tsx";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -31,12 +38,18 @@ export const Route = createRootRoute({
 
 function NotFound() {
 	return (
-		<main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-center">
-			<h1 className="text-4xl font-bold">404</h1>
-			<p className="text-gray-600">This page could not be found.</p>
-			<Link className="text-blue-600 underline hover:text-blue-800" to="/">
-				Go home
-			</Link>
+		<main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
+			<Card className="w-full max-w-sm text-center">
+				<CardHeader>
+					<CardTitle className="text-4xl">404</CardTitle>
+					<CardDescription>This page could not be found.</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<Button asChild={true}>
+						<Link to="/">Go home</Link>
+					</Button>
+				</CardContent>
+			</Card>
 		</main>
 	);
 }
