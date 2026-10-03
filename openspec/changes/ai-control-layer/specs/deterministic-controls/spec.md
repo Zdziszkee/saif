@@ -34,3 +34,17 @@ Deterministic controls SHALL run before the semantic tier. A `block` verdict fro
 #### Scenario: Deterministic block is final
 - **WHEN** a deterministic control returns `block`
 - **THEN** the semantic tier is not invoked for that interaction
+
+### Requirement: Connected-service credential protection
+The system SHALL detect credentials of user-connected MCP services (for example Confluence or Jira API tokens) in outbound content using deterministic patterns. Detected service credentials MUST be redacted before forwarding and MUST NOT reach the semantic tier, logs, or audit records.
+
+#### Scenario: Service token redacted
+- **WHEN** tool output from a connected MCP server contains that server's service credential
+- **THEN** the credential span is replaced with a typed placeholder before the output is forwarded to the model
+
+### Requirement: Domain egress enforcement
+The system SHALL deterministically check the target of network-classified tool calls and MCP connection endpoints against the policy's egress allowlist before any forwarding. A target outside the allowlist MUST be blocked without invoking the semantic tier.
+
+#### Scenario: Egress block is deterministic
+- **WHEN** a network-classified call targets a domain outside the allowlist
+- **THEN** the call is blocked by the egress check alone and the attempt is recorded in the audit log

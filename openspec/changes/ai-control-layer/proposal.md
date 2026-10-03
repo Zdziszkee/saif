@@ -39,8 +39,9 @@ of prompt-parseable.
   probabilities, latency, token usage, cost), aggregate metrics, exportable audit trail,
   and an interactive dashboard (controls, posture, blocked threats, budget usage).
 - Add an **executable self-test suite**: positive (allowed) and negative (blocked/redacted)
-  cases for every control, including budget-limit and exploit-mitigation tests, runnable by
-  judges with no external credentials (classifier behind a swappable adapter with a mock).
+  cases for every control, including budget-limit and exploit-mitigation tests, in two
+  tiers: a unit tier runnable without credentials, and an integration/end-to-end tier that
+  exercises the real semantic decision model and a real model endpoint.
 - Add **sample configurations** demonstrating multiple strictness levels and budget rules,
   plus an architecture diagram and a demo agent/traffic source to showcase the layer.
 
@@ -64,6 +65,13 @@ of prompt-parseable.
   request counts, and compute time across commercial and local model backends.
 - `security-observability`: audit logging, real-time metrics, exportable reports, and the
   dashboard surfaces for management and security teams.
+- `mcp-safety-hub`: the MCP server as the single governed path to models and tools —
+  `askModel` as the only model-reaching interface, governed tool calls (including risky
+  demo tools) with configurable tool/turn enforcement, the governed agentic tool loop, and
+  the OpenAI-compatible model connection (env-configured endpoint, model, key).
+- `self-testing-suite`: the executable suite in two tiers — a credential-free unit tier
+  (fixed evidence and boundary test doubles, never selectable in the product path) and an
+  integration/end-to-end tier that exercises real models and requires credentials.
 
 ### Modified Capabilities
 
@@ -83,6 +91,7 @@ None — the repo has no existing specs (`openspec list --specs` is empty).
 - **Runtime**: Jev calls add 70-500 ms on the semantic path only; deterministic tier
   short-circuits for the common case. All traffic is metered into SQLite.
 - **Constraints**: judges get no paid subscriptions and run the suite themselves, so the
-  semantic tier is adapter-swappable (real Jev / mock / local Ollama fallback) and the test
-  suite is hermetic by default. Classification stays separate from authorization: Jev
-  flags, the policy engine decides.
+  unit tier runs credential-free (test doubles at boundaries only) while the
+  integration/end-to-end tier requires real model credentials; the semantic tier runs on
+  the real decision model (Jev) with no mock classifier in the product path. Classification
+  stays separate from authorization: Jev flags, the policy engine decides.
