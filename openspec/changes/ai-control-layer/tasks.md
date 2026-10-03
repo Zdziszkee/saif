@@ -23,11 +23,15 @@
 - [ ] 4.2 Implement typed-placeholder redaction of detected spans and verify redaction preserves surrounding content (verify: redaction tests pass)
 - [ ] 4.3 Document detection kinds and placeholder formats in `docs/controls.md`; verify documented examples match test fixtures (verify: examples in docs correspond 1:1 to passing fixtures)
 
-## 5. Signature feed
+## 5. Signature engine
 
-- [ ] 5.1 Implement the signature feed schema and loader (identifier, description, pattern, severity, source, timestamps) with per-entry validation and skip-invalid behavior; verify loader tests pass (verify: feed loader tests pass)
-- [ ] 5.2 Implement matching and policy-mapped action selection for prompts, tool calls, and output; verify exploit-positive and benign-negative tests pass (verify: matcher tests cover injection payload, malicious tool-call shape, unsafe-deserialization marker, and supply-chain marker)
-- [ ] 5.3 Implement feed hot reload and ship a sample `signatures.json` seeded with known historical AI-exploit patterns; verify a reload test adds a pattern that blocks a matching request (verify: hot-reload integration test passes)
+- [ ] 5.1 Implement the signature feed schema and loader (identifier, name, description, pattern, kind including `mcp_tool_poisoning` and `exfiltration`, severity, source, references, timestamps, enabled flag) with per-entry validation, skip-invalid behavior, deterministic dedup, feed version hashing, and optional detached-signature verification; verify loader tests pass (verify: feed loader tests cover valid load, skip-invalid, dedup, version hash, and tampered-feed rejection)
+- [ ] 5.2 Implement the shared canonicalization and decode module `src/control/text/` (NFKC + casefold, zero-width/bidi stripping, homoglyph folding, leetspeak folding, whitespace/punctuation collapsing, bounded layered base64/URL/hex/HTML-entity decode) with span mapping back to raw content, reused by the deterministic tier L4 re-scan; verify transform-matrix tests pass (verify: each evasion transform variant of a known payload is matched and maps to the raw span)
+- [ ] 5.3 Implement the matcher (literal prefilter, per-signature compiled regex over raw/canonical/decoded forms, optional validator stage) and structural suspect signals (invisible-character density, payload splitting, high-entropy blobs); verify exploit-positive and benign-negative tests pass across all kinds and obfuscated forms (verify: matcher tests cover injection, jailbreak, tool-abuse, unsafe-deserialization, supply-chain, tool-poisoning, and exfiltration markers in raw and evasion-variant forms)
+- [ ] 5.4 Implement match safety (per-pattern and per-content match budget, bounded feed size, ReDoS containment); verify a pathological pattern is reported and skipped without stalling (verify: match-budget test proves remaining signatures still fire)
+- [ ] 5.5 Implement policy-mapped actions (severity to default action, per-signature overrides, suspect action and threshold); verify mapping tests pin every action (verify: severity-mapping and override tests pass)
+- [ ] 5.6 Implement feed hot reload and ship `signatures.json` seeded with ~30-50 known historical AI-exploit patterns across all kinds, each with positive and evasion-variant fixtures rewritten from cited public sources; verify a reload test adds a pattern that blocks a matching request (verify: hot-reload integration test passes)
+- [ ] 5.7 Implement tool-schema scanning at MCP registration and audit provenance recording (signature id, source, feed version hash, matched form, raw-mapped span); verify poisoned tool descriptions are rejected at catalog admission and provenance lands in audit (verify: registration-scan and provenance tests pass)
 
 ## 6. Semantic tier (Jev)
 

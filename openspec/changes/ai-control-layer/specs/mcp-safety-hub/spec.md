@@ -7,7 +7,7 @@ Makes the MCP server the safety hub: the single governed path through which ever
 ## ADDED Requirements
 
 ### Requirement: Single governed path to the model
-The hub SHALL be the only path from clients to the model: prompts reach the model exclusively through the hub's model-access tool (MCP tool `askModel`), and the system MUST NOT expose any other model-reaching interface. All tool calls execute through hub-hosted tools.
+The hub SHALL be the only path from clients to the model: prompts reach the model exclusively through the hub's model-access tool (MCP tool `askModel`), and the system MUST NOT expose any other model-reaching interface. All tool calls execute through the hub's tool catalog: hub-hosted tools and tools registered from connected MCP servers (see `interaction-gateway`).
 
 #### Scenario: Prompt reaches model via the hub
 - **WHEN** a client invokes `askModel` with a prompt

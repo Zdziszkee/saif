@@ -163,7 +163,8 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **L3 Entropy scan**: token runs (length ≥ 20, base64/hex-shaped) with Shannon entropy
   ≥ ~3.5–4.0 bits/char → generic-secret `suspect`. Catches unknown credential formats.
 - **L4 Encoding-aware re-scan**: bounded decode (base64/URL/hex, depth ≤ 2) then re-run L1
-  on decoded text. Catches light obfuscation of secrets/injection.
+  on decoded text, via the shared `src/control/text/` canonicalization module (also used by
+  the signature engine, R4). Catches light obfuscation of secrets/injection.
 - **Output contract**: `Detection { kind, span, detectorId, confidence, validated }`.
   Redaction maps kinds to typed placeholders (`[EMAIL]`, `[CARD_LAST4:4242]`, `[API_KEY]`),
   per-kind action (allow/redact/block) comes from policy. Redacted text is the only input
@@ -205,20 +206,59 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **Burst control (optional refinement)**: token-bucket rate limit per consumer for runaway
   agent loops, complementing the windowed spend cap.
 
-### R4. Historical attack mitigation (signature feed)
+### R4. Historical attack mitigation (signature engine)
 
-- **Feed format** `signatures.json`: entries `{ id, name, description, pattern, kind, severity,
-  source, addedAt, action? }` with kinds `prompt_injection | jailbreak | tool_abuse |
-  unsafe_deserialization | supply_chain`. Loaded at startup and hot-reloaded like the policy;
-  per-entry validation, invalid entries skipped with an audit warning (one bad row never
-  kills the feed).
-- **Matching**: compiled pattern set applied to prompts, tool calls, and outputs (same L1
-  pass slot). Severity → default action, overridable in policy. Provenance (`id`, `source`)
-  lands in the audit row so false-positive tuning is observable.
-- **Seed entries**: classic injection markers ("ignore previous instructions", persona
-  overrides), tool-abuse shapes (`rm -rf /`, `curl … | bash`), unsafe deserialization
-  (`__reduce__`, `yaml.load(`, `pickle.loads`), supply-chain markers (install-script hooks,
-  known-malicious/typosquat package names).
+A signature engine detects known historical AI exploits — the L1 pass slot in D4 — designed
+to 2025/2026 practice: character-transform evasion defeats naive string matching (studies
+show 100% → 0% detection under base64/homoglyph/zero-width/leetspeak transforms), so
+matching runs over canonicalized and decoded forms, and MCP tool schemas are an inspection
+surface, not just message content.
+
+- **Feed format** `signatures.json`: entries
+  `{ id, name, description, pattern, kind, severity, source, references[], addedAt,
+  updatedAt, enabled, validator?, action? }` with kinds
+  `prompt_injection | jailbreak | tool_abuse | unsafe_deserialization | supply_chain |
+  mcp_tool_poisoning | exfiltration`. `references[]` carries external technique ids
+  (MITRE ATLAS / OWASP). Feed-level `version` hash computed over canonical content.
+  Plain JSON core (judge-editable, zod-validated) with STIX-style metadata; a STIX 2.1 /
+  Sigma importer is an optional adapter, not the wire format.
+- **Lifecycle**: loaded at startup and hot-reloaded like the policy (file watch + atomic
+  snapshot swap); per-entry validation, invalid entries skipped with an audit warning (one
+  bad row never kills the feed); deterministic dedup of repeated ids; `enabled: false`
+  tombstones signatures without losing history; optional detached-signature verification
+  (e.g. ed25519) for externally managed feeds — a feed failing verification is not loaded
+  and the previous feed stays in force. An optional HTTP puller (conditional GET) is a
+  later adapter on the same loader.
+- **Inspection surfaces**: raw prompts, tool calls and arguments, tool schemas and
+  descriptions at MCP registration (poisoned tool descriptions are rejected at catalog
+  admission, before any call), and outbound model/tool output.
+- **Canonicalization + decode** (shared `src/control/text/` module, also feeding the
+  deterministic tier L4 re-scan): NFKC + casefold, zero-width and bidi-control stripping,
+  homoglyph folding, leetspeak folding, whitespace/punctuation collapsing; bounded layered
+  decode (base64/URL/hex/HTML entities, depth ≤ 2). Every match carries a span map back to
+  raw content so redaction and audit point at the original text, and the matched form
+  (raw/canonical/decoded) is recorded.
+- **Matching**: cheap literal prefilter (Aho-Corasick over canonical + decoded forms) →
+  per-signature compiled regex → optional validator stage → severity → policy-mapped
+  action (severity defaults with per-id overrides; `suspect` structural signals —
+  invisible-char density, payload splitting/fragmentation, high-entropy encoded blobs —
+  map to the policy's suspect action, default redact/escalate). Deterministic `block` is
+  final per D4; matched form never changes the verdict path, only the evidence.
+- **Match safety**: bounded pattern count per feed, per-pattern and per-content match
+  budget, ReDoS-safe compilation (linear-time `re2js` is the drop-in if backtracking shows
+  up); a pattern exhausting its budget is reported and skipped without stalling the
+  pipeline.
+- **Seed entries** (~30-50, each with positive + evasion-variant fixtures; rewritten from
+  public sources — OWASP prompt-injection cheat sheet, tldrsec/prompt-injection-defenses,
+  MCP attack matrix — so licensing stays clean): classic injection markers ("ignore
+  previous instructions", persona overrides), jailbreak templates (DAN-style, role-play
+  envelopes), tool-abuse shapes (`rm -rf /`, `curl … | bash`), unsafe deserialization
+  (`__reduce__`, `yaml.load(`, `pickle.loads`), supply-chain markers (install-script
+  hooks, known typosquat package names), MCP tool-poisoning markers (hidden instructions in
+  tool descriptions, schema fields carrying directives), and exfiltration patterns
+  (markdown-image/beacon URLs, encoded outbound blobs).
+- **Audit provenance**: signature id, source, feed version hash, matched form, raw-mapped
+  span land in the audit row so false-positive tuning and feed attribution are observable.
 
 ### R5. Security reporting and auditing
 
@@ -269,6 +309,10 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
   distribution concentration, and floors that treat derived confidence as suspect.
 - [Signature feed false positives] → Severity-keyed actions with policy overrides;
   provenance in audit (see spec) makes tuning observable.
+- [Signature evasion via character transforms or encoding] → Canonicalized + decoded
+  matching with raw-span mapping (R4); an evasion-variant fixture per transform proves
+  coverage, and the semantic tier remains behind signatures for anything obfuscated
+  enough to slip past deterministic matching.
 - [SQLite write contention under load] → WAL mode and single-process Nitro keep this
   within bounds for the expected demo scale; a real deployment would swap the audit sink
   interface to a remote store.

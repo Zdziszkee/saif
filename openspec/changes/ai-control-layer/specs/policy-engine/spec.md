@@ -79,6 +79,13 @@ The policy SHALL define the set of permitted LLM models and endpoints. The syste
 - **WHEN** an interaction targets a model absent from the policy allowlist
 - **THEN** the interaction is blocked and the rejection is recorded in the audit log
 
+### Requirement: Egress allowlist
+The policy SHALL define the egress allowlist of permitted external targets (network-classified tool-call targets and MCP connection endpoints), and targets outside it MUST be rejected deterministically.
+
+#### Scenario: Non-allowlisted target rejected
+- **WHEN** a network-classified call or MCP connection targets an endpoint outside the egress allowlist
+- **THEN** the target is rejected before any forwarding and the rejection is recorded in the audit log
+
 ### Requirement: Policy storage, versioning, and dashboard editing
 The policy document SHALL be stored with full version history. Editing the policy through the dashboard MUST create a new version validated against the schema before activation; the runtime SHALL apply the new version to subsequent interactions via an immutable snapshot swap. The system SHALL support rollback to any prior version and JSON import and export of the policy document so file-based editing remains possible.
 
@@ -118,3 +125,14 @@ The policy SHALL configure how a blocked tool call is enforced — tool-scoped (
 #### Scenario: Profile selects enforcement mode
 - **WHEN** a profile sets tool-scoped enforcement and another sets turn-scoped enforcement
 - **THEN** each blocked tool call is enforced according to the profile in force for that interaction
+
+### Requirement: Signature control configuration
+The policy SHALL map signature-feed severity levels to default actions and MAY override the action per signature identifier. It SHALL also configure the suspect action and threshold for structural suspicion signals. A severity mapping change MUST apply to subsequent matches without restart.
+
+#### Scenario: Severity mapping applied
+- **WHEN** the policy maps a signature severity level to `block` and a signature of that severity fires
+- **THEN** the interaction is blocked and the audit record cites the severity mapping in force
+
+#### Scenario: Per-signature override wins
+- **WHEN** the policy overrides the action for a specific signature identifier
+- **THEN** that override applies instead of the severity default when the signature fires

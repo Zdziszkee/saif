@@ -51,11 +51,13 @@ of prompt-parseable.
 
 - `interaction-gateway`: interception of AI interactions across seams (chat, MCP tool
   calls, generic guard API) and enforcement of verdicts (allow/redact/block/escalate),
-  including redaction application and fail-closed behavior.
+  including redaction application, fail-closed behavior, external MCP server connections
+  (hub with credential custody), and egress-allowlist rejection of connections.
 - `policy-engine`: the single policy source — schema, strictness profiles, thresholds,
   control enable/disable, model allowlists, budget rules — with validation and hot reload.
-- `deterministic-controls`: non-AI checks — secret/PII detection and redaction, allowlist
-  and shape validation — with defined precedence against the semantic tier.
+- `deterministic-controls`: non-AI checks — secret/PII detection and redaction (including
+  connected-service credential protection), allowlist enforcement (models and egress
+  targets), and shape validation — with defined precedence against the semantic tier.
 - `semantic-classification`: Jev-based semantic decisions — typed questions, parallel
   evaluation, confidence floors, degradation/fallback behavior when the model is
   unavailable or uncertain.
@@ -69,6 +71,10 @@ of prompt-parseable.
   `askModel` as the only model-reaching interface, governed tool calls (including risky
   demo tools) with configurable tool/turn enforcement, the governed agentic tool loop, and
   the OpenAI-compatible model connection (env-configured endpoint, model, key).
+- `tool-authorization`: per-user authorization of every tool call before execution —
+  grant sets over a tool catalog with capability verbs (`read`, `create`, `modify`,
+  `delete`, `execute`, `network`), deny-by-default, `require-approval` via the dashboard
+  approvals queue, and a hard gate requiring approval for deletion-classified actions.
 - `self-testing-suite`: the executable suite in two tiers — a credential-free unit tier
   (fixed evidence and boundary test doubles, never selectable in the product path) and an
   integration/end-to-end tier that exercises real models and requires credentials.
