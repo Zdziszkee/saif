@@ -1,4 +1,4 @@
-import { type Detection, type DetectionKind, detectSensitive } from "#/control/detectors.ts";
+import { type Detection, detectSensitive } from "#/control/detectors.ts";
 import {
 	defaultFirstLayerPolicy,
 	type FirstLayerPolicy,
@@ -8,9 +8,9 @@ import {
 	type Verdict,
 	worstVerdict,
 } from "#/control/policy.ts";
-import { redactSpans } from "#/control/redact.ts";
+import { applyRedactions, detectionOps, type RedactionOp } from "#/control/redact.ts";
 import { matchSignatures, type SignatureFeed, type SignatureMatch } from "#/control/signatures.ts";
-import { type PiiVault, tokenizeSpans } from "#/control/vault.ts";
+import { detectionTokenOps, type PiiVault } from "#/control/vault.ts";
 
 export type AnonymizationMode = "placeholder" | "tokenize";
 
@@ -28,9 +28,11 @@ export interface FilterOptions {
 
 export interface FilterResult {
 	detections: Detection[];
+	deterministicVerdict: Verdict;
 	feedVersion: string;
 	matches: SignatureMatch[];
 	redactedText: string;
+	signatureVerdict: Verdict;
 	verdict: Verdict;
 }
 
@@ -46,35 +48,49 @@ export function filterContent(input: FilterInput, options: FilterOptions): Filte
 		(detection) => detection.confidence >= policy.deterministic.minConfidence,
 	);
 
-	const redactKinds = new Set<DetectionKind>();
-	const verdicts: Verdict[] = [];
-
+	const signatureVerdicts: Verdict[] = [];
+	const signatureOps: RedactionOp[] = [];
 	for (const match of matches) {
-		verdicts.push(resolveSignatureAction(policy, match.severity, match.action));
-	}
-
-	for (const detection of detections) {
-		const action = resolveDeterministicAction(policy, detection, direction);
-		verdicts.push(action);
+		const action = resolveSignatureAction(policy, match.severity, match.action);
+		signatureVerdicts.push(action);
 		if (action === "redact") {
-			redactKinds.add(detection.kind);
+			signatureOps.push({
+				end: match.end,
+				start: match.start,
+				text: `[SIGNATURE:${match.signatureId}]`,
+			});
 		}
 	}
 
-	const redactTargets = detections.filter((detection) => redactKinds.has(detection.kind));
-	let redactedText = input.text;
-	if (redactTargets.length > 0) {
-		redactedText =
-			options.anonymization === "tokenize" && options.vault !== undefined
-				? tokenizeSpans(input.text, redactTargets, options.vault)
-				: redactSpans(input.text, redactTargets);
+	const deterministicVerdicts: Verdict[] = [];
+	const redactTargets: Detection[] = [];
+	for (const detection of detections) {
+		const action = resolveDeterministicAction(policy, detection, direction);
+		deterministicVerdicts.push(action);
+		if (action === "redact") {
+			redactTargets.push(detection);
+		}
 	}
+
+	let redactedText = input.text;
+	const vault = options.anonymization === "tokenize" ? options.vault : undefined;
+	if (redactTargets.length > 0 || signatureOps.length > 0) {
+		const detectionOpsList =
+			vault === undefined ? detectionOps(redactTargets) : detectionTokenOps(redactTargets, vault);
+		redactedText = applyRedactions(input.text, [...detectionOpsList, ...signatureOps]);
+	}
+
+	const signatureVerdict = worstVerdict(signatureVerdicts);
+	const deterministicVerdict = worstVerdict(deterministicVerdicts);
+	const verdict = worstVerdict([signatureVerdict, deterministicVerdict]);
 
 	return {
 		detections,
+		deterministicVerdict,
 		feedVersion: options.feed.version,
 		matches,
 		redactedText,
-		verdict: worstVerdict(verdicts),
+		signatureVerdict,
+		verdict,
 	};
 }

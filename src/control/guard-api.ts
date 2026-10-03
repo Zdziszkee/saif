@@ -1,15 +1,16 @@
 import { z } from "zod";
 
 import type { Detection } from "#/control/detectors.ts";
-import { filterContent } from "#/control/filter.ts";
+import { type FilterOptions, filterContent } from "#/control/filter.ts";
 import type { FirstLayerPolicy, Verdict } from "#/control/policy.ts";
 import { surfaceSchema } from "#/control/policy.ts";
 import type { SignatureFeed, SignatureMatch } from "#/control/signatures.ts";
-import { createPiiVault } from "#/control/vault.ts";
+import { createPiiVault, type PiiVault } from "#/control/vault.ts";
+import { env } from "#/env.ts";
 
 const MaxContentLength = 65_536;
 
-const demoVault = createPiiVault("saif-demo-vault-2026");
+const sharedVault = env.VAULT_SECRET === undefined ? null : createPiiVault(env.VAULT_SECRET);
 
 export const guardRequestSchema = z.object({
 	anonymization: z.enum(["placeholder", "tokenize"]).optional(),
@@ -33,6 +34,7 @@ export type GuardResponseBody =
 			redactedText: string;
 			verdict: Verdict;
 	  }
+	| { error: "feed_unavailable"; reason: string }
 	| { error: "invalid_request"; reason: string };
 
 export interface GuardResponse {
@@ -40,31 +42,51 @@ export interface GuardResponse {
 	status: number;
 }
 
+export interface GuardOptions {
+	feed: SignatureFeed;
+	feedOk?: boolean;
+	policy?: FirstLayerPolicy;
+	vault?: PiiVault | null;
+}
+
 function invalidRequest(reason: string): GuardResponse {
 	return { body: { error: "invalid_request", reason }, status: 400 };
 }
 
-export function handleGuardRequest(
-	payload: unknown,
-	options: { feed: SignatureFeed; policy?: FirstLayerPolicy },
-): GuardResponse {
+export function handleGuardRequest(payload: unknown, options: GuardOptions): GuardResponse {
 	const parsed = guardRequestSchema.safeParse(payload);
 	if (!parsed.success) {
 		const issue = parsed.error.issues[0];
 		return invalidRequest(issue === undefined ? "malformed request" : issue.message);
 	}
+	if (options.feedOk === false) {
+		return {
+			body: { error: "feed_unavailable", reason: "signature feed is unavailable" },
+			status: 503,
+		};
+	}
+	const vault = options.vault === undefined ? sharedVault : options.vault;
+	if (parsed.data.anonymization === "tokenize" && vault === null) {
+		return invalidRequest("reversible tokenization requires VAULT_SECRET");
+	}
+	const filterOptions: FilterOptions = {
+		anonymization: parsed.data.anonymization ?? "placeholder",
+		feed: options.feed,
+	};
+	if (options.policy !== undefined) {
+		filterOptions.policy = options.policy;
+	}
+	if (vault !== null) {
+		filterOptions.vault = vault;
+	}
 	const result = filterContent(
 		{ surface: parsed.data.surface, text: parsed.data.text },
-		{
-			...options,
-			anonymization: parsed.data.anonymization ?? "placeholder",
-			vault: demoVault,
-		},
+		filterOptions,
 	);
 	if (result.verdict === "block" || result.verdict === "escalate") {
 		return {
 			body: {
-				blockedBy: result.matches.length > 0 ? "signature" : "deterministic",
+				blockedBy: result.signatureVerdict === result.verdict ? "signature" : "deterministic",
 				detections: result.detections,
 				feedVersion: result.feedVersion,
 				matches: result.matches,

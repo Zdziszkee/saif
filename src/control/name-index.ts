@@ -8,6 +8,7 @@ export interface NameMatch {
 
 interface Token {
 	end: number;
+	particle: boolean;
 	start: number;
 	value: string;
 }
@@ -66,6 +67,31 @@ export function isKnownSurname(token: string): boolean {
 }
 
 const capitalizedWord = /\p{Lu}[\p{L}'’-]*/gu;
+const surnameParticles = new Set([
+	"al",
+	"bin",
+	"da",
+	"das",
+	"de",
+	"del",
+	"della",
+	"den",
+	"der",
+	"di",
+	"do",
+	"dos",
+	"du",
+	"el",
+	"ibn",
+	"la",
+	"le",
+	"op",
+	"ten",
+	"ter",
+	"van",
+	"von",
+]);
+const lowercaseWord = /[\p{Ll}'’-]+/gu;
 
 function tokenize(text: string): Token[] {
 	const tokens: Token[] = [];
@@ -75,9 +101,19 @@ function tokenize(text: string): Token[] {
 		if (value === undefined || start === undefined) {
 			continue;
 		}
-		tokens.push({ end: start + value.length, start, value });
+		tokens.push({ end: start + value.length, particle: false, start, value });
 	}
-	return tokens;
+	for (const match of text.matchAll(lowercaseWord)) {
+		const value = match[0];
+		const start = match.index;
+		if (value === undefined || start === undefined) {
+			continue;
+		}
+		if (surnameParticles.has(normalize(value))) {
+			tokens.push({ end: start + value.length, particle: true, start, value });
+		}
+	}
+	return tokens.sort((a, b) => a.start - b.start);
 }
 
 function runsOf(tokens: readonly Token[]): Token[][] {
@@ -97,6 +133,17 @@ function runsOf(tokens: readonly Token[]): Token[][] {
 	return runs;
 }
 
+function phraseIn(set: ReadonlySet<string>, tokens: readonly Token[]): boolean {
+	if (tokens.length === 0) {
+		return false;
+	}
+	const joined = tokens.map((token) => token.value).join(" ");
+	if (lookup(set, joined)) {
+		return true;
+	}
+	return tokens.every((token) => !token.particle && lookup(set, token.value));
+}
+
 function matchAt(run: readonly Token[], from: number, text: string): NameMatch | null {
 	const available = Math.min(run.length - from, MaxRunWords);
 	for (let words = available; words >= 2; words -= 1) {
@@ -109,9 +156,10 @@ function matchAt(run: readonly Token[], from: number, text: string): NameMatch |
 			if (first === undefined || surLast === undefined) {
 				continue;
 			}
-			const foreOk = forePart.every((token) => lookup(forenameIndex, token.value));
-			const surOk = surPart.every((token) => lookup(surnameIndex, token.value));
-			if (!(foreOk && surOk)) {
+			if (first.particle || surLast.particle) {
+				continue;
+			}
+			if (!(phraseIn(forenameIndex, forePart) && phraseIn(surnameIndex, surPart))) {
 				continue;
 			}
 			const end = trimmedEnd(surLast);
@@ -132,7 +180,7 @@ export function matchKnownNames(text: string): NameMatch[] {
 				continue;
 			}
 			matches.push(match);
-			while (index < run.length && (run[index]?.start ?? 0) < match.end) {
+			while (index < run.length && (run.at(index)?.start ?? 0) < match.end) {
 				index += 1;
 			}
 		}

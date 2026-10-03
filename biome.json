@@ -21,6 +21,7 @@
 			"**/tests/**/*",
 			"**/.vscode/**/*",
 			"**/index.html",
+			"**/scripts/**/*",
 			"**/vite.config.ts",
 			"**/vitest.config.ts",
 			"**/drizzle.config.ts",
@@ -114,11 +115,7 @@
 			}
 		},
 		{
-			"includes": [
-				"**/vite.config.ts",
-				"**/vitest.config.ts",
-					"**/drizzle.config.ts"
-			],
+			"includes": ["**/vite.config.ts", "**/vitest.config.ts", "**/drizzle.config.ts"],
 			"linter": {
 				"rules": {
 					"style": {
@@ -133,6 +130,16 @@
 				"rules": {
 					"style": {
 						"noHeadElement": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/build-fixture-env.ts"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noSecrets": "off"
 					}
 				}
 			}
@@ -154,11 +161,13 @@
 				"**/db/**",
 				"**/routes/mcp.ts",
 				"**/signature-store.ts",
+				"**/signatures.ts",
 				"**/vault.ts",
 				"**/tests/**",
+				"**/scripts/**",
 				"**/vite.config.ts",
 				"**/vitest.config.ts",
-					"**/drizzle.config.ts"
+				"**/drizzle.config.ts"
 			],
 			"linter": {
 				"rules": {

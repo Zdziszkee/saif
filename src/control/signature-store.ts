@@ -8,6 +8,7 @@ import { parseSignatureFeed } from "#/control/signatures.ts";
 export interface SignatureStoreSnapshot {
 	errors: FeedError[];
 	feed: SignatureFeed;
+	ok: boolean;
 }
 
 export interface SignatureStore {
@@ -20,31 +21,49 @@ export interface SignatureStoreOptions {
 	watch?: boolean;
 }
 
+function unreadable(message: string, fallback: SignatureFeed | null): SignatureStoreSnapshot {
+	return {
+		errors: [{ entryId: null, message }],
+		feed: fallback ?? { signatures: [], version: "unavailable" },
+		ok: false,
+	};
+}
+
 export function createSignatureStore(
 	filePath: string,
 	options: SignatureStoreOptions = {},
 ): SignatureStore {
-	let state = read();
+	let lastGood: SignatureFeed | null = null;
+	let state: SignatureStoreSnapshot = {
+		errors: [],
+		feed: { signatures: [], version: "unavailable" },
+		ok: false,
+	};
 	let watcher: FSWatcher | null = null;
 
 	function read(): SignatureStoreSnapshot {
+		let text: string;
 		try {
-			const text = readFileSync(filePath, "utf8");
-			const parsed = parseSignatureFeed(text);
-			return { errors: parsed.errors, feed: parsed.feed };
+			text = readFileSync(filePath, "utf8");
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "unreadable feed";
-			return {
-				errors: [{ entryId: null, message }],
-				feed: { signatures: [], version: "unavailable" },
-			};
+			return unreadable(message, lastGood);
 		}
+		const parsed = parseSignatureFeed(text);
+		if (!parsed.documentOk) {
+			const first = parsed.errors[0];
+			return unreadable(first?.message ?? "invalid feed document", lastGood);
+		}
+		lastGood = parsed.feed;
+		return { errors: parsed.errors, feed: parsed.feed, ok: true };
 	}
 
 	function reload(): SignatureStoreSnapshot {
 		state = read();
 		return state;
 	}
+
+	state = read();
 
 	if (options.watch === true) {
 		const fileName = basename(filePath);

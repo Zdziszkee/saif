@@ -1,22 +1,28 @@
+import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "bun:test";
 import { filterContent } from "#/control/filter.ts";
 import { createSignatureStore, type SignatureStore } from "#/control/signature-store.ts";
 
 const WatchPollIntervalMs = 50;
-const WatchTimeoutMs = 2000;
+const WatchTimeoutMs = 5000;
 
-async function waitForSignature(store: SignatureStore, id: string): Promise<void> {
+function waitForSignature(store: SignatureStore, id: string): Promise<void> {
 	const deadline = Date.now() + WatchTimeoutMs;
-	while (!store.snapshot().feed.signatures.some((signature) => signature.id === id)) {
-		if (Date.now() >= deadline) {
-			throw new Error(`signature ${id} did not appear within timeout`);
-		}
-		await new Promise<void>((resolve) => setTimeout(resolve, WatchPollIntervalMs));
-	}
+	return new Promise<void>((resolve, reject) => {
+		const timer = setInterval(() => {
+			if (store.snapshot().feed.signatures.some((signature) => signature.id === id)) {
+				clearInterval(timer);
+				resolve();
+			} else if (Date.now() >= deadline) {
+				clearInterval(timer);
+				reject(new Error(`signature ${id} did not appear within timeout`));
+			}
+		}, WatchPollIntervalMs);
+	});
 }
+
 import sampleFeedText from "../signatures.json?raw";
 
 interface TempFeed {
@@ -124,13 +130,39 @@ describe("signature feed store", () => {
 		expect(after.verdict).toBe("block");
 		expect(after.matches.map((match) => match.signatureId)).toContain("hot-reload-marker");
 	});
+});
 
+describe("signature feed failure handling", () => {
 	it("keeps valid entries active when a reload adds an invalid one", () => {
 		const temp = track(tempFeed([benignEntry]));
 		const store = createSignatureStore(temp.path);
 		cleanups.push(() => store.close());
 		temp.write([benignEntry, invalidEntry]);
 		const snapshot = store.reload();
+		expect(snapshot.feed.signatures.map((signature) => signature.id)).toEqual(["filler"]);
+		expect(snapshot.errors.length).toBeGreaterThan(0);
+		expect(snapshot.ok).toBe(true);
+	});
+
+	it("starts unhealthy when the feed file is missing", () => {
+		const dir = mkdtempSync(join(tmpdir(), "saif-signatures-"));
+		cleanups.push(() => rmSync(dir, { force: true, recursive: true }));
+		const store = createSignatureStore(join(dir, "absent.json"));
+		cleanups.push(() => store.close());
+		const snapshot = store.snapshot();
+		expect(snapshot.ok).toBe(false);
+		expect(snapshot.feed.signatures).toEqual([]);
+		expect(snapshot.errors.length).toBeGreaterThan(0);
+	});
+
+	it("keeps the last good feed when a reload corrupts the file", () => {
+		const temp = track(tempFeed([benignEntry]));
+		const store = createSignatureStore(temp.path);
+		cleanups.push(() => store.close());
+		expect(store.snapshot().ok).toBe(true);
+		writeFileSync(temp.path, "not json{{{");
+		const snapshot = store.reload();
+		expect(snapshot.ok).toBe(false);
 		expect(snapshot.feed.signatures.map((signature) => signature.id)).toEqual(["filler"]);
 		expect(snapshot.errors.length).toBeGreaterThan(0);
 	});

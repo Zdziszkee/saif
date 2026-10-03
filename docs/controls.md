@@ -62,7 +62,10 @@ vault.untokenize(result.redactedText) === text; // round-trips
 ```
 
 Guard API: send `{"anonymization": "tokenize"}` in the request body to get tokenized output;
-the playground has a selector for the same.
+the playground has a selector for the same. Tokenization needs a `VAULT_SECRET` in the server
+environment — without it the guard answers `400` for tokenize mode rather than silently
+downgrading, and the PII vault itself is bounded (least-recently-used eviction) so a busy
+server cannot accumulate plaintext without limit.
 
 ## Names and addresses (local, no third-party calls)
 
@@ -93,14 +96,15 @@ only street addresses are).
 
 ## Redaction placeholders
 
-When policy maps a detection to `redact`, each matched span is replaced by a typed
-placeholder `[REDACTED:<type>]` and all surrounding content is preserved unchanged.
+When policy maps a detection to `redact`, each matched span is replaced by its plan-format
+typed placeholder (for example, `[EMAIL]` or `[PERSON_1]`) and all surrounding content is
+preserved unchanged.
 
 Examples (input → output):
 
 - `My email is alice@example.com today.` → detection `pii.email` on `alice@example.com`
 - `Contact alice@example.com or call +48 123 456 789.` →
-  `Contact [REDACTED:email] or call [REDACTED:phone].`
+  `Contact [EMAIL] or call [PHONE].`
 - `Send the invoice to alice@example.com please` (prompt, `redact`) →
   `Send the invoice to [EMAIL] please`
 - `The configured key is sk-proj-…` (output, `redact`) → `The configured key is [API_KEY].`
@@ -167,22 +171,23 @@ of the result is what the semantic tier evaluates.
 ```json
 {
 	"id": "jail-bypass-filters",
+	"name": "Safety-filter bypass request",
 	"description": "Explicit request to bypass safety or content filters",
 	"pattern": "bypass\\s+(?:your|the|all|any)\\s+(?:safety|content|security)\\s+(?:filters?|policies|restrictions|guardrails?)",
 	"severity": "high",
-	"category": "jailbreak",
+	"kind": "jailbreak",
 	"source": "owasp-llm-top10",
-	"createdAt": "2026-10-03T00:00:00.000Z",
+	"addedAt": "2026-10-03T00:00:00.000Z",
 	"updatedAt": "2026-10-03T00:00:00.000Z"
 }
 ```
 
-- Categories: `prompt-injection`, `jailbreak`, `data-exfiltration`, `malicious-tool-call`,
-  `unsafe-deserialization`, `supply-chain`.
-- `data-exfiltration` covers retrieval attempts: system-prompt extraction, context replay,
+- Kinds: `prompt_injection`, `jailbreak`, `data_exfiltration`, `tool_abuse`,
+  `unsafe_deserialization`, `supply_chain`.
+- `data_exfiltration` covers retrieval attempts: system-prompt extraction, context replay,
   secret-file access, path traversal, and transfers of data/secrets to external endpoints.
 - Matching runs over prompts, serialized tool calls, and outbound content (case-insensitive
-  regex). Each match records the signature id, severity, category, and `source`.
+  regex). Each match records the signature id, severity, kind, and `source`.
 - Invalid entries (schema violations, duplicate ids, uncompilable regex) are reported and
   skipped without disabling the rest of the feed.
 - Every result carries `feedVersion`, a hash of the feed content in force at match time.

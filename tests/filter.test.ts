@@ -4,7 +4,7 @@ import type { FirstLayerPolicy } from "#/control/policy.ts";
 import { defaultFirstLayerPolicy } from "#/control/policy.ts";
 import { parseSignatureFeed } from "#/control/signatures.ts";
 import sampleFeedText from "../signatures.json?raw";
-import { ApiKeyFixture } from "./secret-fixtures.ts";
+import { ApiKeyFixture, PrivateKeyHeaderFixture } from "./secret-fixtures.ts";
 
 const feed = parseSignatureFeed(sampleFeedText).feed;
 
@@ -115,6 +115,32 @@ describe("verdict policy and provenance", () => {
 			{ feed, policy: blockingPolicy },
 		);
 		expect(result.verdict).toBe("block");
+	});
+
+	it("redacts signature spans instead of returning them unchanged", () => {
+		const redacting = {
+			...defaultFirstLayerPolicy,
+			signatures: {
+				...defaultFirstLayerPolicy.signatures,
+				severityActions: { high: "redact" as const },
+			},
+		} satisfies FirstLayerPolicy;
+		const result = filterContent(
+			{ surface: "prompt", text: "do anything now" },
+			{ feed, policy: redacting },
+		);
+		expect(result.verdict).toBe("redact");
+		expect(result.redactedText).toBe("[SIGNATURE:jail-dan]");
+	});
+
+	it("redacts a full PEM block from outbound output", () => {
+		const footer = `-----END ${"PRIVATE KEY-----"}`;
+		const text = `Key:\n${PrivateKeyHeaderFixture}\nMIIEvwIBADANBg==\n${footer}\ndone`;
+		const result = filterContent({ surface: "output", text }, { feed });
+		expect(result.verdict).toBe("redact");
+		expect(result.redactedText).not.toContain("MIIEvwIBADANBg==");
+		expect(result.redactedText).not.toContain("END PRIVATE KEY");
+		expect(result.redactedText).toContain("[PRIVATE_KEY]");
 	});
 
 	it("carries the feed version in force for provenance", () => {

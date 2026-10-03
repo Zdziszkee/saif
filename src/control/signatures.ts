@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import type { Verdict } from "#/control/policy.ts";
@@ -18,7 +19,7 @@ export type SignatureSeverity = z.infer<typeof signatureSeveritySchema>;
 
 export const signatureSchema = z.object({
 	action: verdictSchema.optional(),
-	addedAt: z.string().min(1),
+	addedAt: z.string().datetime(),
 	description: z.string().min(1),
 	id: z.string().min(1),
 	kind: signatureKindSchema,
@@ -26,7 +27,7 @@ export const signatureSchema = z.object({
 	pattern: z.string().min(1),
 	severity: signatureSeveritySchema,
 	source: z.string().min(1),
-	updatedAt: z.string().min(1),
+	updatedAt: z.string().datetime(),
 });
 export type Signature = z.infer<typeof signatureSchema>;
 
@@ -56,23 +57,13 @@ export interface SignatureMatch {
 }
 
 export interface ParsedFeed {
+	documentOk: boolean;
 	errors: FeedError[];
 	feed: SignatureFeed;
 }
 
-const FnvPrime = 16_777_619;
-const FnvOffset = 2_166_136_261;
-const Uint32Range = 4_294_967_296;
-const HashRadix = 16;
-const HashPad = 8;
-
 export function hashContent(text: string): string {
-	let hash = FnvOffset;
-	for (let index = 0; index < text.length; index += 1) {
-		const mixed = Math.imul(hash, FnvPrime) + text.charCodeAt(index);
-		hash = ((mixed % Uint32Range) + Uint32Range) % Uint32Range;
-	}
-	return hash.toString(HashRadix).padStart(HashPad, "0");
+	return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 function compile(signature: Signature): ActiveSignature | FeedError {
@@ -96,6 +87,7 @@ export function parseSignatureFeed(text: string): ParsedFeed {
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "invalid JSON";
 		return {
+			documentOk: false,
 			errors: [{ entryId: null, message }],
 			feed: { signatures: [], version },
 		};
@@ -104,6 +96,7 @@ export function parseSignatureFeed(text: string): ParsedFeed {
 	const entries = z.array(z.unknown()).safeParse(document);
 	if (!entries.success) {
 		return {
+			documentOk: false,
 			errors: [{ entryId: null, message: "feed must be an array of signature entries" }],
 			feed: { signatures: [], version },
 		};
@@ -129,7 +122,7 @@ export function parseSignatureFeed(text: string): ParsedFeed {
 		signatures.push(compiled);
 	}
 
-	return { errors, feed: { signatures, version } };
+	return { documentOk: true, errors, feed: { signatures, version } };
 }
 
 export function matchSignatures(

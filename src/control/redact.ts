@@ -2,6 +2,12 @@ import type { Detection } from "#/control/detectors.ts";
 
 const CardMaskLength = 4;
 
+export interface RedactionOp {
+	end: number;
+	start: number;
+	text: string;
+}
+
 export function placeholderFor(detection: Detection, personIndex: number): string {
 	switch (detection.type) {
 		case "address":
@@ -49,25 +55,53 @@ export function placeholderFor(detection: Detection, personIndex: number): strin
 	}
 }
 
-export function redactSpans(text: string, detections: readonly Detection[]): string {
+export function detectionOps(detections: readonly Detection[]): RedactionOp[] {
 	const ascending = [...detections].sort((a, b) => a.span.start - b.span.start);
 	const personPlaceholders = new Map<string, string>();
 	let personCount = 0;
+	const ops: RedactionOp[] = [];
 	for (const detection of ascending) {
-		if (detection.type === "person" && !personPlaceholders.has(detection.value)) {
-			personCount += 1;
-			personPlaceholders.set(detection.value, `[PERSON_${personCount}]`);
+		let placeholder: string;
+		if (detection.type === "person") {
+			const existing = personPlaceholders.get(detection.value);
+			if (existing !== undefined) {
+				placeholder = existing;
+			} else {
+				personCount += 1;
+				placeholder = placeholderFor(detection, personCount);
+				personPlaceholders.set(detection.value, placeholder);
+			}
+		} else {
+			placeholder = placeholderFor(detection, personCount);
 		}
+		ops.push({ end: detection.span.end, start: detection.span.start, text: placeholder });
 	}
+	return ops;
+}
 
-	const descending = [...ascending].reverse();
-	let result = text;
-	for (const detection of descending) {
-		const placeholder =
-			detection.type === "person"
-				? (personPlaceholders.get(detection.value) ?? `[PERSON_${personCount}]`)
-				: placeholderFor(detection, personCount);
-		result = result.slice(0, detection.span.start) + placeholder + result.slice(detection.span.end);
+export function applyRedactions(content: string, ops: readonly RedactionOp[]): string {
+	const ascending = [...ops].sort((a, b) => {
+		if (a.start !== b.start) {
+			return a.start - b.start;
+		}
+		return b.end - a.end;
+	});
+	const kept: RedactionOp[] = [];
+	let cursor = -1;
+	for (const op of ascending) {
+		if (op.start < cursor) {
+			continue;
+		}
+		kept.push(op);
+		cursor = op.end;
+	}
+	let result = content;
+	for (const op of [...kept].reverse()) {
+		result = result.slice(0, op.start) + op.text + result.slice(op.end);
 	}
 	return result;
+}
+
+export function redactSpans(text: string, detections: readonly Detection[]): string {
+	return applyRedactions(text, detectionOps(detections));
 }

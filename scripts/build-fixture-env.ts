@@ -1,6 +1,7 @@
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 
 const ENV_PATH = ".env";
+const LineEnding = /\r?\n/;
 
 export function buildFixtureValues(): Record<string, string> {
 	return {
@@ -30,7 +31,7 @@ export function ensureFixtureEnv(path: string = ENV_PATH): void {
 		existing = "";
 	}
 	const values = buildFixtureValues();
-	const lines = existing.split(/\r?\n/).filter((line) => line.trim().length > 0);
+	const lines = existing.split(LineEnding).filter((line) => line.trim().length > 0);
 	let missing = false;
 	for (const [key, value] of Object.entries(values)) {
 		if (!lines.some((line) => line.startsWith(`${key}=`))) {

@@ -18,8 +18,10 @@ export const Route = createFileRoute("/api/guard")({
 						{ status: 400 },
 					);
 				}
+				const snapshot = signatureStore.snapshot();
 				const response = handleGuardRequest(payload, {
-					feed: signatureStore.snapshot().feed,
+					feed: snapshot.feed,
+					feedOk: snapshot.ok,
 				});
 				return Response.json(response.body, { status: response.status });
 			},

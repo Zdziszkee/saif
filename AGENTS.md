@@ -39,8 +39,10 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   server files (mcp, db, drizzle.config), `noDefaultExport` in config files,
   `noHeadElement` in `src/routes/__root.tsx`, and CONSTANT_CASE object keys for env
   vars and HTTP method keys. Extended for the control layer: node usage is also allowed
-  in `src/control/signature-store.ts` (signature feed file watching) and `tests/**`
-  (temp-file fixtures for feed reload tests), and `security/noSecrets` is off in
+  in `src/control/signature-store.ts` (signature feed file watching),
+  `src/control/signatures.ts` (SHA-256 feed version hashing), `src/control/vault.ts`
+  (HMAC token derivation), `scripts/**` (build tooling over fs/process/console) and
+  `tests/**` (temp-file fixtures for feed reload tests), and `security/noSecrets` is off in
   `tests/**` because detector/redaction fixtures are deliberately secret-shaped fake
   values — never real credentials.
 - If a guardrail change is needed, relax the narrowest scope (override or rule) and

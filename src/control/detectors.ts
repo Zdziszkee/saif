@@ -250,8 +250,14 @@ const secretPatterns: readonly PatternSpec[] = [
 	},
 	{
 		context: secretContext,
-		detectorId: "secret.private-key",
+		detectorId: "secret.private-key-header",
 		source: "-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
+		type: "private-key",
+	},
+	{
+		context: secretContext,
+		detectorId: "secret.private-key",
+		source: String.raw`-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----`,
 		type: "private-key",
 	},
 	{
@@ -341,7 +347,13 @@ const piiPatterns: readonly PatternSpec[] = [
 	{
 		context: ["addr", "host", "ip", "ipv4", "ipv6", "serwer", "server"],
 		detectorId: "pii.ipv6",
-		source: String.raw`\b(?:[A-F0-9]{1,4}:){7}[A-F0-9]{1,4}\b|\b[A-F0-9]{1,4}(?::[A-F0-9]{1,4})*::(?:[A-F0-9]{1,4}(?::[A-F0-9]{1,4})*)?\b`,
+		source: String.raw`\b(?:[A-F0-9]{1,4}:){7}[A-F0-9]{1,4}\b`,
+		type: "ip-address",
+	},
+	{
+		context: ["addr", "host", "ip", "ipv4", "ipv6", "serwer", "server"],
+		detectorId: "pii.ipv6-compressed",
+		source: String.raw`(?<![0-9A-Za-z:.])(?=[0-9A-Fa-f:.]*[0-9A-Fa-f])(?:[0-9A-Fa-f]{1,4}:)*:(?:[0-9A-Fa-f.:]*[0-9A-Fa-f:])?(?![0-9A-Za-z:]|\.[0-9A-Za-z])`,
 		type: "ip-address",
 	},
 	{
@@ -437,14 +449,20 @@ const piiPatterns: readonly PatternSpec[] = [
 
 const CapitalizedName = String.raw`\p{Lu}[\p{L}'’-]+`;
 const TitleName = String.raw`\b(?:Mr|Mrs|Ms|Miss|Dr|Prof|Herr|Frau|Mme)\.?\s+`;
-const TriggerName =
-	"(?:my name is|My name is|my name's|My name's|i am|I am|i'm|I'm|this is|This is|nazywam się|Nazywam się|mam na imię|Mam na imię|przedstawiam się|Przedstawiam się|mein name ist|Mein name ist|je m'appelle|Je m'appelle|mi nombre es|Mi nombre es)\\s+";
+const TriggerNameStrong =
+	"(?:my name is|My name is|my name's|My name's|nazywam się|Nazywam się|mam na imię|Mam na imię|przedstawiam się|Przedstawiam się|mein name ist|Mein name ist|je m'appelle|Je m'appelle|mi nombre es|Mi nombre es)\\s+";
+const TriggerNameWeak = "(?:i am|I am|i'm|I'm|this is|This is)\\s+";
 const NameCapture = `(${CapitalizedName}(?:\\s+${CapitalizedName}){0,2})`;
 const whitespaceRun = /\s+/u;
 const titleRegex = new RegExp(`${TitleName}${NameCapture}`, "gu");
-const triggerRegex = new RegExp(`${TriggerName}${NameCapture}`, "gu");
+const triggerStrongRegex = new RegExp(`${TriggerNameStrong}${NameCapture}`, "gu");
+const triggerWeakRegex = new RegExp(`${TriggerNameWeak}${NameCapture}`, "gu");
 
-function personDetection(match: RegExpExecArray, detectorId: string): Detection | null {
+function personDetection(
+	match: RegExpExecArray,
+	detectorId: string,
+	weak: boolean,
+): Detection | null {
 	const value = match[1];
 	const whole = match[0];
 	const start = match.index;
@@ -454,13 +472,16 @@ function personDetection(match: RegExpExecArray, detectorId: string): Detection 
 	const spanStart = start + whole.length - value.length;
 	const tokens = value.split(whitespaceRun);
 	const single = tokens.length === 1 ? tokens[0] : undefined;
-	if (detectorId === "person.trigger") {
-		const acceptable =
-			tokens.length >= 2 ||
-			(single !== undefined && (isKnownFirstName(single) || isKnownSurname(single)));
-		if (!acceptable) {
-			return null;
-		}
+	const first = tokens[0];
+	const last = tokens.at(-1);
+	const known =
+		(first !== undefined && isKnownFirstName(first)) ||
+		(last !== undefined && isKnownSurname(last)) ||
+		(single !== undefined && isKnownFirstName(single)) ||
+		(single !== undefined && isKnownSurname(single));
+	const acceptable = weak ? tokens.length >= 2 && known : tokens.length >= 2 || known;
+	if (!acceptable) {
+		return null;
 	}
 	return {
 		confidence: PersonConfidence,
@@ -477,13 +498,19 @@ function collectPersons(text: string): Detection[] {
 	const found: Detection[] = [];
 
 	for (const match of text.matchAll(titleRegex)) {
-		const detection = personDetection(match, "person.title");
+		const detection = personDetection(match, "person.title", false);
 		if (detection !== null) {
 			found.push(detection);
 		}
 	}
-	for (const match of text.matchAll(triggerRegex)) {
-		const detection = personDetection(match, "person.trigger");
+	for (const match of text.matchAll(triggerStrongRegex)) {
+		const detection = personDetection(match, "person.trigger", false);
+		if (detection !== null) {
+			found.push(detection);
+		}
+	}
+	for (const match of text.matchAll(triggerWeakRegex)) {
+		const detection = personDetection(match, "person.trigger-weak", true);
 		if (detection !== null) {
 			found.push(detection);
 		}

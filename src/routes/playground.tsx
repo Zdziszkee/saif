@@ -1,12 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useId, useState } from "react";
 
-import {
-	type GuardResultView,
-	ResultPanel,
-	type Sample,
-	SamplePicker,
-} from "#/components/playground.tsx";
+import { ResultPanel, type Sample, SamplePicker } from "#/components/playground.tsx";
+import type { GuardResultView } from "#/lib/guard-result.ts";
+import { normalizeGuardResult } from "#/lib/guard-result.ts";
 
 const DemoApiKey = ["sk", "proj", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"].join("-");
 
@@ -58,6 +55,7 @@ function Playground() {
 	const [anonymization, setAnonymization] = useState<"placeholder" | "tokenize">("placeholder");
 	const surfaceId = useId();
 	const anonymizationId = useId();
+	const textId = useId();
 
 	function submit(): void {
 		setBusy(true);
@@ -66,8 +64,8 @@ function Playground() {
 			headers: { "content-type": "application/json" },
 			method: "POST",
 		})
-			.then((response) => response.json() as Promise<GuardResultView>)
-			.then((body) => setResult(body))
+			.then((response) => response.json() as Promise<unknown>)
+			.then((body) => setResult(normalizeGuardResult(body)))
 			.catch(() => setResult({ detections: [], error: "request_failed", matches: [] }))
 			.finally(() => setBusy(false));
 	}
@@ -86,8 +84,12 @@ function Playground() {
 					setSurface(sample.surface);
 				}}
 			/>
+			<label className="mt-4 block text-sm font-medium" htmlFor={textId}>
+				Text to inspect
+			</label>
 			<textarea
-				className="mt-4 h-32 w-full rounded-md border border-gray-300 p-3 font-mono text-sm"
+				className="mt-1 h-32 w-full rounded-md border border-gray-300 p-3 font-mono text-sm"
+				id={textId}
 				onChange={(event) => setText(event.target.value)}
 				value={text}
 			/>

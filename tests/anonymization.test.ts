@@ -121,4 +121,14 @@ describe("reversible tokenization (vault)", () => {
 		);
 		expect(result.redactedText).toBe("Send the invoice to [PERSON_1] now");
 	});
+
+	it("bounds vault memory by evicting the oldest entries", () => {
+		const capacity = 2;
+		const bounded = createPiiVault("test-vault-secret", { maxEntries: capacity });
+		const first = bounded.tokenFor("person", "Jan Kowalski");
+		bounded.tokenFor("person", "Anna Nowak");
+		bounded.tokenFor("email", "alice@example.com");
+		expect(bounded.entries().size).toBeLessThanOrEqual(capacity);
+		expect(bounded.untokenize(`hello ${first} bye`)).toBe(`hello ${first} bye`);
+	});
 });

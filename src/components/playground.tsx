@@ -1,31 +1,4 @@
-export interface DetectionView {
-	confidence: number;
-	context?: string[];
-	detectorId: string;
-	kind: string;
-	type: string;
-	validated: boolean;
-	value: string;
-}
-
-export interface MatchView {
-	kind: string;
-	severity: string;
-	signatureId: string;
-	source: string;
-	value: string;
-}
-
-export interface GuardResultView {
-	blockedBy?: string;
-	detections: DetectionView[];
-	error?: string;
-	feedVersion?: string;
-	matches: MatchView[];
-	reason?: string;
-	redactedText?: string;
-	verdict?: string;
-}
+import type { DetectionView, GuardResultView, MatchView } from "#/lib/guard-result.ts";
 
 export interface Sample {
 	label: string;

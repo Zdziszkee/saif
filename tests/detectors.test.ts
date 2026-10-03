@@ -77,6 +77,52 @@ describe("secret detection", () => {
 		expect(onlyDetection(PrivateKeyText)?.value).toBe(PrivateKeyValue);
 		expect(onlyDetection(AssignmentText)?.type).toBe("generic-secret");
 	});
+
+	it("matches the complete PEM block including body and footer", () => {
+		const bodyLines = ["MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkw", "AgEAAoIBAQC5Vd"];
+		const footer = `-----END ${"PRIVATE KEY-----"}`;
+		const text = `The key is:\n${PrivateKeyValue}\n${bodyLines.join("\n")}\n${footer}\nbye`;
+		const detection = onlyDetection(text);
+		expect(detection?.type).toBe("private-key");
+		expect(detection?.value).toContain("MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkw");
+		expect(detection?.value).toContain("-----END PRIVATE KEY-----");
+	});
+});
+
+describe("triggers, particles, and network forms", () => {
+	it("detects compressed IPv6 forms", () => {
+		for (const address of ["::1", "fe80::", "2001:db8::1", "::ffff:192.0.2.1"]) {
+			const detection = onlyDetection(`Server ${address} refused.`);
+			expect(detection?.type).toBe("ip-address");
+			expect(detection?.value).toBe(address);
+		}
+	});
+
+	it("ignores single-colon times and dotted quads without compression", () => {
+		expect(detectSensitive("Ratio 12:34:56 was recorded.")).toEqual([]);
+	});
+
+	it("rejects ambiguous weak triggers without name evidence", () => {
+		expect(detectSensitive("I am Very Happy today.")).toEqual([]);
+		expect(detectSensitive("This is Quarterly Report.")).toEqual([]);
+	});
+
+	it("accepts weak triggers backed by dictionary names", () => {
+		const detection = onlyDetection("I am John Smith.");
+		expect(detection?.type).toBe("person");
+		expect(detection?.value).toBe("John Smith");
+	});
+
+	it("resolves multi-token names with surname particles", () => {
+		const detection = onlyDetection("Maria de Silva joined the call.");
+		expect(detection?.type).toBe("person");
+		expect(detection?.value).toBe("Maria de Silva");
+	});
+
+	it("ignores non-name capitalized runs around particles", () => {
+		expect(detectSensitive("Bank of America closed early.")).toEqual([]);
+		expect(detectSensitive("Villa del Mar hotel is full.")).toEqual([]);
+	});
 });
 
 describe("PII detection", () => {
