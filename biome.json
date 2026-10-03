@@ -136,6 +136,8 @@
 				"**/mcp-handler.ts",
 				"**/db/**",
 				"**/routes/mcp.ts",
+				"**/vite.config.ts",
+				"**/vitest.config.ts",
 				"**/drizzle.config.ts"
 			],
 			"linter": {
