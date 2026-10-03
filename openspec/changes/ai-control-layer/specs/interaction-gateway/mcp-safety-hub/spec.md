@@ -7,7 +7,7 @@ Makes the MCP server the safety hub: the single governed path through which ever
 ## ADDED Requirements
 
 ### Requirement: Single governed path to the model
-The hub SHALL be the only path from clients to the model: prompts reach the model exclusively through the hub's model-access tool (MCP tool `askModel`), and the system MUST NOT expose any other model-reaching interface. All tool calls execute through the hub's tool catalog: hub-hosted tools and tools registered from connected MCP servers (see `interaction-gateway`).
+The hub SHALL be the only path from clients to the model: prompts reach the model exclusively through the hub's model-access tool (MCP tool `askModel`), and the system MUST NOT expose any other model-reaching interface. All tool calls execute through the hub's tool catalog: hub-hosted tools and tools registered from connected MCP servers.
 
 #### Scenario: Prompt reaches model via the hub
 - **WHEN** a client invokes `askModel` with a prompt
@@ -75,3 +75,21 @@ The hub SHALL connect to the model through an OpenAI-compatible API configured b
 #### Scenario: Endpoint changed by configuration
 - **WHEN** the environment variables are changed to a different OpenAI-compatible endpoint and the service restarts
 - **THEN** subsequent prompts are served by the new endpoint
+
+### Requirement: MCP hub connections
+The hub SHALL accept external MCP server connections (for example Confluence or Jira): users provide the server endpoint and a credential for that service. Connected servers' tools SHALL be registered dynamically into the tool catalog, and calls to them MUST pass through the same control pipeline and tool authorization as built-in tools. Connection attempts to endpoints outside the policy's egress allowlist MUST be rejected.
+
+#### Scenario: Connected server tools governed
+- **WHEN** a user connects an external MCP server and the agent calls one of its tools
+- **THEN** the call is authorized and inspected by the control pipeline before reaching the external server
+
+#### Scenario: Non-allowlisted endpoint rejected
+- **WHEN** a user attempts to connect an MCP server whose endpoint is outside the egress allowlist
+- **THEN** the connection is rejected and the attempt is recorded in the audit log
+
+### Requirement: Credential custody
+Third-party service credentials provided for connected MCP servers MUST be used only to call their target server. They MUST NOT appear in model-visible content, prompts, tool output forwarded to the model, or logs and audit records. A credential detected in forwarded content MUST be blocked or redacted by the deterministic tier before it leaves the pipeline.
+
+#### Scenario: Token never reaches the model
+- **WHEN** a connected MCP server's tool output is forwarded toward the model
+- **THEN** the service credential is not present in the forwarded content or in any log entry

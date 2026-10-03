@@ -54,8 +54,8 @@ of prompt-parseable.
 
 - `interaction-gateway`: interception of AI interactions across seams (chat, MCP tool
   calls, generic guard API) and enforcement of verdicts (allow/redact/block/escalate),
-  including redaction application, fail-closed behavior, external MCP server connections
-  (hub with credential custody), and egress-allowlist rejection of connections.
+  including redaction application and fail-closed behavior. The MCP seam is specified by
+  its nested `interaction-gateway/mcp-safety-hub` capability.
 - `policy-engine`: the single policy source — schema, strictness profiles, thresholds,
   control enable/disable, model allowlists, budget rules — with validation and hot reload.
 - `deterministic-controls`: non-AI checks — secret/PII detection and redaction (including
@@ -72,10 +72,12 @@ of prompt-parseable.
   request counts, and compute time across commercial and local model backends.
 - `security-observability`: audit logging, real-time metrics, exportable reports, and the
   dashboard surfaces for management and security teams.
-- `mcp-safety-hub`: the MCP server as the single governed path to models and tools —
-  `askModel` as the only model-reaching interface, governed tool calls (including risky
-  demo tools) with configurable tool/turn enforcement, the governed agentic tool loop, and
-  the OpenAI-compatible model connection (env-configured endpoint, model, key).
+- `interaction-gateway/mcp-safety-hub`: the MCP server as the single governed path to
+  models and tools — `askModel` as the only model-reaching interface, governed tool calls
+  (including risky demo tools) with configurable tool/turn enforcement, the governed
+  agentic tool loop, the OpenAI-compatible model connection (env-configured endpoint,
+  model, key), external MCP server connections with dynamic tool registration, and
+  credential custody for connected-service credentials.
 - `tool-authorization`: per-user authorization of every tool call before execution —
   grant sets over a tool catalog with capability verbs (`read`, `create`, `modify`,
   `delete`, `execute`, `network`), deny-by-default, `require-approval` via the dashboard
