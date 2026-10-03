@@ -24,10 +24,10 @@ The policy SHALL define, per control and per direction (inbound prompt, outbound
 - **WHEN** a consumer is assigned the `strict` profile
 - **THEN** controls use that profile's thresholds and enabled-control set for that consumer's interactions
 
-### Requirement: Consumer definitions
-The policy SHALL define named consumers — the agents, applications, and teams that connect to the control layer as policy subjects — mapping each consumer key to a strictness profile and optional per-consumer control overrides. Policy resolution SHALL be deterministic: base document, then profile overlay, then per-consumer override, with the consumer override taking precedence and every merge result remaining schema-valid. The policy MAY define a default subject for unidentified consumers.
+### Requirement: Group definitions
+The policy SHALL define the named user groups that connect to the control layer as policy subjects, mapping each group identifier to a strictness profile and optional per-group control overrides. Policy resolution SHALL be deterministic: base document, then profile overlay, then per-group override, with the group override taking precedence and every merge result remaining schema-valid. A group the policy does not define MUST be rejected, never defaulted to another group's configuration.
 
-#### Scenario: Consumer assigned to a profile
+#### Scenario: Group assigned to a profile
 - **WHEN** the policy defines a consumer with the `strict` profile and that consumer sends traffic
 - **THEN** the consumer's interactions are evaluated with the strict profile's thresholds and enabled-control set
 

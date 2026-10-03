@@ -2,27 +2,27 @@
 
 ## Purpose
 
-Intercepts AI interactions at every seam (chat, MCP tool calls, generic guard API) and enforces the policy engine's verdicts so unsafe traffic is blocked or redacted before it reaches agents, models, or tools.
+Intercepts AI interactions at every seam (the LLM gateway, chat, MCP tool calls, generic guard API) and enforces the policy engine's verdicts so unsafe traffic is blocked or redacted before it reaches agents, models, or tools.
 
 ## ADDED Requirements
 
 ### Requirement: Interaction interception
-The system SHALL route every governed AI interaction through the same control pipeline before forwarding, and SHALL inspect both inbound prompts and outbound model or tool output. Chat prompts, tool calls, and generic guard API requests are intercepted at their respective seams and flow through the shared pipeline.
+The system SHALL route every governed AI interaction through the same control pipeline before forwarding, and SHALL inspect both inbound prompts and outbound model or tool output. LLM gateway completions, chat prompts, tool calls, and generic guard API requests are intercepted at their respective seams and flow through the shared pipeline.
 
 #### Scenario: Guard API request intercepted
 - **WHEN** a client sends a request to the generic guard API
 - **THEN** the request passes through the control pipeline and is forwarded only if the resulting verdict allows it
 
-### Requirement: Multi-consumer connections
-The system SHALL serve many independent agents and clients concurrently, each presenting a consumer key that identifies the policy subject it acts as (for example one key per agent, application, or team). Consumer keys SHALL be accepted through a defined request header at every seam. Interactions from different consumers MUST be governed in isolation: one consumer's verdicts, policy configuration, or budget state MUST NOT affect another consumer's traffic. A missing or unknown consumer key MUST follow the policy's configured default-subject behavior (a defined default profile or rejection) and MUST NOT silently inherit another consumer's configuration.
+### Requirement: Caller identity across seams
+The system SHALL serve many independent callers concurrently, each identified by a user id and a user group id presented through defined request headers. The user id identifies the individual and is the unit of usage limiting and per-user reporting; the user group id identifies the group, selects the policy profile and the applicable control set, and is the unit of group-level reporting. Interactions from different callers MUST be governed and metered in isolation: one caller's verdicts, policy configuration, or budget state MUST NOT affect another's. A missing identity or a group the policy does not define MUST be rejected and recorded, and MUST NOT silently inherit another caller's configuration.
 
-#### Scenario: Concurrent agents governed independently
-- **WHEN** two agents with different consumer keys send interactions concurrently
-- **THEN** each interaction is evaluated under its own consumer's profile and recorded against its own consumer key
+#### Scenario: Concurrent callers governed independently
+- **WHEN** two callers with different user ids send interactions concurrently
+- **THEN** each interaction is evaluated under its own group's profile and recorded against its own user id
 
-#### Scenario: Unknown consumer key
-- **WHEN** a request presents a consumer key the policy does not define
-- **THEN** the interaction follows the policy's default-subject behavior and the outcome is recorded in the audit log
+#### Scenario: Unknown group rejected
+- **WHEN** a request presents a user group id the policy does not define
+- **THEN** the interaction is rejected and the outcome is recorded with the reason that the group does not exist
 
 ### Requirement: Verdict enforcement
 The system SHALL apply exactly one verdict per inspected direction: `allow`, `redact`, `block`, or `escalate`. Redaction MUST replace flagged content with typed placeholders before forwarding; block MUST NOT forward the content; escalate MUST record the interaction for review and MUST NOT forward the content while unresolved.
