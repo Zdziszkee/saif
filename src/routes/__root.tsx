@@ -61,6 +61,28 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<HeadContent />
 			</head>
 			<body>
+				<header className="border-b">
+					<nav aria-label="Primary" className="mx-auto flex max-w-5xl items-center gap-2 p-4">
+						<Button asChild={true} size="sm" variant="ghost">
+							<Link activeProps={{ className: "bg-accent text-accent-foreground" }} to="/">
+								Saif
+							</Link>
+						</Button>
+						<Button asChild={true} size="sm" variant="ghost">
+							<Link
+								activeProps={{ className: "bg-accent text-accent-foreground" }}
+								to="/playground"
+							>
+								Playground
+							</Link>
+						</Button>
+						<Button asChild={true} size="sm" variant="ghost">
+							<Link activeProps={{ className: "bg-accent text-accent-foreground" }} to="/dashboard">
+								Dashboard
+							</Link>
+						</Button>
+					</nav>
+				</header>
 				<div id="root-content">{children}</div>
 				<div id="portal-root" />
 				<TanStackDevtools

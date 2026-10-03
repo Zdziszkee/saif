@@ -101,12 +101,10 @@
     "shape": {
       "maxContentBytes": 65536
     },
-    "signatures": {
-      "enabled": true,
-      "perSignatureActions": {
-        "atlas-sig-001": "redact"
-      },
-      "severityActions": {
+      "signatures": {
+        "enabled": true,
+        "perSignatureActions": {},
+        "severityActions": {
         "critical": "block",
         "high": "block",
         "low": "flag",

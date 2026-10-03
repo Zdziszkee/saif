@@ -37,12 +37,18 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   imports enforced. Rules that fight this toolchain are intentionally off:
   `noUnresolvedImports` (biome resolver false positives on package subpath exports;
   tsc covers this), `noReactSpecificProps` (this is a React project),
+  `useSolidForComponent` (Solid-only rule; its `.map` advice fights React list
+  rendering idioms and SolidJS component-hoisting conventions don't apply here),
   `noJsxLiterals`, `useExportsLast` (fight TanStack route conventions),
   `noQwikValidLexicalScope` (Qwik-only serialization rule; it fires on the plain
+<<<<<<< HEAD
   factory closures this codebase is built from), `useSolidForComponent` (Solid-only
   rule; its `.map` advice is wrong for React list rendering), and
   `noSolidDestructuredProps` (Solid-only reactivity rule; its destructure warnings
   are false positives on plain React function components).
+=======
+  factory closures this codebase is built from).
+>>>>>>> origin/master
 - Scoped overrides relax rules only where the stack demands it: node/process usage in
   server files (mcp, db, control, drizzle.config, scripts), `noDefaultExport` in config files,
   `noHeadElement` and `useUniqueElementIds` in `src/routes/__root.tsx` (stable
@@ -52,8 +58,10 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `node:fs` file-watch and `node:crypto` sha256. `scripts/build-fixture-env.ts` turns off
   `security/noSecrets` because it assembles obviously-fake detector fixtures (never real
   credentials) that trip the entropy scanner. Test files (`tests/**`) additionally
-  turn off `noMagicNumbers` (fixtures pin literal thresholds and status codes) and
-  `noExcessiveLinesPerFunction` (one `describe` per scenario set is idiomatic);
+  turn off `noMagicNumbers` (fixtures pin literal thresholds and status codes),
+  `noExcessiveLinesPerFunction` (one `describe` per scenario set is idiomatic), and
+  `security/noSecrets` (entropy-shaped fake fixtures in `tests/secret-fixtures.ts`
+  and detector/redaction cases are deliberately secret-shaped, never real credentials);
   `src/hub/model.ts` turns off `useNamingConvention` because OpenAI-compatible
   wire-format keys are snake_case by specification.
 - If a guardrail change is needed, relax the narrowest scope (override or rule) and

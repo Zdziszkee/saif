@@ -13,6 +13,7 @@ import type {
 	RedactionSpan,
 	Verdict,
 } from "../types.ts";
+import { OUTCOME_SEVERITY } from "../types.ts";
 import { type BuiltinFamily, type Detection, detectSensitive, type Span } from "./detectors.ts";
 import { customPlaceholder, placeholderFor } from "./placeholders.ts";
 
@@ -34,13 +35,6 @@ interface Finding {
 	readonly placeholder: string | null;
 	readonly span: Span;
 }
-
-const ACTION_RANK: Record<ControlAction, number> = {
-	allow: 0,
-	block: 3,
-	flag: 1,
-	redact: 2,
-};
 
 function enabledFamilies(builtins: DetectionConfig["builtins"]): BuiltinFamily[] {
 	const families: BuiltinFamily[] = [];
@@ -153,7 +147,7 @@ function decideResult(findings: readonly Finding[]): ControlResult {
 	let worst: ControlAction = "allow";
 	let worstKind = "";
 	for (const finding of findings) {
-		if (ACTION_RANK[finding.action] > ACTION_RANK[worst]) {
+		if (OUTCOME_SEVERITY[finding.action] > OUTCOME_SEVERITY[worst]) {
 			worst = finding.action;
 			worstKind = finding.kind;
 		}

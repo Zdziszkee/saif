@@ -56,3 +56,24 @@ export function consumerKeyFromRequest(request: Request): string | undefined {
 	const key = request.headers.get(CONSUMER_KEY_HEADER);
 	return key === null || key.length === 0 ? undefined : key;
 }
+
+/**
+ * Gate for machine endpoints that must not inherit the guard seam's
+ * default-subject behavior (e.g. the audit export, which would otherwise
+ * hand bulk audit data — including matched user content — to any keyless
+ * caller). Only a key the policy defines passes; anything else is rejected
+ * with a reason suitable for a 403 body.
+ */
+export function requireKnownConsumer(
+	request: Request,
+	consumers: ConsumerResolver,
+): { ok: true; subject: string } | { ok: false; reason: string } {
+	const resolution = consumers.resolve(consumerKeyFromRequest(request));
+	if (resolution.ok && resolution.kind === "known") {
+		return { ok: true, subject: resolution.subject };
+	}
+	return {
+		ok: false,
+		reason: resolution.ok ? "this endpoint requires a known consumer key" : resolution.reason,
+	};
+}

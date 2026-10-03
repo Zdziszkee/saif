@@ -88,3 +88,20 @@ export const VERDICTS: readonly Verdict[] = ["allow", "redact", "block", "escala
 export function isVerdict(value: unknown): value is Verdict {
 	return typeof value === "string" && (VERDICTS as readonly string[]).includes(value);
 }
+
+/**
+ * Shared severity order for worst-wins decisions, used by every control stage
+ * and the pipeline: `allow < flag < redact < escalate < block`.
+ *
+ * `flag` forwards the content annotated for review, so it outranks `allow`;
+ * `redact` forwards altered content; `escalate` and `block` refuse forwarding,
+ * with `block` final. A single table lives here so the tiers cannot drift —
+ * every comparison in the codebase must use this instead of a local copy.
+ */
+export const OUTCOME_SEVERITY: Record<Verdict | "flag", number> = {
+	allow: 0,
+	block: 4,
+	escalate: 3,
+	flag: 1,
+	redact: 2,
+};
