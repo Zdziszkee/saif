@@ -17,11 +17,13 @@ export type SignatureKind = z.infer<typeof signatureKindSchema>;
 export const signatureSeveritySchema = z.enum(["critical", "high", "low", "medium"]);
 export type SignatureSeverity = z.infer<typeof signatureSeveritySchema>;
 
+export const signatureIdPattern = /^[A-Za-z0-9_-]+$/u;
+
 export const signatureSchema = z.object({
 	action: verdictSchema.optional(),
 	addedAt: z.string().datetime(),
 	description: z.string().min(1),
-	id: z.string().min(1),
+	id: z.string().min(1).regex(signatureIdPattern),
 	kind: signatureKindSchema,
 	name: z.string().min(1),
 	pattern: z.string().min(1),

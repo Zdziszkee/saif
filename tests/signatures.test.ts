@@ -79,6 +79,12 @@ describe("signature feed loading", () => {
 		expect(parsed.errors.length).toBeGreaterThan(0);
 	});
 
+	it("rejects entries whose identifiers are not URL-safe slugs", () => {
+		const parsed = parseSignatureFeed(feedOf(entry({ id: "good" }), entry({ id: "evil id!;" })));
+		expect(idsOf(parsed.feed)).toEqual(["good"]);
+		expect(parsed.errors.length).toBeGreaterThan(0);
+	});
+
 	it("skips duplicate ids", () => {
 		const parsed = parseSignatureFeed(feedOf(entry({ id: "dup" }), entry({ id: "dup" })));
 		expect(idsOf(parsed.feed)).toEqual(["dup"]);

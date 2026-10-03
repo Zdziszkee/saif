@@ -62,10 +62,13 @@ vault.untokenize(result.redactedText) === text; // round-trips
 ```
 
 Guard API: send `{"anonymization": "tokenize"}` in the request body to get tokenized output;
-the playground has a selector for the same. Tokenization needs a `VAULT_SECRET` in the server
-environment — without it the guard answers `400` for tokenize mode rather than silently
-downgrading, and the PII vault itself is bounded (least-recently-used eviction) so a busy
-server cannot accumulate plaintext without limit.
+the playground has a selector for the same. Tokenization needs a caller-supplied vault
+(`createPiiVault(secret)` passed through the filter options) holding a high-entropy secret —
+without one the guard answers `400` for tokenize mode rather than silently downgrading, and
+the PII vault itself is bounded (least-recently-used eviction) so a busy
+server cannot accumulate plaintext without limit. The demo `/api/guard` route currently
+wires no vault, so it serves placeholder mode only; integrators opt into tokenization by
+passing their own vault.
 
 ## Names and addresses (local, no third-party calls)
 
