@@ -26,10 +26,21 @@ export function getTodos(): Todo[] {
 }
 
 // Add an item to the todos
-export function addTodo(title: string) {
-	todos.push({ id: todos.length + 1, title });
+export function addTodo(title: string): Todo {
+	const todo: Todo = { id: todos.length + 1, title };
+	todos.push(todo);
 	fs.writeFileSync(todosPath, JSON.stringify(todos, null, 2));
 	notifySubscribers();
+	return todo;
+}
+
+// Delete every todo; returns how many were removed
+export function clearTodos(): number {
+	const deleted = todos.length;
+	todos.length = 0;
+	fs.writeFileSync(todosPath, JSON.stringify(todos, null, 2));
+	notifySubscribers();
+	return deleted;
 }
 
 // Subscribe to cart changes for a user
