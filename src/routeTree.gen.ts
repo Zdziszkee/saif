@@ -14,6 +14,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as ApiGuardRouteImport } from './routes/api.guard'
+import { Route as ApiStatusRouteImport } from './routes/api.status'
 import { Route as ApiAuditExportRouteImport } from './routes/api.audit.export'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const ApiGuardRoute = ApiGuardRouteImport.update({
   path: '/api/guard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStatusRoute = ApiStatusRouteImport.update({
+  id: '/api/status',
+  path: '/api/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuditExportRoute = ApiAuditExportRouteImport.update({
   id: '/api/audit/export',
   path: '/api/audit/export',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/status': typeof ApiStatusRoute
   '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/status': typeof ApiStatusRoute
   '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRoutesById {
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/status': typeof ApiStatusRoute
   '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRouteTypes {
@@ -80,6 +89,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/playground'
     | '/api/guard'
+    | '/api/status'
     | '/api/audit/export'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -88,6 +98,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/playground'
     | '/api/guard'
+    | '/api/status'
     | '/api/audit/export'
   id:
     | '__root__'
@@ -96,6 +107,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/playground'
     | '/api/guard'
+    | '/api/status'
     | '/api/audit/export'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +117,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   PlaygroundRoute: typeof PlaygroundRoute
   ApiGuardRoute: typeof ApiGuardRoute
+  ApiStatusRoute: typeof ApiStatusRoute
   ApiAuditExportRoute: typeof ApiAuditExportRoute
 }
 
@@ -145,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGuardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/status': {
+      id: '/api/status'
+      path: '/api/status'
+      fullPath: '/api/status'
+      preLoaderRoute: typeof ApiStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audit/export': {
       id: '/api/audit/export'
       path: '/api/audit/export'
@@ -161,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   PlaygroundRoute: PlaygroundRoute,
   ApiGuardRoute: ApiGuardRoute,
+  ApiStatusRoute: ApiStatusRoute,
   ApiAuditExportRoute: ApiAuditExportRoute,
 }
 export const routeTree = rootRouteImport

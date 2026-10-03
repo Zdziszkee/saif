@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
+import { TierStatusBanner } from "#/components/tier-status.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import {
 	Card,
@@ -59,6 +60,7 @@ function Dashboard() {
 					</span>
 				</p>
 			</header>
+			<TierStatusBanner />
 			<div className="grid grid-cols-2 gap-4">
 				<Card>
 					<CardHeader>

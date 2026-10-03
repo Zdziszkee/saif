@@ -8,6 +8,7 @@ import {
 	type Sample,
 	SamplePicker,
 } from "#/components/playground.tsx";
+import { TierStatusBanner } from "#/components/tier-status.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import {
 	Card,
@@ -206,6 +207,7 @@ function Playground() {
 					<span className="font-mono">JEV</span> for the semantic tier.
 				</p>
 			</header>
+			<TierStatusBanner />
 			<Card>
 				<CardHeader>
 					<CardTitle>Try a sample</CardTitle>
