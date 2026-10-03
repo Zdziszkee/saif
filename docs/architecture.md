@@ -219,8 +219,9 @@ caches.
 resolution, budget windows, and audit records are keyed by subject, so one
 consumer's traffic can never inherit another's configuration, limits, or
 history. Human users authenticate in front of the seams (session or token
-auth), and the authenticated principal is recorded alongside the consumer key
-in the audit entry. Machine callers (agents, apps, MCP clients) present a
+auth); the audit seam already carries a `subject` field, and the authenticated
+principal is recorded alongside the consumer key once the auth work flagged in
+the status table lands. Machine callers (agents, apps, MCP clients) present a
 consumer key per subject.
 
 **Shared-state rules** (the real work of multi-tenancy):
@@ -301,9 +302,8 @@ error or timeout fails closed to the policy failure verdict).
 | Deterministic detection + redaction + custom rules | implemented |
 | Semantic tier (Jev catalog, doubles, fail-closed) | implemented |
 | Signature engine + feed ingestion | in progress |
-| Budget pre-flight / settlement | in progress |
+| Budget pre-flight / settlement | in progress (reservation must be atomic across concurrent requests) |
 | Durable audit store, metrics, export | in progress (in-memory sink today) |
 | Dashboard route | in progress |
 | Human-user authentication (sessions/tokens in front of the seams) | not started (consumer keys only) |
-| Atomic budget reservation across concurrent requests | in progress (pre-flight reservation to be transactional) |
 | Durable hub grants | in process memory today |
