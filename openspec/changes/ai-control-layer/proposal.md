@@ -26,9 +26,11 @@ of prompt-parseable.
   approves.
 - Add a **centralized policy engine**: one validated policy document (zod-validated JSON)
   defining the tool and action catalog, per-user grants, network egress allowlists,
-  content controls, sensitivity thresholds, strictness profiles, allowed models, budget
-  rules, and question definitions for the semantic tier, stored with full version history
-  and editable through the dashboard with hot-swap activation.
+  content controls, custom regex detection rules for the deterministic tier, sensitivity
+  thresholds, strictness profiles, allowed models, budget rules, and typed check
+  definitions (the "if statements" the semantic tier evaluates) for the semantic tier,
+  stored with full version history and editable through the dashboard with hot-swap
+  activation.
 - Add a **deterministic control tier**: regex/dictionary checks for secrets and PII with
   redaction, model allowlist enforcement, and request-shape validation. Runs first and
   short-circuits when it can decide alone.
@@ -67,15 +69,16 @@ of prompt-parseable.
   including redaction application and fail-closed behavior. The MCP seam is specified by
   its nested `interaction-gateway/mcp-safety-hub` capability.
 - `policy-engine`: the single policy source — schema, tool and action catalog, per-user
-  grants, egress allowlists, strictness profiles, thresholds, control enable/disable,
-  model allowlists, budget rules — with validation, versioned storage, dashboard editing,
-  and hot-swap reload.
+  grants, egress allowlists, custom regex detection rules, semantic check definitions,
+  strictness profiles, thresholds, control enable/disable, model allowlists, budget rules
+  — with validation, versioned storage, dashboard editing, and hot-swap reload.
 - `deterministic-controls`: non-AI checks — secret/PII detection and redaction (including
-  connected-service credential protection), allowlist enforcement (models and egress
-  targets), and shape validation — with defined precedence against the semantic tier.
-- `semantic-classification`: Jev-based semantic decisions — typed questions, parallel
-  evaluation, confidence floors, degradation/fallback behavior when the model is
-  unavailable or uncertain.
+  connected-service credential protection), policy-defined custom regex rules, allowlist
+  enforcement (models and egress targets), and shape validation — with defined precedence
+  against the semantic tier.
+- `semantic-classification`: Jev-based semantic decisions — typed questions defined as
+  policy check definitions, parallel evaluation, confidence floors, degradation/fallback
+  behavior when the model is unavailable or uncertain.
 - `attack-signature-mitigation`: historical exploit signature feed management and
   evasion-resistant matching over raw, canonicalized, and decoded forms (block/redact/flag,
   severity-mapped actions), including runtime feed updates, tool-schema scanning at MCP

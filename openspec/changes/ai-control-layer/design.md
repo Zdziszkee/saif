@@ -62,14 +62,18 @@ the TypeSafe REST API (reimplements answer mapping and typing), AI SDK
 `experimental_evaluate` (second AI stack in a TanStack AI repo). Configuration injected at
 the module boundary so tests never touch the network.
 
-### D3. Question catalog in code, policy controls activation and thresholds
-Semantic question definitions (instructions, criteria) live in a typed TS catalog so
-answer handling keeps `decide()`'s compile-time unions. The policy file enables/disables
-questions, sets per-profile probability/confidence thresholds, and may override question
-wording for judge tunability. Rationale: judges mainly need to flip controls and
-thresholds (explicitly named in the challenge), while typed answers keep the verdict
-mapper safe. Alternative (fully declarative questions in policy) buys flexibility at the
-cost of type safety; retained as an override path.
+### D3. Typed checks: built-in catalog in code, policy-defined checks first-class
+Built-in semantic question definitions (instructions, criteria) live in a typed TS catalog
+so answer handling keeps `decide()`'s compile-time unions. The policy defines checks
+first-class: it enables/disables built-in checks, sets per-profile
+probability/confidence thresholds and explicit threshold-to-verdict conditions, overrides
+check wording/criteria, and may define custom typed checks (`boolean`/`choice`/`score`)
+consumed through the same answer contract — this is the "if statement" judges write: if
+`probability(check) ≥ blockThreshold` then `block`, else `redact`/`flag`/`allow`.
+Rationale: judges need to define what the model checks, not only flip toggles (explicitly
+named in the challenge), while built-in typed answers keep the verdict mapper safe.
+Custom checks trade compile-time narrowing for tunability; their answers flow through the
+generic typed-answer path, never free-form text.
 
 ### D4. Cheap-first pipeline order
 `shape validation -> model allowlist -> tool authorization -> egress allowlist ->
@@ -137,9 +141,13 @@ itself is D4; this section specifies what each stage actually does.
 - **Document shape**: `policy.json` = `{ version, defaults { profile, failureVerdict,
   toolEnforcement }, consumers { <id>: { profile, overrides, grants } }, tools { <name>:
   { source, verbs, confirm, classificationOverride? } }, network { allowedDomains[],
-  allowedMcpEndpoints[] }, controls { shape, allowlist, signatures, redaction, budget,
+  allowedMcpEndpoints[] }, controls { shape, allowlist, signatures, detection, redaction, budget,
   semantic }, observability }` where `consumers` identifies users (one agent per user in
-  this version) and `grants` lists allowed `[tool, verb]` pairs — deny-by-default. Zod
+  this version) and `grants` lists allowed `[tool, verb]` pairs — deny-by-default.
+  `controls.detection` carries custom regex rules (`rules[]` with id, kind, pattern,
+  target directions, mapped action) plus built-in detector-family toggles and per-kind
+  default actions; `controls.semantic` carries the typed check definitions (`checks[]`
+  with id, type, wording/criteria, activation, per-direction thresholds). Zod
   schema is the single definition, shared by runtime loader and tests; unknown keys
   rejected (`z.strictObject`).
 - **Resolution order**: base document → profile overlay (permissive/standard/strict,
@@ -151,8 +159,9 @@ itself is D4; this section specifies what each stage actually does.
   last valid policy stays active; rollback re-activates a prior version row. Startup with
   no valid policy refuses to run (fail closed); the explicit `controls.enabled: false`
   kill-switch is the observe-only mode.
-- **Judge tunability**: thresholds, actions, allowlists, question activation/wording are all
-  policy fields; nothing security-relevant is hard-coded outside the pattern catalog.
+- **Judge tunability**: thresholds, actions, allowlists, custom regex rules, and semantic
+  check definitions (type, wording, criteria) are all policy fields; nothing
+  security-relevant is hard-coded outside the built-in pattern and question catalogs.
 
 ### R2a. Deterministic (non-AI) controls — layered regex defense
 
@@ -162,7 +171,8 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **L0 Shape & limits**: envelope schema validation (seam, direction, content size ≤ 64 KB),
   control-char stripping, malformed → fail closed. Rejects garbage before any scanning.
 - **L1 Pattern catalog (regex)** — one pass, named catalog `{ id, kind, regex, validator? }`,
-  compiled once at load:
+  compiled once at load; policy-defined custom rules (`controls.detection.rules[]`) join
+  the same catalog and are regex-validated at policy load:
   - *Provider-shaped secrets (high precision)*: AWS `AKIA[0-9A-Z]{16}`,
     GitHub `gh[pousr]_[A-Za-z0-9]{36,}`, Slack `xox[baprs]-[0-9A-Za-z-]{10,}`,
     Google `AIza[0-9A-Za-z_-]{35}`, Stripe `(sk|pk)_(live|test)_…`, OpenAI-style
@@ -192,8 +202,9 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 
 - **Question catalog** (one round trip, questions evaluated in parallel against one `state`):
   `noul` booleans (prompt injection? jailbreak? data exfiltration request? malicious code?),
-  `choice` (threat category, full distribution), `score` (severity 0–1). Catalog is typed TS;
-  policy toggles activation and may override wording/thresholds (D3).
+  `choice` (threat category, full distribution), `score` (severity 0–1). Catalog is typed TS
+  for the built-ins; policy toggles activation, overrides wording/thresholds, and may
+  define additional typed checks consumed through the same answer contract (D3).
 - **Egress minimization (no sensitive data to Jev)**: `state` is a constructed allowlist
   object (`{ role, direction, content, contentLength, flags[] }`) built in exactly one
   function from post-redaction text of the inspected span only — no history, system prompts,

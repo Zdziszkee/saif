@@ -8,7 +8,7 @@
 
 ## 2. Policy engine
 
-- [ ] 2.1 Implement the zod policy schema (tool and action catalog with capability verbs, confirmation flags and classification overrides, per-user grants, network egress allowlist, tool-call enforcement mode, controls, per-direction thresholds, strictness profiles permissive/standard/strict, model allowlist, budget rules, semantic check toggles and thresholds, failure verdicts) and verify schema tests reject invalid documents (verify: policy schema tests pass)
+- [ ] 2.1 Implement the zod policy schema (tool and action catalog with capability verbs, confirmation flags and classification overrides, per-user grants, network egress allowlist, tool-call enforcement mode, custom regex detection rules with id, kind, pattern, target directions and mapped action, controls, per-direction thresholds, strictness profiles permissive/standard/strict, model allowlist, budget rules, semantic check definitions with type, wording, criteria, activation and thresholds, failure verdicts) and verify schema tests reject invalid documents, including rules with uncompilable or unbounded regexes (verify: policy schema tests pass)
 - [ ] 2.2 Implement the policy store (versioned documents in SQLite, create-on-edit with schema validation, rollback to prior versions, JSON import/export) and the runtime loader with immutable snapshot, atomic swap, and last-valid fallback; verify versioning and reload tests pass (verify: tests cover new-version-on-edit, invalid-edit rejection, rollback, and import/export round-trip)
 - [ ] 2.3 Ship `policy.json` plus `policy.permissive.json` and `policy.strict.json` sample variants and document every field in `docs/policy.md`; verify documented example values validate against the schema (verify: tests load all sample files successfully)
 
@@ -19,7 +19,7 @@
 
 ## 4. Deterministic tier
 
-- [ ] 4.1 Implement detectors for secrets (API keys, tokens) and PII (email, phone, card, government-ID-like) returning kind and span; verify positive and negative detector tests pass (verify: detector tests pass)
+- [ ] 4.1 Implement detectors for secrets (API keys, tokens) and PII (email, phone, card, government-ID-like) returning kind and span, and wire policy-defined custom regex rules into the same detection pass (rule id as detector id, per-rule direction scope and mapped action); verify positive and negative detector tests pass, including a custom-rule fixture (verify: detector tests pass)
 - [ ] 4.2 Implement typed-placeholder redaction of detected spans and verify redaction preserves surrounding content (verify: redaction tests pass)
 - [ ] 4.3 Document detection kinds and placeholder formats in `docs/controls.md`; verify documented examples match test fixtures (verify: examples in docs correspond 1:1 to passing fixtures)
 - [ ] 4.4 Implement connected-service credential detection and redaction for user-connected MCP service tokens; verify leak tests pass (verify: no service token appears in model-visible content, logs, or audit rows)
@@ -39,7 +39,7 @@
 
 ## 6. Semantic tier (Jev)
 
-- [ ] 6.1 Load the local Intent skills for `@tanstack/ai` (ai-core and custom-backend-integration) and implement the typed question catalog (prompt injection, jailbreak, data exfiltration, malicious code booleans; threat category choice; severity score) with policy-driven activation and wording overrides; verify catalog tests pass (verify: catalog builds question maps from policy correctly)
+- [ ] 6.1 Load the local Intent skills for `@tanstack/ai` (ai-core and custom-backend-integration) and implement the typed question catalog (prompt injection, jailbreak, data exfiltration, malicious code booleans; threat category choice; severity score) plus policy-defined custom typed checks (boolean/choice/score), with policy-driven activation, wording and criteria overrides, and threshold-to-verdict conditions; verify catalog tests pass (verify: catalog builds question maps from policy check definitions correctly)
 - [ ] 6.2 Implement the `SemanticClassifier` interface and the Jev implementation over `decide()` with `@tanstack/ai-typesafe`, wired to `TYPESAFE_API_KEY` as the only product-path classifier; verify the integration smoke reports a clear configuration error without the key and passes with it (verify: `bun run test:integration` behavior confirmed both ways)
 - [ ] 6.3 Implement fixed-evidence classifier doubles for the unit tier, injected only through the test harness (never selectable via policy or runtime configuration); verify unit classifier tests pass without network (verify: classifier tests pass with `TYPESAFE_API_KEY` and `MODEL_*` unset)
 - [ ] 6.4 Verify answer consumption and typing: typed answer shapes carry probability distributions and confidence where required; verify compile-time narrowing test (verify: `bun run typecheck` includes answer-shape assertions)

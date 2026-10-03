@@ -48,3 +48,14 @@ The system SHALL deterministically check the target of network-classified tool c
 #### Scenario: Egress block is deterministic
 - **WHEN** a network-classified call targets a domain outside the allowlist
 - **THEN** the call is blocked by the egress check alone and the attempt is recorded in the audit log
+
+### Requirement: Policy-defined detection rules
+Custom regex rules defined in the policy SHALL run alongside the built-in detectors and produce the same detection contract (`kind`, `span`, `detectorId`, `confidence`, `validated`), with the rule identifier as the detector id and the policy-mapped action applied per rule.
+
+#### Scenario: Custom rule detected alongside built-ins
+- **WHEN** content matches both a custom policy rule and a built-in detector
+- **THEN** both detections are reported with their own detector ids and spans, and each applies its mapped action
+
+#### Scenario: Custom rule action from policy
+- **WHEN** a custom rule maps its kind to `redact`
+- **THEN** the matched span is replaced with a typed placeholder like any built-in redaction

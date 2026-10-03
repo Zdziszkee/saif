@@ -7,7 +7,7 @@ Provides the AI-based semantic tier: Jev (TypeSafe AI's decision model) evaluate
 ## ADDED Requirements
 
 ### Requirement: Semantic evaluation of interactions
-For each interaction reaching the semantic tier, the system SHALL evaluate the enabled questions in a single evaluation round trip and receive typed answers: boolean probabilities (e.g. prompt injection, jailbreak, data exfiltration, malicious code), a threat category choice, and a severity score.
+For each interaction reaching the semantic tier, the system SHALL evaluate the semantic check definitions enabled in the policy — typed `boolean`, `choice`, and `score` questions — in a single evaluation round trip and receive typed answers: boolean probabilities (e.g. prompt injection, jailbreak, data exfiltration, malicious code), a threat category choice, and a severity score. The questions asked SHALL be exactly those the policy defines; checks not defined or disabled in the policy are never evaluated.
 
 #### Scenario: Injection attempt classified
 - **WHEN** a prompt containing a prompt-injection attempt is evaluated
@@ -18,7 +18,7 @@ For each interaction reaching the semantic tier, the system SHALL evaluate the e
 - **THEN** all threat probabilities remain below the policy's block thresholds and the interaction proceeds to the policy decision
 
 ### Requirement: Schema-constrained answers with confidence
-Semantic answers MUST be schema-constrained to the declared question definitions (no free-form output), and every choice and score answer SHALL include its full probability distribution and a confidence value suitable for thresholding.
+Semantic answers MUST be schema-constrained to the declared check definitions (no free-form output), and every choice and score answer SHALL include its full probability distribution and a confidence value suitable for thresholding.
 
 #### Scenario: Answer shape guaranteed
 - **WHEN** the semantic tier returns answers
