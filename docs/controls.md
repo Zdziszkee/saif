@@ -24,8 +24,8 @@ Every detection carries a `kind`, a fine-grained `type`, and the exact span
 | `pii`     | `ip-address`  | IPv4/IPv6 addresses (`203.0.113.42`)                      |
 | `pii`     | `crypto-wallet` | BTC/ETH wallet addresses (`0x5290…EE7`)                 |
 
-Non-detections are as important as detections: digit groups that fail the Luhn check are
-not cards, ISO dates and unseparated digit runs are not phone numbers, and `user@localhost`
+Failed-Luhn card-shaped groups remain low-confidence `suspect` detections and are redacted by
+default. ISO dates and unseparated digit runs are not phone numbers, and `user@localhost`
 is not an email.
 
 ## Presidio-style anonymization techniques
