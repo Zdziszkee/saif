@@ -17,6 +17,13 @@ The hub SHALL be the only path from clients to the model: prompts reach the mode
 - **WHEN** a client attempts to reach the model other than through the hub's MCP surface
 - **THEN** no such interface is exposed by the system
 
+### Requirement: Standard MCP server surface
+The hub SHALL expose a spec-compliant MCP server surface (standard MCP protocol over HTTP) so that any standards-compliant MCP client can connect, enumerate the governed tool catalog, and invoke tools without a bespoke integration. Consuming external MCP servers SHALL likewise use a standard MCP client, so connected servers need no bespoke integration.
+
+#### Scenario: Third-party MCP client connects
+- **WHEN** a standard MCP client connects to the hub endpoint and lists tools
+- **THEN** it sees the governed tool catalog and every call it makes is subject to the same tool-call governance as any other caller
+
 ### Requirement: Prompt governance at the hub
 Every prompt submitted through the hub MUST be inspected by the control pipeline before it is forwarded to the model, and the model's answer MUST be inspected before it is returned to the caller.
 

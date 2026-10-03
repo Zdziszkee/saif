@@ -95,7 +95,7 @@ The system SHALL ingest signatures from externally managed systems through forma
 - **THEN** signatures from reachable sources remain active and the outage is reported without failing the system
 
 ### Requirement: Feed currency
-External sources SHALL be refreshed on a configurable poll interval using conditional requests (ETag or Last-Modified) so that newly published signatures take effect at runtime without operator action. The system SHALL retain the last-known-good feed across refresh failures and record the last successful refresh time per source.
+External sources SHALL be refreshed on a configurable poll interval using conditional requests (ETag or Last-Modified) so that newly published signatures take effect at runtime without operator action. Polling of external sources SHALL be enabled by default, with the vendored snapshot and locally edited feed file acting as fallback and override inputs. The system SHALL retain the last-known-good feed across refresh failures and record the last successful refresh time per source.
 
 #### Scenario: New upstream signature reaches the running system
 - **WHEN** an external source publishes a new signature and the next poll succeeds

@@ -2,9 +2,9 @@
 
 ## 1. Scaffolding and dependencies
 
-- [ ] 1.1 Add `@tanstack/ai-typesafe` and `vitest` to package.json, add `test` (unit tier) and `test:integration` scripts, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
+- [ ] 1.1 Add `@tanstack/ai-mcp` (TanStack MCP module: hub server surface + external MCP clients) and `@tanstack/ai-typesafe` and `vitest` to package.json, remove the `@modelcontextprotocol/sdk` dependency and `src/utils/mcp-handler.ts`, add `test` (unit tier) and `test:integration` scripts, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
 - [ ] 1.2 Extend `src/env.ts` with optional `TYPESAFE_API_KEY`, the OpenAI-compatible model connection (`MODEL_BASE_URL`, `MODEL_NAME`, `MODEL_API_KEY`), policy/feed paths, and budget window defaults; verify `bun run typecheck` passes and the app starts without the keys set (verify: `bun run typecheck` and `bun run dev` both succeed)
-- [ ] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit, authorization) and `src/lib/jev/` (adapter, catalog) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
+- [ ] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit, authorization), `src/lib/jev/` (adapter, catalog), and `src/hub/` (mcp-server, tool catalog, agentic loop, connections) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
 
 ## 2. Policy engine
 
@@ -65,10 +65,10 @@
 
 ## 10. MCP safety hub
 
-- [ ] 10.1 Implement `askModel` as the only model-reaching interface with the OpenAI-compatible connection from env (endpoint, model, key); verify hub prompt tests pass (verify: tests cover governed prompt flow and absence of any bypass route)
+- [ ] 10.1 Implement the hub's MCP server surface with `createMCPServer` from `@tanstack/ai-mcp` in `src/routes/mcp.ts` (replacing the `@modelcontextprotocol/sdk` demo handler), with `askModel` as the only model-reaching interface backed by the OpenAI-compatible connection from env (endpoint, model, key); verify hub prompt tests pass (verify: tests cover governed prompt flow and absence of any bypass route)
 - [ ] 10.2 Implement hub-hosted tools including risky demo tools (`fetchUrl`, `deleteAllTodos`) with tool arguments and results inspected by the pipeline; verify tool governance tests pass (verify: tests cover blocked call, redacted arguments, and inspected results)
 - [ ] 10.3 Implement configurable tool-call enforcement (tool-scoped vs turn-scoped per strictness profile) and the governed agentic tool loop bounded by request-count and compute-time budgets; verify enforcement and loop tests pass (verify: tests cover both enforcement modes and budget-bounded loop termination)
-- [ ] 10.4 Implement external MCP connections (endpoint plus user-provided service token, egress-allowlist check on connect, dynamic tool registration into the catalog ungranted) and credential custody (tokens used only to call the target server, never in model-visible content or logs); verify hub connection and custody tests pass (verify: tests cover connect-then-deny-until-granted, non-allowlisted endpoint rejection, and token leak prevention)
+- [ ] 10.4 Implement external MCP connections via `createMCPClient`/`createMCPClients` from `@tanstack/ai-mcp` (endpoint plus user-provided service token carried only in per-connection transport headers, egress-allowlist check on connect, dynamic tool registration into the catalog ungranted) and credential custody (tokens used only to call the target server, never in model-visible content or logs); verify hub connection and custody tests pass (verify: tests cover connect-then-deny-until-granted, non-allowlisted endpoint rejection, and token leak prevention)
 
 ## 11. Enforcement seams
 

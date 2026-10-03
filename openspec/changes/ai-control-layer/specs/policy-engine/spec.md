@@ -154,7 +154,7 @@ The policy SHALL configure how a blocked tool call is enforced — tool-scoped (
 - **THEN** each blocked tool call is enforced according to the profile in force for that interaction
 
 ### Requirement: Signature control configuration
-The policy SHALL map signature-feed severity levels to default actions and MAY override the action per signature identifier. It SHALL also configure the suspect action and threshold for structural suspicion signals. A severity mapping change MUST apply to subsequent matches without restart.
+The policy SHALL map signature-feed severity levels to default actions and MAY override the action per signature identifier. It SHALL also configure the suspect action and threshold for structural suspicion signals. A severity mapping change MUST apply to subsequent matches without restart. The signature feed itself is externally managed threat-intel data kept outside the policy document; the policy governs its enforcement — severity mapping, per-signature action overrides, enable/disable toggles, and false-positive markings — and a signature marked as a false positive MUST be neutralized through a per-signature action override rather than by editing the feed.
 
 #### Scenario: Severity mapping applied
 - **WHEN** the policy maps a signature severity level to `block` and a signature of that severity fires
@@ -163,3 +163,7 @@ The policy SHALL map signature-feed severity levels to default actions and MAY o
 #### Scenario: Per-signature override wins
 - **WHEN** the policy overrides the action for a specific signature identifier
 - **THEN** that override applies instead of the severity default when the signature fires
+
+#### Scenario: False positive neutralized
+- **WHEN** a firing signature is marked as a false positive
+- **THEN** subsequent matches on that signature apply the override action instead of the severity default, and the marking is recorded without modifying the feed entry

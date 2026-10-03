@@ -7,11 +7,15 @@ Defines the executable self-testing suite with a credential-free unit tier and a
 ## ADDED Requirements
 
 ### Requirement: Unit tier without model keys
-The unit tier MUST run and pass with no model API keys or network access. It SHALL cover the deterministic tier, policy engine, verdict mapping, signature matching, and budget accounting using fixed evidence and test doubles for boundaries only (test doubles MUST NOT be selectable as a product classifier).
+The unit tier MUST run and pass with no model API keys or network access. It SHALL cover the deterministic tier, policy engine, verdict mapping, signature matching, signature feed ingestion and currency, and budget accounting using fixed evidence and test doubles for boundaries only (test doubles MUST NOT be selectable as a product classifier).
 
 #### Scenario: Unit tier runs credential-free
 - **WHEN** the unit test suite is executed with no model environment variables set
 - **THEN** all unit tests pass without network access
+
+#### Scenario: Feed polling tested offline
+- **WHEN** the unit tier exercises external feed ingestion and polling
+- **THEN** the external sources are replaced by fixed stubbed responses and no network access occurs
 
 #### Scenario: Unit tier covers positive and negative cases
 - **WHEN** the unit tier evaluates a control

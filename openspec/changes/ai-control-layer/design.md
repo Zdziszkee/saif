@@ -131,6 +131,21 @@ actual usage from the model response settles and reconciles. Jev input tokens co
 the layer's own metering so semantic cost is visible. Over-budget uses the policy's
 over-budget verdict (default `block`).
 
+### D10. TanStack MCP module (`@tanstack/ai-mcp`) for both MCP roles
+The hub's MCP server surface is `createMCPServer()` from `@tanstack/ai-mcp`: hub tools are
+defined once with `toolDefinition()` (`@tanstack/ai`) and the same `AnyServerTool` list is
+served over MCP (`server.fetch` mounted in `src/routes/mcp.ts`) and passed to
+`chat({ tools })` for the governed agentic loop, so the catalog cannot drift between the
+two surfaces. External MCP servers connect through `createMCPClient` /
+`createMCPClients` (http/sse/stdio transports; per-connection `headers` carry the user's
+service token, keeping it out of tool content) and feed `chat({ mcp: { clients } })`. The
+package runs on the modular `@modelcontextprotocol/{core,client,server}@2.x`, so the
+monolithic `@modelcontextprotocol/sdk@1.x` and the `InMemoryTransport` request/response
+hack in `src/utils/mcp-handler.ts` are removed. Alternatives: keep sdk v1 for the server
+half while ai-mcp handles the client half (two SDK generations with duplicated tool
+shapes and transport code), or hand-roll JSON-RPC (reimplements protocol, transport, and
+version negotiation for no gain).
+
 ## Detailed Solution Design (per requirement)
 
 Concrete solution for each challenge requirement, layered cheap-first. Pipeline stage order
@@ -385,8 +400,9 @@ surface, not just message content.
 
 Additive, no breaking changes to existing routes. Steps:
 
-1. Dependencies and env: add `@tanstack/ai-typesafe`, `vitest`, `TYPESAFE_API_KEY`
-   (optional), keep `DATABASE_URL`.
+1. Dependencies and env: add `@tanstack/ai-mcp`, `@tanstack/ai-typesafe`, `vitest`,
+   `TYPESAFE_API_KEY` (optional), drop `@modelcontextprotocol/sdk` (and
+   `src/utils/mcp-handler.ts`), keep `DATABASE_URL`.
 2. Drizzle schema additions and migration (`bun run db:generate` / `db:migrate`).
 3. Ship seed `policy.json` + sample profiles + `signatures.json`; wire the versioned
    policy store (dashboard editing, import/export) and snapshot loader.

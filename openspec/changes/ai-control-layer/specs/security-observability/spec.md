@@ -36,7 +36,7 @@ The system SHALL export audit entries in a standard machine-readable format (JSO
 - **THEN** the export contains exactly the matching audit entries in the chosen format
 
 ### Requirement: Dashboard
-The system SHALL provide an interactive dashboard showing configured controls and profiles, overall security posture, blocked and redacted threats with their categories, and resource and cost consumption over time. The dashboard MUST also provide the policy editing surface (with version history and rollback), the approvals queue for pending tool calls, and a tool decision log view.
+The system SHALL provide an interactive dashboard showing configured controls and profiles, overall security posture, blocked and redacted threats with their categories, and resource and cost consumption over time. The dashboard MUST also provide the policy editing surface (with version history and rollback), the approvals queue for pending tool calls, a tool decision log view, and a signature feed operations view showing top firing signatures with counts and sources, per-source refresh state, and per-signature enable/disable and mark-as-false-positive actions.
 
 #### Scenario: Posture overview
 - **WHEN** a manager opens the dashboard
