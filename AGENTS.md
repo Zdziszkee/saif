@@ -41,7 +41,7 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `noQwikValidLexicalScope` (Qwik-only serialization rule; it fires on the plain
   factory closures this codebase is built from).
 - Scoped overrides relax rules only where the stack demands it: node/process usage in
-  server files (mcp, db, control, drizzle.config), `noDefaultExport` in config files,
+  server files (mcp, db, control, drizzle.config, scripts), `noDefaultExport` in config files,
   `noHeadElement` in `src/routes/__root.tsx`, and CONSTANT_CASE object keys for env
   vars and HTTP method keys. The `control` entry exists because the policy loader needs
   `node:fs` file-watch and `node:crypto` sha256. Test files (`tests/**`) additionally

@@ -19,6 +19,7 @@
 		"includes": [
 			"**/src/**/*",
 			"**/tests/**/*",
+			"**/scripts/**/*",
 			"**/.vscode/**/*",
 			"**/index.html",
 			"**/vite.config.ts",
@@ -163,6 +164,8 @@
 				"**/tests/policy-loader.test.ts",
 				"**/tests/policy-samples.test.ts",
 				"**/routes/mcp.ts",
+				"**/scripts/**",
+				"**/tests/**",
 				"**/vite.config.ts",
 				"**/vitest.config.ts",
 				"**/drizzle.config.ts"

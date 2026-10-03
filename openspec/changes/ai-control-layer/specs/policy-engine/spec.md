@@ -65,11 +65,11 @@ The policy SHALL define the deterministic detection rules as custom regex rules,
 - **THEN** the whole policy version is rejected with the validation errors and the last valid policy stays active
 
 ### Requirement: Semantic check configuration
-The policy SHALL define the semantic checks as typed questions the decision model evaluates: `boolean` checks (for example prompt injection, jailbreak, data exfiltration request, malicious code), `choice` checks (a threat category over a fixed option set), and `score` checks (severity 0–1). Each check definition SHALL carry an identifier, its type, the wording and criteria the model evaluates, an activation toggle, and per-direction thresholds. The policy MAY override the wording and criteria of built-in checks. Verdict mapping SHALL be expressed as explicit threshold conditions over the check's answer: if the check's probability is at or above the block threshold the action is `block`; otherwise at or above the redact threshold `redact`; otherwise at or above the flag threshold `flag`; otherwise `allow`. Answers whose confidence falls below the configured floor MUST follow the profile's uncertainty verdict.
+The policy SHALL define the semantic checks as binary questions the decision model evaluates: `boolean` checks (for example prompt injection, jailbreak, data exfiltration request, malicious code, privacy violation, insider trading). Each check definition SHALL carry an identifier, its type, the wording the model evaluates, an activation toggle, and per-direction thresholds. Verdict mapping SHALL be expressed as explicit threshold conditions over the check's answer: if the check's probability is at or above the block threshold the action is `block`; otherwise at or above the redact threshold `redact`; otherwise at or above the flag threshold `flag`; otherwise `allow`. Answers whose decisiveness `max(p, 1 - p)` falls below the configured floor MUST follow the profile's uncertainty verdict.
 
 #### Scenario: Check definition drives the question
 - **WHEN** the policy defines or enables a semantic check
-- **THEN** the decision model is asked exactly that check's typed question with its configured wording and criteria
+- **THEN** the decision model is asked exactly that check's question with its configured wording
 
 #### Scenario: Semantic check disabled
 - **WHEN** a semantic check is disabled in the policy

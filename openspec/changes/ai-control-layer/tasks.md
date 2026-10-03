@@ -5,7 +5,7 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 ## 1. Scaffolding and dependencies
 
-- [ ] 1.1 Add `@tanstack/ai-typesafe` and `vitest` to package.json, add the `test` script, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
+- [x] 1.1 Add `@tanstack/ai-typesafe` to package.json, keep the `test`/`test:integration` scripts on `bun test` (unit tier hermetic via `--path-ignore-patterns`, live tier opt-in via `SEMANTIC_LIVE=1`), and verify `bun install` and `bun test` execute the suite (verify: `bun run test` green with no network)
 - [ ] 1.2 Extend `src/env.ts` with optional `TYPESAFE_API_KEY`, policy/feed paths, and budget window defaults; verify `bun run typecheck` passes and the app starts without the key set (verify: `bun run typecheck` and `bun run dev` both succeed)
 - [ ] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit) and `src/lib/jev/` (adapter, catalog) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
 
@@ -40,10 +40,10 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 ## 6. Semantic tier (Jev)
 
-- [ ] 6.1 Load the local Intent skills for `@tanstack/ai` (ai-core and custom-backend-integration) and implement the typed question catalog (prompt injection, jailbreak, data exfiltration, malicious code booleans; threat category choice; severity score) plus policy-defined custom typed checks (boolean/choice/score), with policy-driven activation, wording and criteria overrides, and threshold-to-verdict conditions; verify catalog tests pass (verify: catalog builds question maps from policy check definitions correctly)
-- [ ] 6.2 Implement the `SemanticClassifier` interface and the Jev implementation over `decide()` with `@tanstack/ai-typesafe`, wired to `TYPESAFE_API_KEY`; verify behavior with and without the key (verify: classifier tests pass with `TYPESAFE_API_KEY` unset)
-- [ ] 6.3 Implement fixed-evidence classifier doubles for the unit tier, injected only through the test harness; verify unit classifier tests pass without network (verify: classifier tests pass with `TYPESAFE_API_KEY` unset)
-- [ ] 6.4 Verify answer consumption and typing: typed answer shapes carry probability distributions and confidence where required; verify compile-time narrowing test (verify: `bun run typecheck` includes answer-shape assertions)
+- [x] 6.1 Implement the policy-driven binary check catalog in `src/control/semantic/checks.ts`: each policy check is one TypeSafe `noul` question (`id`, `type: "boolean"`, `instructions`, `enabled`, per-direction threshold ladders) built into a single question map for one `decide()` round trip; verify catalog tests pass (verify: `bun run test` covers buildQuestions mapping, disabled-check omission, and rejection of duplicate/reserved/empty ids, empty instructions, non-boolean types and out-of-range thresholds)
+- [x] 6.2 Implement the `SemanticClassifier` interface and the Jev implementation over `decide()` with `@tanstack/ai-typesafe`, wired to `TYPESAFE_API_KEY` as the only product-path classifier; verify behavior with and without the key (verify: `bun run test:integration` reports a clear `SemanticConfigurationError` naming `TYPESAFE_API_KEY` when unset, and exercises the real decision model when set)
+- [x] 6.3 Implement fixed-evidence classifier doubles for the unit tier, injected only through the test harness (kept out of the module's public `index.ts`); verify unit classifier tests pass without network (verify: `bun run test` green with `TYPESAFE_API_KEY` and `MODEL_*` unset)
+- [x] 6.4 Verify answer consumption and typing: binary answers carry P(true) with no confidence field, unusable answers fail closed, and the evidence type carries no verdict; verify compile-time narrowing test (verify: `bun run typecheck` includes `@ts-expect-error` answer-shape and no-verdict assertions)
 
 ## 7. Budget governance
 
