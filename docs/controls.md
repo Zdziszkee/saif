@@ -69,8 +69,8 @@ nothing is sent to any API at runtime:
   and more). Refresh with `bun run data:names`; provenance in `data/README.md`.
 - **Search-optimized index** (`src/control/name-index.ts`): names are normalized (case-folded,
   diacritics stripped) into hash sets for O(1) membership, plus bounded longest-match over
-  consecutive capitalized tokens so multi-token names (`Ana Maria`, `de Silva`) resolve in a
-  single pass. Polish feminine surname variants (`-ski` → `-ska`, `-cki` → `-cka`) are derived
+  consecutive capitalized tokens so multi-token names resolve in a single pass. Polish feminine
+  surname variants (`-ski` → `-ska`, `-cki` → `-cka`) are derived
   from the dataset at load time, so `Anna Wiśniewska` matches even though census-style lists
   carry the masculine form.
 - **Compromise NER** (`src/control/ner.ts`): the local, rule-based NLP library (MIT) provides
