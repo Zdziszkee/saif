@@ -123,9 +123,10 @@ over-budget verdict (default `block`).
 ### D10. Two planes: prompts through the TanStack AI gateway, MCP as a tools-only hub
 AI prompt traffic is handled by the TanStack AI chat stack (`chat()` over the configured
 OpenAI-compatible adapter) at the chat seam, with the pipeline guarding the inbound prompt
-and the outbound answer. The MCP surface (`createMCPServer` at `src/routes/mcp.ts`) is a
-hub for tools only: it serves the governed tool catalog — hub-hosted tools plus tools from
-connected external MCP servers — and every tool call executes under tool-call governance
+and the outbound answer. The MCP surface (the hub's `createMCPServer`, served at
+`src/routes/mcp.ts`) is a hub for tools only: it serves the governed tool catalog —
+hub-hosted tools plus tools from connected external MCP servers — and every tool call
+executes under tool-call governance
 (grants, verdicts, audit, budgets). No model-reaching tool exists in the MCP catalog:
 model access is never exposed through the tool plane, and prompt traffic stays visible to
 the prompt-plane controls. The model's bounded tool loop (request-count and compute-time
