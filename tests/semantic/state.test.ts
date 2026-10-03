@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { SemanticInput } from "#/control/semantic/index.ts";
 import { buildSemanticState, DEFAULT_MAX_CHARS } from "#/control/semantic/state.ts";
 

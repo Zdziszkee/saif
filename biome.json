@@ -139,6 +139,7 @@
 				"**/db/**",
 				"**/routes/mcp.ts",
 				"**/scripts/**",
+				"**/tests/**",
 				"**/vite.config.ts",
 				"**/vitest.config.ts",
 				"**/drizzle.config.ts"

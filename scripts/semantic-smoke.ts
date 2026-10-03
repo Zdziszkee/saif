@@ -2,10 +2,10 @@
  * Manual smoke probe for the semantic tier against real Jev.
  *
  * Usage:
- *   TYPESAFE_API_KEY=ts-... npm run semantic:probe -- "your prompt text"
- *   TYPESAFE_API_KEY=ts-... npm run semantic:probe -- --direction outbound "..."
- *   TYPESAFE_API_KEY=ts-... npm run semantic:probe -- --checks ./policy.checks.json "..."
- *   TYPESAFE_API_KEY=ts-... npm run semantic:probe -- --stdin < prompt.txt
+ *   TYPESAFE_API_KEY=ts-... bun run semantic:probe -- "your prompt text"
+ *   TYPESAFE_API_KEY=ts-... bun run semantic:probe -- --direction outbound "..."
+ *   TYPESAFE_API_KEY=ts-... bun run semantic:probe -- --checks ./policy.checks.json "..."
+ *   TYPESAFE_API_KEY=ts-... bun run semantic:probe -- --stdin < prompt.txt
  *
  * Prints the evidence the policy engine would consume. No verdict is produced
  * here: classification is advisory, `applyPolicy()` decides.
@@ -25,10 +25,10 @@ import {
 
 const PROBE_USAGE = `semantic:probe — classify a prompt with real Jev
 
-  npm run semantic:probe -- "<prompt>"
-  npm run semantic:probe -- --stdin < prompt.txt
-  npm run semantic:probe -- --direction outbound "<prompt>"
-  npm run semantic:probe -- --checks ./checks.json "<prompt>"
+  bun run semantic:probe -- "<prompt>"
+  bun run semantic:probe -- --stdin < prompt.txt
+  bun run semantic:probe -- --direction outbound "<prompt>"
+  bun run semantic:probe -- --checks ./checks.json "<prompt>"
 
 Reads TYPESAFE_API_KEY from the environment or from a gitignored .env file.
 Without it createJevClassifier() fails closed with a configuration error rather

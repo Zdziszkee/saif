@@ -5,7 +5,7 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 ## 1. Scaffolding and dependencies
 
-- [ ] 1.1 Add `@tanstack/ai-typesafe` and `vitest` to package.json, add the `test` script, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
+- [x] 1.1 Add `@tanstack/ai-typesafe` to package.json, keep the `test`/`test:integration` scripts on `bun test` (unit tier hermetic via `--path-ignore-patterns`, live tier opt-in via `SEMANTIC_LIVE=1`), and verify `bun install` and `bun test` execute the suite (verify: `bun run test` green with no network)
 - [ ] 1.2 Extend `src/env.ts` with optional `TYPESAFE_API_KEY`, policy/feed paths, and budget window defaults; verify `bun run typecheck` passes and the app starts without the key set (verify: `bun run typecheck` and `bun run dev` both succeed)
 - [ ] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit) and `src/lib/jev/` (adapter, catalog) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
 

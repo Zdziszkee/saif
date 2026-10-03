@@ -9,6 +9,29 @@ bun install
 bun --bun run dev
 ```
 
+# Tooling: Bun Only
+
+This repository uses [Bun](https://bun.sh/) exclusively — for installing, running
+scripts, testing, and executing package binaries. Do not use `npm`, `pnpm`, or
+`yarn`; `bun.lock` is the one and only lockfile (`package-lock.json` must not be
+committed).
+
+```bash
+bun install          # install dependencies
+bun run verify       # typecheck (tsc) + lint/format (biome)
+bun test             # unit tests (tests/**/*.test.ts, bun:test API)
+bun run test:watch   # watch mode
+```
+
+# Continuous Integration
+
+Every push and pull request targeting `master`/`main` runs
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) on a lightweight Alpine
+container (`oven/bun:*-alpine`): the `unit-tests` job runs `bun test`, and the
+`verify` job runs `bun run verify`. A failing `unit-tests` check blocks merging
+the pull request, and direct pushes to `master`/`main` are disabled by a GitHub
+ruleset (see `scripts/setup-branch-protection.sh`).
+
 # Building For Production
 
 To build this application for production:
@@ -47,7 +70,7 @@ bun --bun run check
 This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
 
 ```bash
-npm run build
+bun run build
 node dist/server/index.mjs
 ```
 
@@ -79,7 +102,7 @@ console.log(env.VITE_APP_TITLE);
 Add components using the latest version of [Shadcn](https://ui.shadcn.com/).
 
 ```bash
-pnpm dlx shadcn@latest add button
+bunx shadcn@latest add button
 ```
 
 

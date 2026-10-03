@@ -1,6 +1,6 @@
+import { describe, expect, it } from "bun:test";
 import type { EvaluateAdapterResult, EvaluateOptions, WireAnswer } from "@tanstack/ai/adapters";
 import { BaseEvaluateAdapter } from "@tanstack/ai/adapters";
-import { describe, expect, it } from "vitest";
 
 import { createSemanticClassifier } from "#/control/semantic/classifier.ts";
 import { createFixedClassifier } from "#/control/semantic/double.ts";

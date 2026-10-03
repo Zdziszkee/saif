@@ -89,7 +89,7 @@ None — the repo has no existing specs (`openspec list --specs` is empty).
   `src/db/schema.ts` gains audit, usage, and budget tables.
 - **Dependencies**: `@tanstack/ai-typesafe` (Jev over TypeSafe HTTP; `@tanstack/ai@0.64.0`
   already ships `decide()`, `choice()`, `score()`, `boolean()`, `BaseEvaluateAdapter`),
-  `vitest` for the judge-runnable test suite.
+  `bun:test` for the judge-runnable test suite (the repo standardised on bun alone).
 - **Config**: new `policy.json` (+ sample variants) and `signatures.json` feed; new env
   vars (`TYPESAFE_API_KEY`, policy/feed paths, budget window settings) via `src/env.ts`.
 - **Runtime**: Jev calls add 70-500 ms on the semantic path only; deterministic tier

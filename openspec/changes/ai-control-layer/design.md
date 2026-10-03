@@ -105,10 +105,14 @@ rollover needs no cron). Alternatives: Postgres (operational overhead), in-memor
 audit durability), files (no queryability for dashboards/exports).
 
 ### D8. Hermetic test suite by default, live smoke opt-in
-Vitest drives the suite with fixed-evidence doubles injected at the
-`SemanticClassifier` boundary and temp SQLite files; every spec scenario maps to a test,
-and it runs with no network or keys — mandatory given the no-paid-services evaluation
-setup. A `test:live` script (gated on `TYPESAFE_API_KEY`) exercises the real Jev path.
+`bun test` drives the suite (the repo standardised on bun alone) with fixed-evidence
+doubles injected at the `SemanticClassifier` boundary and temp SQLite files; every spec
+scenario maps to a test, and it runs with no network or keys — mandatory given the
+no-paid-services evaluation setup, and CI gates merges on bare `bun test`. Live tests sit
+behind an explicit `SEMANTIC_LIVE=1` opt-in rather than mere key presence, so a developer
+with a real key in their gitignored `.env` cannot make the unit tier reach the network.
+`bun run test:integration` sets that flag and exercises the real Jev path, reporting a
+clear configuration error when credentials are missing.
 
 ### D9. Budget enforcement: estimate pre-flight, settle post-flight
 Token estimates (chars/4 heuristic plus fixed overhead) reserve budget before forwarding;
@@ -341,7 +345,7 @@ surface, not just message content.
 
 Additive, no breaking changes to existing routes. Steps:
 
-1. Dependencies and env: add `@tanstack/ai-typesafe`, `vitest`, `TYPESAFE_API_KEY`
+1. Dependencies and env: add `@tanstack/ai-typesafe`, `@types/bun`, `TYPESAFE_API_KEY`
    (optional), keep `DATABASE_URL`.
 2. Drizzle schema additions and migration (`bun run db:generate` / `db:migrate`).
 3. Ship seed `policy.json` + sample profiles + `signatures.json`; wire the loader and

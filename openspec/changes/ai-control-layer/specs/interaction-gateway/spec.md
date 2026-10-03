@@ -13,6 +13,17 @@ The system SHALL route every governed AI interaction through the same control pi
 - **WHEN** a client sends a request to the generic guard API
 - **THEN** the request passes through the control pipeline and is forwarded only if the resulting verdict allows it
 
+### Requirement: Multi-consumer connections
+The system SHALL serve many independent agents and clients concurrently, each presenting a consumer key that identifies the policy subject it acts as (for example one key per agent, application, or team). Consumer keys SHALL be accepted through a defined request header at every seam. Interactions from different consumers MUST be governed in isolation: one consumer's verdicts, policy configuration, or budget state MUST NOT affect another consumer's traffic. A missing or unknown consumer key MUST follow the policy's configured default-subject behavior (a defined default profile or rejection) and MUST NOT silently inherit another consumer's configuration.
+
+#### Scenario: Concurrent agents governed independently
+- **WHEN** two agents with different consumer keys send interactions concurrently
+- **THEN** each interaction is evaluated under its own consumer's profile and recorded against its own consumer key
+
+#### Scenario: Unknown consumer key
+- **WHEN** a request presents a consumer key the policy does not define
+- **THEN** the interaction follows the policy's default-subject behavior and the outcome is recorded in the audit log
+
 ### Requirement: Verdict enforcement
 The system SHALL apply exactly one verdict per inspected direction: `allow`, `redact`, `block`, or `escalate`. Redaction MUST replace flagged content with typed placeholders before forwarding; block MUST NOT forward the content; escalate MUST record the interaction for review and MUST NOT forward the content while unresolved.
 

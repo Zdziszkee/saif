@@ -10,14 +10,15 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test": "bun test --path-ignore-patterns tests/integration",
+    "test:watch": "bun test --watch",
     "format": "biome format --write",
     "lint": "biome lint",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "verify": "tsc --noEmit && biome check .",
-    "test": "vitest run --exclude 'tests/integration/**'",
-    "test:integration": "vitest run tests/integration",
-    "semantic:probe": "tsx scripts/semantic-smoke.ts",
+    "test:integration": "SEMANTIC_LIVE=1 bun test tests/integration",
+    "semantic:probe": "bun scripts/semantic-smoke.ts",
     "intent": "node node_modules/@tanstack/intent/dist/cli.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -67,6 +68,7 @@
     "@tanstack/intent": "^0.5.2",
     "@tanstack/router-cli": "^1.132.0",
     "@types/better-sqlite3": "^7.6.0",
+    "@types/bun": "^1.4.2",
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
@@ -74,8 +76,7 @@
     "dotenv": "^17.3.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
-    "vite": "^8.0.0",
-    "vitest": "^3"
+    "vite": "^8.0.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

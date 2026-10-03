@@ -50,3 +50,25 @@ export function makeCheck(overrides: Partial<SemanticCheck> = {}): SemanticCheck
 		...overrides,
 	};
 }
+
+/**
+ * Run `run` with `name` forced to `value` in `process.env`, restoring the
+ * previous value afterwards.
+ *
+ * Replaces `vi.stubEnv`, which `bun:test` does not provide. Used to prove the
+ * fail-closed path regardless of whatever key the developer happens to have in
+ * their gitignored `.env`.
+ */
+export function withEnv(name: string, value: string, run: () => void): void {
+	const previous = process.env[name];
+	process.env[name] = value;
+	try {
+		run();
+	} finally {
+		if (previous === undefined) {
+			delete process.env[name];
+		} else {
+			process.env[name] = previous;
+		}
+	}
+}
