@@ -26,7 +26,11 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   imports enforced. Rules that fight this toolchain are intentionally off:
   `noUnresolvedImports` (biome resolver false positives on package subpath exports;
   tsc covers this), `noReactSpecificProps` (this is a React project),
-  `noJsxLiterals`, `useExportsLast` (fight TanStack route conventions).
+  `noJsxLiterals`, `useExportsLast` (fight TanStack route conventions),
+  `useQwikValidLexicalScope` (a Qwik serialization rule; this is a React/TanStack
+  Start app with no Qwik runtime, so it flags every ordinary closure as a
+  non-serializable capture — added when `src/control/semantic/` introduced
+  abort/deadline callbacks).
 - Scoped overrides relax rules only where the stack demands it: node/process usage in
   server files (mcp, db, drizzle.config), `noDefaultExport` in config files,
   `noHeadElement` in `src/routes/__root.tsx`, and CONSTANT_CASE object keys for env

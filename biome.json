@@ -87,7 +87,8 @@
 			"linter": {
 				"rules": {
 					"correctness": {
-						"noUnresolvedImports": "off"
+						"noUnresolvedImports": "off",
+						"useQwikValidLexicalScope": "off"
 					},
 					"style": {
 						"noJsxLiterals": "off",

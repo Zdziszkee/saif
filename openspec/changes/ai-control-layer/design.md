@@ -58,18 +58,19 @@ the TypeSafe REST API (reimplements answer mapping and typing), AI SDK
 `experimental_evaluate` (second AI stack in a TanStack AI repo). Configuration injected at
 the module boundary so tests never touch the network.
 
-### D3. Typed checks: built-in catalog in code, policy-defined checks first-class
-Built-in semantic question definitions (instructions, criteria) live in a typed TS catalog
-so answer handling keeps `decide()`'s compile-time unions. The policy defines checks
-first-class: it enables/disables built-in checks, sets per-profile
-probability/confidence thresholds and explicit threshold-to-verdict conditions, overrides
-check wording/criteria, and may define custom typed checks (`boolean`/`choice`/`score`)
-consumed through the same answer contract — this is the "if statement" judges write: if
-`probability(check) ≥ blockThreshold` then `block`, else `redact`/`flag`/`allow`.
-Rationale: judges need to define what the model checks, not only flip toggles (explicitly
-named in the challenge), while built-in typed answers keep the verdict mapper safe.
-Custom checks trade compile-time narrowing for tunability; their answers flow through the
-generic typed-answer path, never free-form text.
+### D3. Binary semantic checks defined by the policy document
+Every semantic check is a binary yes/no question authored in `policy.json` and answered
+by Jev in one round trip. There is no question catalog in code: the shipped `policy.json`
+is the catalog, and a judge adds a guardrail — "Does this text contain insider trading
+information?" — by appending a check entry. Each check carries `id`, `type: "boolean"`,
+`instructions`, `enabled`, and per-direction threshold ladders; verdict mapping is the
+explicit condition `if probability(check) ≥ blockThreshold then block`, else
+`redact`/`flag`/`allow`. Rationale: judges need to define what the model checks, not
+only flip toggles (explicitly named in the challenge). Binary-only keeps the answer
+contract uniform — one P(true) per check — so the verdict mapper is a single generic
+ladder rather than a switch over question kinds. Trade-off: no compile-time narrowing on
+answer *ids* (they are policy data), so answers are runtime-validated against their
+declared check definitions and unusable answers fail closed.
 
 ### D4. Cheap-first pipeline order
 `shape validation -> model allowlist -> signature feed -> deterministic PII/secrets ->
@@ -81,9 +82,9 @@ worst-case latency but spends Jev tokens on requests deterministic rules would h
 blocked.
 
 ### D5. Verdict model: `allow | redact | block | escalate`, per direction, decided only by policy
-Evidence (matches, probabilities, confidence) flows into a pure
+Evidence (matches, probabilities) flows into a pure
 `applyPolicy(evidence, profile)` function. Uncertainty and tool failures map to the
-profile's failure verdict (default `block` for failures, `escalate` for low confidence).
+profile's failure verdict (default `block` for failures, `escalate` for low decisiveness).
 Escalation = audit entry flagged for review, content not forwarded. This is the
 "classification is advisory to policy" boundary: identical Jev answers can yield different
 verdicts under different profiles, which is also what makes the threshold behavior
@@ -143,7 +144,8 @@ itself is D4; this section specifies what each stage actually does.
   kill-switch is the observe-only mode.
 - **Judge tunability**: thresholds, actions, allowlists, custom regex rules, and semantic
   check definitions (type, wording, criteria) are all policy fields; nothing
-  security-relevant is hard-coded outside the built-in pattern and question catalogs.
+  security-relevant is hard-coded outside the built-in pattern catalog; semantic checks
+  are policy data in their entirety (D3).
 
 ### R2a. Deterministic (non-AI) controls — layered regex defense
 
@@ -183,10 +185,10 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 ### R2b. Semantic (AI-based) controls — Jev
 
 - **Question catalog** (one round trip, questions evaluated in parallel against one `state`):
-  `noul` booleans (prompt injection? jailbreak? data exfiltration request? malicious code?),
-  `choice` (threat category, full distribution), `score` (severity 0–1). Catalog is typed TS
-  for the built-ins; policy toggles activation, overrides wording/thresholds, and may
-  define additional typed checks consumed through the same answer contract (D3).
+  the policy's enabled binary checks, each a TypeSafe `noul` question keyed by its check
+  id. Adding, disabling or rewording a check is a policy edit only (D3). The shipped
+  `policy.json` seeds `prompt_injection`, `jailbreak`, `data_exfiltration`,
+  `malicious_code`, `privacy_violation` and `insider_trading` as examples.
 - **Egress minimization (no sensitive data to Jev)**: `state` is a constructed allowlist
   object (`{ role, direction, content, contentLength, flags[] }`) built in exactly one
   function from post-redaction text of the inspected span only — no history, system prompts,
@@ -197,9 +199,12 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
   (`block` default / `escalate` / `redact-and-send`).
 - **Routing**: `controls.semantic.egress.mode`: `minimized` (default) | `off`
   (deterministic-only for sensitive consumers/routes).
-- **Consumption**: confidence floors per action; below floor → profile's uncertainty verdict
-  (default `escalate`). Timeout bounded, failure verdict fail-closed. Classification is
-  advisory: only `applyPolicy()` maps answers to verdicts (D5).
+- **Consumption**: binary answers carry P(true) and no confidence value, so uncertainty is
+  measured as decisiveness `max(p, 1 - p)` against a per-action floor; below floor →
+  profile's uncertainty verdict (default `escalate`). Answers that do not match their
+  declared check definition fail closed. Timeout bounded (the deadline races the call, so
+  it holds even against a non-cooperative adapter), failure verdict fail-closed.
+  Classification is advisory: only `applyPolicy()` maps answers to verdicts (D5).
 
 ### R3. Budget and resource governance
 
@@ -313,7 +318,7 @@ surface, not just message content.
 - [Jev is early-access; judges may lack a key] → The suite is credential-free (D8);
   docs state plainly which tier needs the key.
 - [Semantic misclassification / overconfidence] → Calibrated probabilities with per-action
-  confidence floors (D5); deterministic tier is independent and final for its classes;
+  decisiveness floors (D5); deterministic tier is independent and final for its classes;
   thresholds tuned per profile with the fail-closed default.
 - [Added latency on the guarded path] → Cheap-first ordering (D4); single `decide()` call
   with questions in parallel; per-stage latency recorded in audit for the telemetry the
