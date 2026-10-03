@@ -18,6 +18,7 @@
     "check:fix": "biome check --write .",
     "verify": "tsc --noEmit && biome check .",
     "data:names": "bun scripts/build-name-data.ts",
+    "data:signatures": "bun scripts/build-signature-feed.ts",
     "fixtures:env": "bun scripts/build-fixture-env.ts",
     "test:integration": "SEMANTIC_LIVE=1 bun test tests/integration",
     "semantic:probe": "bun scripts/semantic-smoke.ts",

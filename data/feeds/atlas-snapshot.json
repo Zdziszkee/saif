@@ -1,0 +1,170 @@
+{
+	"type": "bundle",
+	"id": "bundle--a1b2c3d4-0000-4000-8000-000000000001",
+	"spec_version": "2.1",
+	"objects": [
+		{
+			"type": "identity",
+			"spec_version": "2.1",
+			"id": "identity--a1b2c3d4-0000-4000-8000-000000000099",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "saif feed mirror",
+			"identity_class": "organization"
+		},
+		{
+			"type": "attack-pattern",
+			"spec_version": "2.1",
+			"id": "attack-pattern--a1b2c3d4-0000-4000-8000-000000000011",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "LLM Prompt Injection",
+			"description": "Adversary crafts inputs that override model instructions, including ignore-previous directives, delimiter escapes, and encoded payloads.",
+			"external_references": [
+				{ "source_name": "mitre-atlas", "url": "https://atlas.mitre.org/" }
+			],
+			"kill_chain_phases": [{ "kill_chain_name": "mitre-atlas", "phase_name": "initial-access" }],
+			"x_signature_ids": [
+				"inj-ignore-previous",
+				"inj-system-marker",
+				"inj-role-hijack",
+				"inj-delimiter-escape",
+				"inj-above-override",
+				"inj-translate-follow",
+				"inj-base64-directive",
+				"inj-repeat-verbatim",
+				"inj-instead-reframe"
+			]
+		},
+		{
+			"type": "attack-pattern",
+			"spec_version": "2.1",
+			"id": "attack-pattern--a1b2c3d4-0000-4000-8000-000000000012",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "LLM Jailbreak",
+			"description": "Adversary uses role-play envelopes, developer-mode claims, and persona overrides to bypass safety controls.",
+			"external_references": [
+				{ "source_name": "mitre-atlas", "url": "https://atlas.mitre.org/" }
+			],
+			"kill_chain_phases": [{ "kill_chain_name": "mitre-atlas", "phase_name": "defense-evasion" }],
+			"x_signature_ids": [
+				"jail-dan",
+				"jail-bypass-filters",
+				"jail-disable-safety",
+				"jail-developer-mode",
+				"jail-uncensored-persona",
+				"jail-roleplay-game",
+				"jail-drop-morals"
+			]
+		},
+		{
+			"type": "attack-pattern",
+			"spec_version": "2.1",
+			"id": "attack-pattern--a1b2c3d4-0000-4000-8000-000000000013",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "System Prompt and Credential Exfiltration",
+			"description": "Adversary elicits hidden system instructions, credential files, or secret echoes, or smuggles outbound beacons.",
+			"external_references": [
+				{ "source_name": "mitre-atlas", "url": "https://atlas.mitre.org/" }
+			],
+			"kill_chain_phases": [{ "kill_chain_name": "mitre-atlas", "phase_name": "collection" }],
+			"x_signature_ids": [
+				"exfil-system-prompt",
+				"exfil-secret-file",
+				"inj-markdown-beacon",
+				"inj-secret-echo"
+			]
+		},
+		{
+			"type": "attack-pattern",
+			"spec_version": "2.1",
+			"id": "attack-pattern--a1b2c3d4-0000-4000-8000-000000000014",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "Tool and Shell Abuse",
+			"description": "Adversary pipes tool output into shells, invokes encoded PowerShell, inline Python, fetch utilities, or permission flips.",
+			"external_references": [
+				{ "source_name": "mitre-atlas", "url": "https://atlas.mitre.org/" }
+			],
+			"kill_chain_phases": [{ "kill_chain_name": "mitre-atlas", "phase_name": "execution" }],
+			"x_signature_ids": [
+				"tool-shell-pipe",
+				"tool-delete-recursive",
+				"tool-download-execute",
+				"tool-powershell-encoded",
+				"tool-python-inline",
+				"tool-certutil-fetch",
+				"tool-chmod-exec"
+			]
+		},
+		{
+			"type": "attack-pattern",
+			"spec_version": "2.1",
+			"id": "attack-pattern--a1b2c3d4-0000-4000-8000-000000000015",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "Malicious Code Execution Markers",
+			"description": "Payloads invoking evaluators and OS process spawners with attacker-influenced input.",
+			"external_references": [
+				{ "source_name": "mitre-atlas", "url": "https://atlas.mitre.org/" }
+			],
+			"kill_chain_phases": [{ "kill_chain_name": "mitre-atlas", "phase_name": "execution" }],
+			"x_signature_ids": ["code-eval-input", "code-os-system", "code-child-process"]
+		},
+		{
+			"type": "attack-pattern",
+			"spec_version": "2.1",
+			"id": "attack-pattern--a1b2c3d4-0000-4000-8000-000000000016",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "Model Supply-Chain Vectors",
+			"description": "Untrusted package indexes, lifecycle install hooks, and setup-time command execution.",
+			"external_references": [
+				{ "source_name": "mitre-atlas", "url": "https://atlas.mitre.org/" }
+			],
+			"kill_chain_phases": [{ "kill_chain_name": "mitre-atlas", "phase_name": "resource-development" }],
+			"x_signature_ids": [
+				"supply-torch-hub",
+				"supply-pip-untrusted",
+				"supply-npm-lifecycle",
+				"supply-setup-hook"
+			]
+		},
+		{
+			"type": "attack-pattern",
+			"spec_version": "2.1",
+			"id": "attack-pattern--a1b2c3d4-0000-4000-8000-000000000017",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "Unsafe Deserialization Markers",
+			"description": "Unsafe loaders across runtimes: pickle, YAML, marshal, PHP unserialize, Java native serialization.",
+			"external_references": [
+				{ "source_name": "mitre-atlas", "url": "https://atlas.mitre.org/" }
+			],
+			"kill_chain_phases": [{ "kill_chain_name": "mitre-atlas", "phase_name": "execution" }],
+			"x_signature_ids": [
+				"deser-pickle",
+				"deser-yaml-unsafe",
+				"deser-marshal-shelve",
+				"deser-php-unserialize",
+				"deser-java-native"
+			]
+		},
+		{
+			"type": "attack-pattern",
+			"spec_version": "2.1",
+			"id": "attack-pattern--a1b2c3d4-0000-4000-8000-000000000018",
+			"created": "2026-10-01T00:00:00.000Z",
+			"modified": "2026-10-01T00:00:00.000Z",
+			"name": "Retired technique",
+			"description": "Revoked placeholder the importer must skip.",
+			"external_references": [
+				{ "source_name": "mitre-atlas", "url": "https://atlas.mitre.org/" }
+			],
+			"revoked": true,
+			"x_signature_ids": ["retired-should-not-load"]
+		}
+	]
+}
