@@ -37,7 +37,8 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   imports enforced. Rules that fight this toolchain are intentionally off:
   `noUnresolvedImports` (biome resolver false positives on package subpath exports;
   tsc covers this), `noReactSpecificProps` (this is a React project),
-  `noJsxLiterals`, `useExportsLast` (fight TanStack route conventions),
+  `useSolidForComponent` (SolidJS component-hoisting convention; React `.map()`
+  render callbacks are idiomatic here), `noJsxLiterals`, `useExportsLast` (fight TanStack route conventions),
   `noQwikValidLexicalScope` (Qwik-only serialization rule; it fires on the plain
   factory closures this codebase is built from), `useSolidForComponent` (Solid-only
   rule; its `.map` advice is wrong for React list rendering).
