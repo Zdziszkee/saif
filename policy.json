@@ -1,0 +1,159 @@
+{
+	"version": 1,
+	"enabled": true,
+	"defaultProfile": "standard",
+	"failureVerdict": "block",
+	"consumers": {
+		"default": { "profile": "standard", "budgetGroup": "default" },
+		"demo-agent": { "profile": "standard", "budgetGroup": "demo" },
+		"trusted-internal": { "profile": "permissive", "budgetGroup": "default" }
+	},
+	"allowlist": {
+		"models": ["*"]
+	},
+	"controls": {
+		"deterministic": {
+			"enabled": true,
+			"actions": {
+				"secret": "block",
+				"pii": "redact"
+			}
+		},
+		"signatures": {
+			"enabled": true,
+			"actions": {
+				"default": "block",
+				"bySeverity": {
+					"low": "escalate",
+					"medium": "block",
+					"high": "block",
+					"critical": "block"
+				}
+			}
+		},
+		"semantic": {
+			"enabled": true,
+			"classifier": "jev",
+			"timeoutMs": 1500,
+			"failureVerdict": "block",
+			"uncertaintyVerdict": "escalate",
+			"questions": {
+				"promptInjection": { "enabled": true, "blockThreshold": 0.85, "escalateThreshold": 0.5 },
+				"jailbreak": { "enabled": true, "blockThreshold": 0.85, "escalateThreshold": 0.5 },
+				"dataExfiltration": { "enabled": true, "blockThreshold": 0.8, "escalateThreshold": 0.5 },
+				"maliciousCode": { "enabled": true, "blockThreshold": 0.8, "escalateThreshold": 0.5 }
+			},
+			"threatCategory": {
+				"enabled": true,
+				"blockCategories": [
+					"prompt_injection",
+					"jailbreak",
+					"data_exfiltration",
+					"malicious_code"
+				],
+				"confidenceFloor": 0.6,
+				"probabilityFloor": 0.7
+			},
+			"severity": {
+				"enabled": true,
+				"blockAt": 3,
+				"escalateAt": 2
+			}
+		},
+		"budgets": {
+			"enabled": true,
+			"rules": [
+				{
+					"id": "default-day",
+					"budgetGroup": "default",
+					"window": "day",
+					"limitTokens": 2000000,
+					"limitUsd": 20,
+					"limitRequests": 10000,
+					"limitComputeMs": 7200000,
+					"overBudgetVerdict": "block"
+				},
+				{
+					"id": "demo-day",
+					"budgetGroup": "demo",
+					"window": "day",
+					"limitTokens": 200000,
+					"limitUsd": 2,
+					"limitRequests": 1000,
+					"limitComputeMs": 600000,
+					"overBudgetVerdict": "block"
+				}
+			]
+		}
+	},
+	"profiles": {
+		"permissive": {
+			"failureVerdict": "escalate",
+			"controls": {
+				"deterministic": {
+					"actions": { "secret": "redact", "pii": "allow" }
+				},
+				"signatures": {
+					"actions": {
+						"default": "escalate",
+						"bySeverity": { "low": "allow", "medium": "escalate", "high": "block", "critical": "block" }
+					}
+				},
+				"semantic": {
+					"failureVerdict": "escalate",
+					"questions": {
+						"promptInjection": { "blockThreshold": 0.95, "escalateThreshold": 0.7 },
+						"jailbreak": { "blockThreshold": 0.95, "escalateThreshold": 0.7 },
+						"dataExfiltration": { "blockThreshold": 0.95, "escalateThreshold": 0.7 },
+						"maliciousCode": { "blockThreshold": 0.95, "escalateThreshold": 0.7 }
+					},
+					"threatCategory": {
+						"blockCategories": ["prompt_injection", "malicious_code"],
+						"confidenceFloor": 0.7,
+						"probabilityFloor": 0.8
+					},
+					"severity": { "blockAt": 4, "escalateAt": 3 }
+				}
+			}
+		},
+		"standard": {},
+		"strict": {
+			"controls": {
+				"deterministic": {
+					"actions": { "secret": "block", "pii": "block" }
+				},
+				"signatures": {
+					"actions": {
+						"default": "block",
+						"bySeverity": {
+							"low": "block",
+							"medium": "block",
+							"high": "block",
+							"critical": "block"
+						}
+					}
+				},
+				"semantic": {
+					"questions": {
+						"promptInjection": { "blockThreshold": 0.6, "escalateThreshold": 0.3 },
+						"jailbreak": { "blockThreshold": 0.6, "escalateThreshold": 0.3 },
+						"dataExfiltration": { "blockThreshold": 0.6, "escalateThreshold": 0.3 },
+						"maliciousCode": { "blockThreshold": 0.6, "escalateThreshold": 0.3 }
+					},
+					"threatCategory": {
+						"blockCategories": [
+							"prompt_injection",
+							"jailbreak",
+							"data_exfiltration",
+							"malicious_code",
+							"policy_violation"
+						],
+						"confidenceFloor": 0.5,
+						"probabilityFloor": 0.5
+					},
+					"severity": { "blockAt": 2, "escalateAt": 1 }
+				}
+			}
+		}
+	}
+}
