@@ -2,26 +2,28 @@
 
 ## 1. Scaffolding and dependencies
 
-- [ ] 1.1 Add `@tanstack/ai-typesafe` and `vitest` to package.json, add `test` and `test:live` scripts, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
-- [ ] 1.2 Extend `src/env.ts` with optional `TYPESAFE_API_KEY`, policy/feed paths, and budget window defaults; verify `bun run typecheck` passes and the app starts without the key set (verify: `bun run typecheck` and `bun run dev` both succeed)
-- [ ] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit) and `src/lib/jev/` (adapter, catalog) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
+- [ ] 1.1 Add `@tanstack/ai-typesafe` and `vitest` to package.json, add `test` (unit tier) and `test:integration` scripts, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
+- [ ] 1.2 Extend `src/env.ts` with optional `TYPESAFE_API_KEY`, the OpenAI-compatible model connection (`MODEL_BASE_URL`, `MODEL_NAME`, `MODEL_API_KEY`), policy/feed paths, and budget window defaults; verify `bun run typecheck` passes and the app starts without the keys set (verify: `bun run typecheck` and `bun run dev` both succeed)
+- [ ] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit, authorization) and `src/lib/jev/` (adapter, catalog) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
 
 ## 2. Policy engine
 
-- [ ] 2.1 Implement the zod policy schema (controls, per-direction thresholds, strictness profiles permissive/standard/strict, model allowlist, budget rules, semantic check toggles and thresholds, failure verdicts) and verify schema tests reject invalid documents (verify: policy schema tests pass)
-- [ ] 2.2 Implement the policy loader with immutable snapshot, atomic swap, file-watch hot reload, and last-valid fallback; verify reload and invalid-reload tests pass (verify: loader tests cover live edit and rejection rollback)
+- [ ] 2.1 Implement the zod policy schema (tool and action catalog with capability verbs, confirmation flags and classification overrides, per-user grants, network egress allowlist, tool-call enforcement mode, controls, per-direction thresholds, strictness profiles permissive/standard/strict, model allowlist, budget rules, semantic check toggles and thresholds, failure verdicts) and verify schema tests reject invalid documents (verify: policy schema tests pass)
+- [ ] 2.2 Implement the policy store (versioned documents in SQLite, create-on-edit with schema validation, rollback to prior versions, JSON import/export) and the runtime loader with immutable snapshot, atomic swap, and last-valid fallback; verify versioning and reload tests pass (verify: tests cover new-version-on-edit, invalid-edit rejection, rollback, and import/export round-trip)
 - [ ] 2.3 Ship `policy.json` plus `policy.permissive.json` and `policy.strict.json` sample variants and document every field in `docs/policy.md`; verify documented example values validate against the schema (verify: tests load all sample files successfully)
 
 ## 3. Storage layer
 
-- [ ] 3.1 Add `audit_events`, `usage_records`, and `budget_windows` tables to `src/db/schema.ts`, generate the Drizzle migration, and verify `bun run db:migrate` applies cleanly to a fresh database (verify: migration runs on a temp SQLite file)
-- [ ] 3.2 Implement repository modules (append-only audit insert and query, usage insert and aggregation, budget window upsert and read) and verify roundtrip tests on a temp database (verify: repository tests pass)
+- [ ] 3.1 Add `audit_events`, `usage_records`, `budget_windows`, `policy_versions`, `mcp_connections`, and `approval_items` tables to `src/db/schema.ts`, generate the Drizzle migration, and verify `bun run db:migrate` applies cleanly to a fresh database (verify: migration runs on a temp SQLite file)
+- [ ] 3.2 Implement repository modules (append-only audit insert and query, usage insert and aggregation, budget window upsert and read, policy version create/read/activate, MCP connection and tool registration, approval item lifecycle) and verify roundtrip tests on a temp database (verify: repository tests pass)
 
 ## 4. Deterministic tier
 
 - [ ] 4.1 Implement detectors for secrets (API keys, tokens) and PII (email, phone, card, government-ID-like) returning kind and span; verify positive and negative detector tests pass (verify: detector tests pass)
 - [ ] 4.2 Implement typed-placeholder redaction of detected spans and verify redaction preserves surrounding content (verify: redaction tests pass)
 - [ ] 4.3 Document detection kinds and placeholder formats in `docs/controls.md`; verify documented examples match test fixtures (verify: examples in docs correspond 1:1 to passing fixtures)
+- [ ] 4.4 Implement connected-service credential detection and redaction for user-connected MCP service tokens; verify leak tests pass (verify: no service token appears in model-visible content, logs, or audit rows)
+- [ ] 4.5 Implement domain egress enforcement (network-classified call targets and MCP connection endpoints against the policy allowlist) and verify deterministic block tests pass (verify: non-allowlisted target blocked without invoking the semantic tier)
 
 ## 5. Signature engine
 
@@ -36,8 +38,8 @@
 ## 6. Semantic tier (Jev)
 
 - [ ] 6.1 Load the local Intent skills for `@tanstack/ai` (ai-core and custom-backend-integration) and implement the typed question catalog (prompt injection, jailbreak, data exfiltration, malicious code booleans; threat category choice; severity score) with policy-driven activation and wording overrides; verify catalog tests pass (verify: catalog builds question maps from policy correctly)
-- [ ] 6.2 Implement the `SemanticClassifier` interface and the Jev implementation over `decide()` with `@tanstack/ai-typesafe`, wired to `TYPESAFE_API_KEY`; verify a gated live smoke test passes when the key is present and is skipped cleanly otherwise (verify: `bun run test:live` behavior confirmed both ways)
-- [ ] 6.3 Implement `mockDecider` (fixed typed answers) and the optional Ollama fallback classifier consuming the same question shapes; verify mock-based classifier tests pass without network (verify: classifier tests pass with `TYPESAFE_API_KEY` unset)
+- [ ] 6.2 Implement the `SemanticClassifier` interface and the Jev implementation over `decide()` with `@tanstack/ai-typesafe`, wired to `TYPESAFE_API_KEY` as the only product-path classifier; verify the integration smoke reports a clear configuration error without the key and passes with it (verify: `bun run test:integration` behavior confirmed both ways)
+- [ ] 6.3 Implement fixed-evidence classifier doubles for the unit tier, injected only through the test harness (never selectable via policy or runtime configuration); verify unit classifier tests pass without network (verify: classifier tests pass with `TYPESAFE_API_KEY` and `MODEL_*` unset)
 - [ ] 6.4 Verify answer consumption and typing: typed answer shapes carry probability distributions and confidence where required; verify compile-time narrowing test (verify: `bun run typecheck` includes answer-shape assertions)
 
 ## 7. Budget governance
@@ -49,34 +51,50 @@
 ## 8. Pipeline and verdict mapping
 
 - [ ] 8.1 Implement `applyPolicy(evidence, profile)` as a pure function mapping detections, signatures, semantic answers, and budget state to `allow | redact | block | escalate` per direction; verify threshold boundary tests pin every cutoff (verify: verdict mapping tests pass with fixed evidence fixtures)
-- [ ] 8.2 Implement the pipeline orchestrator with the cheap-first stage order from design D4 (shape validation, model allowlist, signature feed, deterministic PII/secrets, budget pre-flight, semantic tier), deterministic-block short-circuit, redact-then-classify flow, and fail-closed handling with timeouts; verify pipeline tests pass including classifier-unavailable failure (verify: orchestrator tests pass with mock classifier)
+- [ ] 8.2 Implement the pipeline orchestrator with the cheap-first stage order from design D4 (shape validation, model allowlist, tool authorization, egress allowlist, signature feed, deterministic PII/secrets, budget pre-flight, semantic tier), deterministic-block short-circuit, redact-then-classify flow, and fail-closed handling with timeouts; verify pipeline tests pass including classifier-unavailable failure (verify: orchestrator tests pass with the harness classifier double)
 - [ ] 8.3 Verify profile-driven divergence: identical evidence yields different verdicts under permissive and strict profiles (verify: tests assert both verdicts from one shared fixture)
 
-## 9. Enforcement seams
+## 9. Tool authorization
 
-- [ ] 9.1 Implement the generic guard API route (`/api/guard`) with request shape validation and defined rejection response; verify positive and negative route tests pass (verify: route tests cover allow, redact, block, and malformed request)
-- [ ] 9.2 Create a minimal chat route (the chat seam does not exist yet) and wire the pipeline into it (inbound prompt and outbound output) via the `guardInteraction()` wrapper; verify chat seam tests pass (verify: tests cover blocked prompt and redacted output)
-- [ ] 9.3 Wire the pipeline into the MCP route so tool calls and tool output are governed; verify MCP seam tests pass with the existing todos tool (verify: tests cover blocked tool call and allowed tool call)
+- [ ] 9.1 Implement action classification (catalog override first, name/description inference into `read | create | modify | delete | execute | network` otherwise); verify classification tests pass (verify: tests cover `createIssue`→`create`, `deletePage`→`delete`, and override precedence)
+- [ ] 9.2 Implement grant evaluation with deny-by-default and the deletion hard gate (`require-approval` on every delete-classified call regardless of configuration); verify authorization decision tests pass (verify: tests cover granted allow, ungranted deny, per-user divergence, and deletion always require-approval)
+- [ ] 9.3 Implement the approvals queue (hold require-approval calls with tool/action/arguments, approve and deny actions with actor and timestamp, pass-through on approved next attempt); verify workflow tests pass (verify: tests cover hold, approve-then-pass, and deny-stays-blocked)
+- [ ] 9.4 Wire tool authorization into the hub tool-call surface and the guard API's subject/tool check; verify seam authorization tests pass (verify: route and hub tests cover allowed and denied tool decisions)
 
-## 10. Observability
+## 10. MCP safety hub
 
-- [ ] 10.1 Record audit entries from the pipeline (verdict, evidence, policy version, model, usage, latency) and verify append-only behavior tests pass (verify: audit tests cover allow, redact, block, escalate, and failure entries)
-- [ ] 10.2 Implement metrics aggregation (verdicts by control and category, redactions, budget consumption, latency percentiles) and verify aggregation tests pass (verify: metrics tests pass against seeded audit data)
-- [ ] 10.3 Implement audit export endpoints (JSONL and CSV with filters: time range, verdict, control, consumer key) and verify export tests pass (verify: export tests assert filter correctness and parseable output)
+- [ ] 10.1 Implement `askModel` as the only model-reaching interface with the OpenAI-compatible connection from env (endpoint, model, key); verify hub prompt tests pass (verify: tests cover governed prompt flow and absence of any bypass route)
+- [ ] 10.2 Implement hub-hosted tools including risky demo tools (`fetchUrl`, `deleteAllTodos`) with tool arguments and results inspected by the pipeline; verify tool governance tests pass (verify: tests cover blocked call, redacted arguments, and inspected results)
+- [ ] 10.3 Implement configurable tool-call enforcement (tool-scoped vs turn-scoped per strictness profile) and the governed agentic tool loop bounded by request-count and compute-time budgets; verify enforcement and loop tests pass (verify: tests cover both enforcement modes and budget-bounded loop termination)
+- [ ] 10.4 Implement external MCP connections (endpoint plus user-provided service token, egress-allowlist check on connect, dynamic tool registration into the catalog ungranted) and credential custody (tokens used only to call the target server, never in model-visible content or logs); verify hub connection and custody tests pass (verify: tests cover connect-then-deny-until-granted, non-allowlisted endpoint rejection, and token leak prevention)
 
-## 11. Dashboard
+## 11. Enforcement seams
 
-- [ ] 11.1 Build the dashboard route (controls and profiles overview, verdict counts, top threat categories, budget vs limits, recent escalations) fed by the metrics and audit queries; verify it renders with seeded data (verify: component renders expected sections against fixture data)
-- [ ] 11.2 Add live refresh (polling) and the policy/signature feed state view showing versions in force; verify editing policy.json is reflected after reload (verify: manual check on `bun run dev`)
+- [ ] 11.1 Implement the generic guard API route (`/api/guard`) with request shape validation and defined rejection response; verify positive and negative route tests pass (verify: route tests cover allow, redact, block, and malformed request)
+- [ ] 11.2 Create the chat demo page as a client of the hub (`askModel`) and wire the pipeline over prompt and answer via the `guardInteraction()` wrapper; verify chat seam tests pass (verify: tests cover blocked prompt and redacted answer)
+- [ ] 11.3 Wire the pipeline and tool authorization into the hub tool-call surface so built-in and connected tools are governed; verify hub seam tests pass (verify: tests cover denied ungranted call, require-approval call, and allowed call)
 
-## 12. Demo, docs, and architecture
+## 12. Observability
 
-- [ ] 12.1 Build the demo showcase traffic (guarded chat page and/or scripted MCP client) exercising allow, redact, block, and escalate paths end to end; verify each path demoable locally (verify: demo walkthrough script in `docs/demo.md` runs as written)
-- [ ] 12.2 Write `docs/architecture.md` with the ASCII architecture diagram and the tier/pipeline explanation required by the challenge; verify the diagram matches the implemented stage order (verify: doc review against `src/control` modules)
-- [ ] 12.3 Write the judge quickstart (run tests, run the app, edit policy and feed live, read the dashboard, export audit) in README; verify commands run as written from a clean clone (verify: README commands executed successfully)
+- [ ] 12.1 Record audit entries from the pipeline (verdict, evidence, policy version, model, usage, latency, tool authorization decisions, approval outcomes with actor and timestamp) and verify append-only behavior tests pass (verify: audit tests cover allow, redact, block, escalate, approval, and failure entries)
+- [ ] 12.2 Implement metrics aggregation (verdicts by control and category, redactions, budget consumption, latency percentiles) and verify aggregation tests pass (verify: metrics tests pass against seeded audit data)
+- [ ] 12.3 Implement audit export endpoints (JSONL and CSV with filters: time range, verdict, control, consumer key) and verify export tests pass (verify: export tests assert filter correctness and parseable output)
 
-## 13. Integration verification
+## 13. Dashboard
 
-- [ ] 13.1 Run the full hermetic suite with no credentials set and verify all spec scenarios pass (verify: `bun run test` green with `TYPESAFE_API_KEY` unset)
-- [ ] 13.2 Verify `bun run verify` (typecheck + biome) passes and record performance telemetry for the deterministic and semantic paths (verify: telemetry numbers captured in `docs/performance.md`)
-- [ ] 13.3 Run the live smoke suite with `TYPESAFE_API_KEY` set and verify the real Jev path end to end (verify: `bun run test:live` green)
+- [ ] 13.1 Build the dashboard route (controls and profiles overview, verdict counts, top threat categories, budget vs limits, recent escalations) fed by the metrics and audit queries; verify it renders with seeded data (verify: component renders expected sections against fixture data)
+- [ ] 13.2 Build the policy editing surface (edit, validate, save as new version, version history, rollback, JSON import/export); verify editing and rollback tests pass (verify: tests cover valid save, invalid save rejected, and rollback)
+- [ ] 13.3 Build the approvals queue UI (pending tool calls with tool, action, arguments and approve/deny actions) and the tool decision log view; verify it renders and dispatches decisions (verify: UI tests cover approve and deny actions against a fixture queue)
+- [ ] 13.4 Add live refresh (polling) and the policy/signature feed state view showing versions in force; verify policy edits are reflected after reload (verify: manual check on `bun run dev`)
+
+## 14. Demo, docs, and architecture
+
+- [ ] 14.1 Build the demo showcase traffic through the hub (governed `askModel` prompt, risky tool call flowing through the approval queue, block and redact paths) exercising allow, redact, block, and require-approval end to end; verify each path demoable locally (verify: demo walkthrough script in `docs/demo.md` runs as written)
+- [ ] 14.2 Write `docs/architecture.md` with the ASCII architecture diagram and the tier/pipeline explanation required by the challenge; verify the diagram matches the implemented stage order (verify: doc review against `src/control` modules)
+- [ ] 14.3 Write the judge quickstart (run the unit suite, run the app, edit the policy in the dashboard and via JSON import/export, process an approval, export audit) in README; verify commands run as written from a clean clone (verify: README commands executed successfully)
+
+## 15. Test suite and integration verification
+
+- [ ] 15.1 Run the unit tier with no credentials set and verify all spec scenarios pass (verify: `bun run test` green with `TYPESAFE_API_KEY` and `MODEL_*` unset)
+- [ ] 15.2 Run the integration/end-to-end tier and verify it reports a clear configuration error without credentials and passes with them (verify: `bun run test:integration` both ways)
+- [ ] 15.3 Verify `bun run verify` (typecheck + biome) passes and record performance telemetry for the deterministic and semantic paths (verify: telemetry numbers captured in `docs/performance.md`)

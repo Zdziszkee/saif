@@ -21,7 +21,8 @@ installed. Constraints that shape this design:
 
 - One enforcement pipeline shared by all interception seams, with verdicts decided in
   exactly one place (the policy engine).
-- Semantic tier swappable at the interface level: real Jev, hermetic mock, local fallback.
+- Semantic tier behind an interface with the real Jev decision model as the only
+  product-path implementation; test doubles live in the test harness only.
 - Deterministic tier must be able to decide the common case without any model call.
 - Every decision observable: audit, metrics, budget state.
 - Test suite deterministic and credential-free by default.
@@ -31,19 +32,20 @@ installed. Constraints that shape this design:
 - Training or fine-tuning any classifier; Jev is consumed as a hosted decision model.
 - Identity/authn provider integration; consumer keys are presented via header and mapped
   to policy subjects, not authenticated against an IdP.
-- A full human-review workflow UI; escalation is recorded and surfaced in the dashboard,
-  resolution is out of scope.
-- Replacing the app's chat/model stack; the layer wraps existing flows, it does not own
-  agent behavior.
+- A full multi-step human-review workflow; the approvals queue resolves tool calls with
+  approve/deny, while content escalations stay record-only in the dashboard.
+- Multi-provider model routing; the hub owns one OpenAI-compatible model connection
+  (env-configured endpoint, model, key) and the governed agentic tool loop.
 
 ## Decisions
 
 ### D1. In-process middleware pipeline inside TanStack Start, not a separate proxy service
 The control layer is a `src/control/` pipeline module invoked by three enforcement seams:
-the generic guard API (`src/routes/api.guard.ts`), a chat seam introduced by this change
-(a guarded chat endpoint plus demo page — the repo currently has no chat route), and the
-existing MCP route (`src/routes/mcp.ts`). A thin `guardInteraction()` wrapper exposes the
-SDK-style integration the challenge mentions. Alternative: standalone reverse proxy (extra deployable, harder for judges to
+the generic guard API (`src/routes/api.guard.ts`), the MCP safety hub's `askModel`
+prompt/answer direction (the chat demo page is a client of the hub; no separate
+model-reaching route is exposed), and the hub's tool-call surface (`src/routes/mcp.ts`,
+which also proxies user-connected external MCP servers). A thin `guardInteraction()`
+wrapper exposes the SDK-style integration the challenge mentions. Alternative: standalone reverse proxy (extra deployable, harder for judges to
 run) or SDK-only (trivially bypassed, no central reporting). Single-process keeps the
 "lightweight" requirement and reuses the existing Nitro deployment story.
 
@@ -51,14 +53,10 @@ run) or SDK-only (trivially bypassed, no central reporting). Single-process keep
 `@tanstack/ai@0.64.0` already exports `decide()`, `choice()`, `score()`, `boolean()`, and
 `BaseEvaluateAdapter` with the exact TypeSafe wire format (`choice`/`score`/`noul`).
 `@tanstack/ai-typesafe` (the official direct-TypeSafe adapter) supplies the transport;
-our `SemanticClassifier` interface wraps `decide()` and carries a `mockDecider`
-(fixed answers) and an optional `ollamaFallbackDecider` (small local model via
-`@tanstack/ai-ollama`, same question shapes, degraded quality). Because
-`@tanstack/ai-ollama` is a chat adapter with no evaluate activity, the fallback is a
-custom evaluate implementation: its free-form output is untrusted text, so answers are
-strictly validated into the wire shape (invalid output fails closed), and confidence —
-which a chat model cannot calibrate — is derived from distribution concentration
-(1 - normalized entropy). Alternatives: Vercel AI
+our `SemanticClassifier` interface wraps `decide()`; the product path wires only the
+real Jev implementation (no test double is selectable via policy or runtime
+configuration), while the unit tier injects fixed-answer doubles at the interface
+boundary in the test harness. Alternatives: Vercel AI
 Gateway (requires Vercel account/OIDC, conflicts with self-host constraint), raw fetch to
 the TypeSafe REST API (reimplements answer mapping and typing), AI SDK
 `experimental_evaluate` (second AI stack in a TanStack AI repo). Configuration injected at
@@ -74,8 +72,9 @@ mapper safe. Alternative (fully declarative questions in policy) buys flexibilit
 cost of type safety; retained as an override path.
 
 ### D4. Cheap-first pipeline order
-`shape validation -> model allowlist -> signature feed -> deterministic PII/secrets ->
-budget pre-flight -> semantic tier -> verdict mapping`. Deterministic `block` is final and
+`shape validation -> model allowlist -> tool authorization -> egress allowlist ->
+signature feed -> deterministic PII/secrets -> budget pre-flight -> semantic tier ->
+verdict mapping`. Deterministic `block` is final and
 skips the semantic call; deterministic `redact` is applied before semantic evaluation sees
 the text. Rationale: latency and cost stay near zero for the common case, and signature
 detections never depend on model availability. Alternative (parallel tiers) reduces
@@ -89,27 +88,38 @@ profile's failure verdict (default `block` for failures, `escalate` for low conf
 Escalation = audit entry flagged for review, content not forwarded. This is the
 "classification is advisory to policy" boundary: identical Jev answers can yield different
 verdicts under different profiles, which is also what makes the threshold behavior
-unit-testable.
+unit-testable. Tool calls carry an additional authorization decision
+(`allow | deny | require-approval`) from the policy engine's grants and confirmation
+rules; `require-approval` maps to `escalate` (call held for the approvals queue) and
+deletions are hard-gated to it.
 
-### D6. Policy as versioned JSON with zod validation and file-watch hot reload
-One `policy.json` (plus sample variants `policy.permissive.json`, `policy.strict.json`)
-validated by a zod schema shared with runtime checks. A watcher swaps an immutable policy
-snapshot atomically; each request reads one snapshot and stamps its version hash into the
-audit record. Invalid reloads keep the last valid policy and log the error. JSON over
-YAML: zod-native, no parser dependency, diff-friendly for judges.
+### D6. Policy as versioned zod-validated JSON, stored in SQLite and edited via the dashboard
+One policy document (plus seed variants `policy.permissive.json`, `policy.strict.json`)
+validated by a zod schema shared with runtime checks. The active document is stored as
+immutable version rows in SQLite: dashboard edits and JSON imports validate, then create a
+new version; the runtime swaps an immutable policy snapshot atomically and each request
+reads one snapshot and stamps its version hash into the audit record. Rollback re-activates
+any prior version row. Invalid edits or imports are rejected with the validation errors and
+the last valid policy stays active. JSON over YAML: zod-native, no parser dependency,
+diff-friendly for judges and for import/export round-trips.
 
 ### D7. SQLite (Drizzle) for audit, usage, and budget state
-Three new tables: `audit_events` (append-only, one row per governed interaction with
+Core tables: `audit_events` (append-only, one row per governed interaction with
 evidence JSON), `usage_records` (tokens, cost, latency per call, incl. Jev's own usage),
-and `budget_windows` (key, window, counters). Windows are computed by time bucket, so
-rollover needs no cron. Alternatives: Postgres (operational overhead), in-memory (loses
+and `budget_windows` (key, window, counters; windows are computed by time bucket, so
+rollover needs no cron). Governance tables: `policy_versions` (immutable policy
+documents), `mcp_connections` (user-connected MCP servers and their registered tools), and
+`approval_items` (pending and resolved tool-call approvals). Alternatives: Postgres (operational overhead), in-memory (loses
 audit durability), files (no queryability for dashboards/exports).
 
-### D8. Hermetic test suite by default, live smoke suite opt-in
-Vitest drives the suite with `mockDecider` fixtures and temp SQLite files; every spec
-scenario maps to a test. A `test:live` script (gated on `TYPESAFE_API_KEY`) exercises the
-real Jev path. Judges run `bun run test` and get deterministic pass/fail with no network
-or keys — mandatory given the no-paid-services evaluation setup.
+### D8. Two-tier test suite: credential-free unit tier, real-model integration tier
+Vitest drives a unit tier with fixed-evidence doubles injected at the
+`SemanticClassifier` boundary and temp SQLite files; every spec scenario maps to a test,
+and it runs with no network or keys — mandatory given the no-paid-services evaluation
+setup. The integration/end-to-end tier exercises the real Jev path and a real
+OpenAI-compatible model endpoint through the hub; missing credentials fail the run fast
+with a clear configuration error instead of silently skipping. Test doubles are never
+selectable as a product classifier.
 
 ### D9. Budget enforcement: estimate pre-flight, settle post-flight
 Token estimates (chars/4 heuristic plus fixed overhead) reserve budget before forwarding;
@@ -124,18 +134,23 @@ itself is D4; this section specifies what each stage actually does.
 
 ### R1. Centralized policy engine
 
-- **Document shape**: `policy.json` = `{ version, defaults { profile, failureVerdict },
-  consumers { <key-hash>: { profile, overrides } }, controls { shape, allowlist, signatures,
-  redaction, budget, semantic }, observability }`. Zod schema is the single definition,
-  shared by runtime loader and tests; unknown keys rejected (`z.strictObject`).
+- **Document shape**: `policy.json` = `{ version, defaults { profile, failureVerdict,
+  toolEnforcement }, consumers { <id>: { profile, overrides, grants } }, tools { <name>:
+  { source, verbs, confirm, classificationOverride? } }, network { allowedDomains[],
+  allowedMcpEndpoints[] }, controls { shape, allowlist, signatures, redaction, budget,
+  semantic }, observability }` where `consumers` identifies users (one agent per user in
+  this version) and `grants` lists allowed `[tool, verb]` pairs — deny-by-default. Zod
+  schema is the single definition, shared by runtime loader and tests; unknown keys
+  rejected (`z.strictObject`).
 - **Resolution order**: base document → profile overlay (permissive/standard/strict,
   deep-merge) → per-consumer / per-route override. Precedence is deterministic and
   documented in `docs/policy.md`; every merge result is itself schema-valid.
-- **Hot reload**: `fs.watch` + 250 ms debounce → parse → validate → compute
-  `policyVersion = sha256(canonical JSON)` → atomic snapshot swap (each request pins one
-  snapshot and stamps the version into its audit row). Invalid reload keeps last valid
-  policy and emits an audit error event. Startup with no valid policy refuses to run
-  (fail closed); the explicit `controls.enabled: false` kill-switch is the observe-only mode.
+- **Versioned activation**: dashboard save or JSON import → validate → new version row
+  (`policyVersion = sha256(canonical JSON)`) → atomic snapshot swap (each request pins one
+  snapshot and stamps the version into its audit row). Invalid edits are rejected and the
+  last valid policy stays active; rollback re-activates a prior version row. Startup with
+  no valid policy refuses to run (fail closed); the explicit `controls.enabled: false`
+  kill-switch is the observe-only mode.
 - **Judge tunability**: thresholds, actions, allowlists, question activation/wording are all
   policy fields; nothing security-relevant is hard-coded outside the pattern catalog.
 
@@ -187,8 +202,9 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **Egress gate**: deterministic detectors run once more over the exact serialized `state`
   before `decide()`; residual sensitive span → policy `residualSensitiveAction`
   (`block` default / `escalate` / `redact-and-send`).
-- **Routing**: `controls.semantic.egress.mode`: `minimized` (default) | `local-only`
-  (force Ollama/mock classifier for sensitive consumers/routes) | `off` (deterministic-only).
+- **Routing**: `controls.semantic.egress.mode`: `minimized` (default) | `off`
+  (deterministic-only for sensitive consumers/routes). The earlier `local-only` fallback
+  classifier mode is gone: the product path runs only the real decision model.
 - **Consumption**: confidence floors per action; below floor → profile's uncertainty verdict
   (default `escalate`). Timeout bounded, failure verdict fail-closed. Classification is
   advisory: only `applyPolicy()` maps answers to verdicts (D5).
@@ -270,30 +286,59 @@ surface, not just message content.
   incrementally maintained counters if query cost matters.
 - **Export**: `/api/audit/export` as JSONL and CSV with filters (time range, verdict,
   control, consumer key) — parseable output for security teams.
+- **Dashboard surfaces**: posture overview, policy editor with version history and
+  rollback, approvals queue (approve/deny pending tool calls), and tool decision log.
 
 ### R6. Self-testing suite
 
-- **Hermetic by default** (D8): `mockDecider` fixtures, temp SQLite, no network/keys.
-- **Fixture matrix per control**: positive (allowed) and negative (blocked/redacted) cases;
-  every spec scenario maps to at least one test.
+- **Unit tier, credential-free** (D8): fixed-evidence doubles at the classifier boundary,
+  temp SQLite, no network/keys; positive (allowed) and negative (blocked/redacted) cases
+  for every control, every spec scenario mapped to at least one test.
 - **Cross-cutting tests**: profile divergence (same evidence, different verdicts), budget
-  exhaustion and reconciliation, policy/feed hot reload, seam tests (guard API, chat, MCP),
-  and the Jev leak suite (captured `decide()` body contains zero raw sensitive spans).
-- **Live smoke** (`test:live`, gated on `TYPESAFE_API_KEY`): real Jev path end to end.
+  exhaustion and reconciliation, policy/feed reload, seam tests (guard API, hub prompts,
+  hub tool calls), and the Jev leak suite (captured `decide()` body contains zero raw
+  sensitive spans).
+- **Integration/end-to-end tier with real models**: real Jev plus a real OpenAI-compatible
+  endpoint through the hub, covering allow/redact/block/escalate end to end; missing
+  credentials fail fast with a clear configuration error (never silent skip).
+
+### R7. Tool/action authorization and MCP safety hub
+
+- **Single governed path**: prompts reach the model only through the hub's `askModel`
+  tool and all tool calls execute through hub-hosted or hub-proxied tools, so no traffic
+  bypasses inspection (spec `interaction-gateway/mcp-safety-hub`). The chat demo page is a
+  client of the hub.
+- **Authorization per call**: tool calls are classified into capability verbs (catalog
+  override first, name/description inference otherwise) and decided as
+  `allow | deny | require-approval` from the user's grants (deny-by-default) plus the
+  catalog's confirmation flag; deletions are hard-gated to `require-approval`.
+- **Approval flow**: `require-approval` calls do not execute and land in the dashboard
+  approvals queue with tool, action, and arguments; approval authorizes the agent's next
+  attempt at the same call, denial keeps it blocked; every decision is audited with actor
+  and timestamp.
+- **Hub connections and credential custody**: users connect external MCP servers
+  (Confluence, Jira, ...) with per-service credentials; connected tools register
+  dynamically into the catalog ungranted; endpoints are checked against the egress
+  allowlist; service tokens are used only to call their target server and never appear in
+  model-visible content or logs.
+- **Enforcement modes and loop**: per profile, blocked tool calls are enforced tool-scoped
+  (defined tool error, turn continues) or turn-scoped (whole turn rejected); the governed
+  agentic tool loop executes model-requested calls under tool-call governance, bounded by
+  request-count and compute-time budgets.
 
 ### Problem → controls map (challenge §1)
 
 | Problem | Controls |
 | --- | --- |
-| Over-broad access / impersonation | subject keys + model allowlist, tool-call governance in the MCP seam, per-consumer policy overrides |
+| Over-broad access / impersonation | per-user grants with deny-by-default, action classification, deletion hard gate + approvals queue, MCP hub credential custody, model allowlist |
 | Prompt injection & sensitive output | R2a L1–L4 inbound + output direction, R2b semantic questions, signature feed (R4) |
 | Runaway loops / resource blowup | budget windows + reservations (R3), optional token-bucket rate limit, per-stage latency telemetry (R5) |
 
 ## Risks / Trade-offs
 
-- [Jev is early-access; judges may lack a key] → The suite is hermetic (D8); the
-  `SemanticClassifier` interface keeps quality-degraded local fallback possible (D2);
-  docs state plainly which tier needs the key.
+- [Jev is early-access; judges may lack a key] → The unit tier is credential-free (D8);
+  the integration tier fails fast with a clear configuration message; docs state plainly
+  which tier needs the key.
 - [Semantic misclassification / overconfidence] → Calibrated probabilities with per-action
   confidence floors (D5); deterministic tier is independent and final for its classes;
   thresholds tuned per profile with the fail-closed default.
@@ -301,12 +346,12 @@ surface, not just message content.
   with questions in parallel; per-stage latency recorded in audit for the telemetry the
   challenge asks for. Budget a p95 target of ~100 ms deterministic / ~600 ms with semantic.
 - [Prompts leave the house when using hosted Jev] → Policy option to disable the semantic
-  tier per consumer or route sensitive traffic to the local fallback; state passed to Jev
-  is trimmed to the fields the decision needs.
+  tier per consumer (`off` egress mode, deterministic-only); state passed to Jev is
+  trimmed to the fields the decision needs.
 - [Policy hot-reload races] → Immutable snapshot per request with version stamping (D6).
-- [Fallback classifier answers are not calibrated or schema-native] → Strict validation
-  of fallback output into the wire shape (invalid → fail closed), derived confidence from
-  distribution concentration, and floors that treat derived confidence as suspect.
+- [Test doubles leaking into the product path] → The classifier interface accepts only
+  real implementations at runtime; doubles are injected exclusively by the test harness
+  and are not selectable via policy or runtime configuration.
 - [Signature feed false positives] → Severity-keyed actions with policy overrides;
   provenance in audit (see spec) makes tuning observable.
 - [Signature evasion via character transforms or encoding] → Canonicalized + decoded
@@ -324,7 +369,8 @@ Additive, no breaking changes to existing routes. Steps:
 1. Dependencies and env: add `@tanstack/ai-typesafe`, `vitest`, `TYPESAFE_API_KEY`
    (optional), keep `DATABASE_URL`.
 2. Drizzle schema additions and migration (`bun run db:generate` / `db:migrate`).
-3. Ship `policy.json` + sample profiles + `signatures.json`; wire loader and hot reload.
+3. Ship seed `policy.json` + sample profiles + `signatures.json`; wire the versioned
+   policy store (dashboard editing, import/export) and snapshot loader.
 4. Land pipeline stages and seams behind a policy kill-switch (`controls.enabled: false`
    passes traffic through and audits only) so rollout can start in observe-only mode.
 5. Enable enforcement per seam; dashboard and export last.
@@ -334,9 +380,9 @@ the previous policy file; the DB additions are unused-but-harmless.
 
 ## Open Questions
 
-- Escalation disposition: for the demo, flagged interactions are listed in the dashboard
-  with no approve/reject action. A lightweight review action can be added later without
-  spec changes (the spec only requires recording and not forwarding).
+- Escalation disposition: tool-call escalations (`require-approval`) resolve in the
+  dashboard approvals queue (approve/deny); content escalations stay record-only in the
+  review list.
 - Whether the demo showcase traffic source is the existing MCP todos tool or a small chat
   page; both seams are covered by the pipeline either way.
 - OpenTelemetry export for telemetry beyond the metrics surface; audit and metrics

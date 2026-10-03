@@ -16,11 +16,19 @@ of prompt-parseable.
 ## What Changes
 
 - Add an **interaction gateway**: interception points in the TanStack Start server that
-  govern AI traffic (app-to-agent chat, agent-to-MCP tool calls, and a generic guard API)
-  and apply the verdicts `allow | redact | block | escalate` to prompts and model output.
-- Add a **centralized policy engine**: one validated policy file (zod-validated JSON)
-  defining controls, sensitivity thresholds, strictness profiles, allowed models, budget
-  rules, and question definitions for the semantic tier, hot-reloadable at runtime.
+  govern AI traffic (prompts and answers via the hub's `askModel`, hub tool calls, and a
+  generic guard API) and apply the verdicts `allow | redact | block | escalate` to prompts
+  and model output.
+- Add **tool and action authorization**: every agent tool call is classified into
+  capability verbs (`read | create | modify | delete | execute | network`) and checked
+  against per-user grants with deny-by-default; calls to tools marked for manual
+  confirmation (and all deletions) are held in a dashboard approvals queue until the user
+  approves.
+- Add a **centralized policy engine**: one validated policy document (zod-validated JSON)
+  defining the tool and action catalog, per-user grants, network egress allowlists,
+  content controls, sensitivity thresholds, strictness profiles, allowed models, budget
+  rules, and question definitions for the semantic tier, stored with full version history
+  and editable through the dashboard with hot-swap activation.
 - Add a **deterministic control tier**: regex/dictionary checks for secrets and PII with
   redaction, model allowlist enforcement, and request-shape validation. Runs first and
   short-circuits when it can decide alone.
@@ -56,8 +64,10 @@ of prompt-parseable.
   calls, generic guard API) and enforcement of verdicts (allow/redact/block/escalate),
   including redaction application and fail-closed behavior. The MCP seam is specified by
   its nested `interaction-gateway/mcp-safety-hub` capability.
-- `policy-engine`: the single policy source — schema, strictness profiles, thresholds,
-  control enable/disable, model allowlists, budget rules — with validation and hot reload.
+- `policy-engine`: the single policy source — schema, tool and action catalog, per-user
+  grants, egress allowlists, strictness profiles, thresholds, control enable/disable,
+  model allowlists, budget rules — with validation, versioned storage, dashboard editing,
+  and hot-swap reload.
 - `deterministic-controls`: non-AI checks — secret/PII detection and redaction (including
   connected-service credential protection), allowlist enforcement (models and egress
   targets), and shape validation — with defined precedence against the semantic tier.
@@ -92,10 +102,13 @@ None — the repo has no existing specs (`openspec list --specs` is empty).
 
 ## Impact
 
-- **Code**: new `src/control/` (pipeline, policy, tiers, budget, audit) and
-  `src/lib/jev/` (decision adapter, question catalog) modules; new server routes for the
-  guard API, audit export, and metrics; dashboard routes; existing `src/routes/mcp.ts`
-  gains guard enforcement; `src/db/schema.ts` gains audit, budget, and metric tables.
+- **Code**: new `src/control/` (pipeline, policy, tiers, budget, audit, authorization)
+  and `src/lib/jev/` (decision adapter, question catalog) modules; new server routes for
+  the guard API, audit export, and metrics; dashboard routes (posture, policy editor,
+  approvals queue, tool decisions); `src/routes/mcp.ts` becomes the MCP safety hub
+  (`askModel`, hub-hosted tools, governed tool loop, external MCP connections);
+  `src/db/schema.ts` gains audit, budget, metric, policy-version, MCP-connection, and
+  approval tables.
 - **Dependencies**: `@tanstack/ai-typesafe` (Jev over TypeSafe HTTP; `@tanstack/ai@0.64.0`
   already ships `decide()`, `choice()`, `score()`, `boolean()`, `BaseEvaluateAdapter`),
   `vitest` for the judge-runnable test suite.
