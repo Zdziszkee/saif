@@ -1,5 +1,30 @@
 # Tasks
 
+## Phasing against TASK.md (must-haves first)
+
+Tranche A implements exactly the challenge must-haves (TASK.md §4 formal requirements
+FR1-FR6 and §3 expected outcomes EO1-EO4, plus §6 live config/feed edits and telemetry).
+Tranche B holds everything beyond the brief; spec deltas describe the full vision and stay
+unchanged.
+
+**Tranche A (must-haves):** 1.1-1.3 · 2.1-2.3 (file-based policy loader and hot reload
+only) · 3.1-3.2 (audit/usage/budget tables only) · 4.1-4.3 · 5.1, 5.3, 5.5, 5.6, 5.8
+(OSV source + corpus importer only), 5.9 · 6.1-6.4 · 7.1-7.3 · 8.1-8.3 · 11.1-11.2
+(11.2 re-scoped as a minimal chat seam not dependent on the hub) · 12.1-12.3 · 13.1 ·
+14.1-14.3 · 15.1, 15.3
+
+**Tranche B (deferred, beyond the brief):** versioned policy store and dashboard editing
+(2.2 store part, 13.2) · 4.4-4.5 (connected-service credentials, egress) · 5.2
+(evasion-resistant matching — highest-value robustness item, pull in right after tranche
+A) · 5.4 (match budgets) · 5.7 (tool-schema scan, provenance) · 5.8 ATLAS adapter ·
+9.1-9.4 (tool authorization) · 10.1-10.4 (MCP safety hub) · 11.3 · 13.3-13.5 (approvals
+queue, signature ops view) · 15.2 (integration tier)
+
+**Requirement coverage:** FR1 → 2.x/8.x · FR2.1 → 4.x · FR2.2 → 6.x · FR3 → 7.x ·
+FR4 → 5.x · FR5 → 12.x/13.1 · FR6 → 15.1 · EO1 → 11.x/14.2 · EO2 → 2.3 · EO3 → 13.1 ·
+EO4 → 15.1 · live config/feed edits → 2.2/5.6 hot reload · telemetry → 15.3
+
+
 ## 1. Scaffolding and dependencies
 
 - [ ] 1.1 Add `@tanstack/ai-mcp` (TanStack MCP module: hub server surface + external MCP clients) and `@tanstack/ai-typesafe` and `vitest` to package.json, remove the `@modelcontextprotocol/sdk` dependency and `src/utils/mcp-handler.ts`, add `test` (unit tier) and `test:integration` scripts, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
