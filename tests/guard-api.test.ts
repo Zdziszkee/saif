@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { handleGuardRequest } from "#/control/guard-api.ts";
-import { CONSUMER_KEY_HEADER } from "#/control/subjects.ts";
+import { CONSUMER_KEY_HEADER, requireKnownConsumer } from "#/control/subjects.ts";
 import type { ControlPipeline, Interaction } from "#/control/types.ts";
 import {
 	auditSink,
@@ -235,5 +235,30 @@ describe("guard API", () => {
 		expect(
 			audit.events.some((event) => event.detail?.includes("resolved to default subject")),
 		).toBe(true);
+	});
+});
+
+describe("known-consumer gate", () => {
+	function keyedRequest(consumerKey?: string): Request {
+		const headers = new Headers();
+		if (consumerKey !== undefined) {
+			headers.set(CONSUMER_KEY_HEADER, consumerKey);
+		}
+		return new Request("http://test.local/api/audit/export?format=jsonl", { headers });
+	}
+
+	it("passes a key the policy defines", () => {
+		const access = requireKnownConsumer(keyedRequest("alice"), consumerResolver());
+		expect(access).toEqual({ ok: true, subject: "alice" });
+	});
+
+	it("rejects a missing key", () => {
+		const access = requireKnownConsumer(keyedRequest(), consumerResolver());
+		expect(access.ok).toBe(false);
+	});
+
+	it("rejects an unknown key even under default-subject policy", () => {
+		const access = requireKnownConsumer(keyedRequest("ghost"), consumerResolver());
+		expect(access.ok).toBe(false);
 	});
 });

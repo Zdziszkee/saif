@@ -119,66 +119,6 @@
           "id": "employee-id",
           "kind": "pii",
           "pattern": "\\bEMP-[0-9]{6}\\b"
-        },
-        {
-          "action": "block",
-          "directions": [
-            "inbound",
-            "outbound"
-          ],
-          "id": "owasp-inj-ignore-previous",
-          "kind": "owasp:LLM01:prompt-injection",
-          "pattern": "ignore\\s+(?:all\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions|prompts|messages|rules)"
-        },
-        {
-          "action": "block",
-          "directions": [
-            "inbound",
-            "outbound"
-          ],
-          "id": "owasp-jail-dan",
-          "kind": "owasp:LLM01:jailbreak",
-          "pattern": "\\bDAN\\s+mode\\b|do\\s+anything\\s+now"
-        },
-        {
-          "action": "block",
-          "directions": [
-            "inbound",
-            "outbound"
-          ],
-          "id": "owasp-jail-bypass",
-          "kind": "owasp:LLM01:jailbreak",
-          "pattern": "bypass\\s+(?:your|the|all|any)\\s+(?:safety|content|security)\\s+(?:filters?|policies|restrictions|guardrails?)"
-        },
-        {
-          "action": "block",
-          "directions": [
-            "inbound",
-            "outbound"
-          ],
-          "id": "owasp-exfil-system-prompt",
-          "kind": "owasp:LLM07:system-prompt-leakage",
-          "pattern": "(?:reveal|show|print|output|repeat|leak)\\s+(?:me\\s+)?(?:your|the|all)\\s+(?:system|initial|hidden|original)\\s+(?:prompt|instructions?|messages?)"
-        },
-        {
-          "action": "block",
-          "directions": [
-            "inbound",
-            "outbound"
-          ],
-          "id": "owasp-exfil-secret-file",
-          "kind": "owasp:LLM02:sensitive-information-disclosure",
-          "pattern": "(?:cat|read|open|print|type|show)\\s+(?:the\\s+)?(?:\\.env\\b|\\.aws/credentials|id_rsa\\b|/etc/(?:passwd|shadow)|\\.ssh/)"
-        },
-        {
-          "action": "block",
-          "directions": [
-            "inbound",
-            "outbound"
-          ],
-          "id": "owasp-tool-shell-pipe",
-          "kind": "owasp:LLM06:excessive-agency",
-          "pattern": "\"(?:cmd|command|shell|script|args?)\"\\s*:\\s*\"[^\"]*\\|\\s*(?:ba|z)?sh\\b"
         }
       ]
     },
@@ -189,12 +129,10 @@
     "shape": {
       "maxContentBytes": 32768
     },
-    "signatures": {
-      "enabled": true,
-      "perSignatureActions": {
-        "atlas-sig-001": "block"
-      },
-      "severityActions": {
+      "signatures": {
+        "enabled": true,
+        "perSignatureActions": {},
+        "severityActions": {
         "critical": "block",
         "high": "block",
         "low": "redact",

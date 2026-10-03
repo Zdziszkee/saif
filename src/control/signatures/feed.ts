@@ -130,7 +130,7 @@ function failedSnapshot(errors: FeedLoadError[], fallback: SignatureFeed): Signa
 	return { errors, feed: fallback, ok: false };
 }
 
-function readDocument(path: string): { error?: string; text?: string } {
+function readDocument(path: string): { error?: string; parsed?: unknown } {
 	let text: string;
 	try {
 		text = readFileSync(path, "utf8");
@@ -138,11 +138,10 @@ function readDocument(path: string): { error?: string; text?: string } {
 		return { error: error instanceof Error ? error.message : "unreadable feed" };
 	}
 	try {
-		JSON.parse(text);
+		return { parsed: JSON.parse(text) };
 	} catch (error) {
 		return { error: error instanceof Error ? error.message : "invalid JSON" };
 	}
-	return { text };
 }
 
 /**
@@ -161,18 +160,29 @@ export function createSignatureFeedStore(path: string): SignatureFeedStore {
 		if (document.error !== undefined) {
 			return failedSnapshot([{ entryId: null, message: document.error }], lastGood ?? empty);
 		}
-		const loaded = loadSignatureFeed(JSON.parse(document.text ?? ""));
-		if (loaded.entries.length === 0 && loaded.errors.length > 0) {
-			return failedSnapshot(loaded.errors, lastGood ?? empty);
+		const loaded = loadSignatureFeed(document.parsed);
+		if (loaded.entries.length === 0) {
+			return failedSnapshot(
+				loaded.errors.length > 0
+					? loaded.errors
+					: [{ entryId: null, message: "feed contains no usable signatures" }],
+				lastGood ?? empty,
+			);
 		}
 		lastGood = { entries: loaded.entries, version: loaded.version };
 		return { errors: loaded.errors, feed: lastGood, ok: true };
 	}
 
 	state = read();
-	watcher = watch(path, { persistent: false }, () => {
-		state = read();
-	});
+	try {
+		// A missing file must degrade to the failed snapshot above, not throw
+		// at construction and take down every importer of the store.
+		watcher = watch(path, { persistent: false }, () => {
+			state = read();
+		});
+	} catch {
+		watcher = null;
+	}
 
 	return {
 		close() {

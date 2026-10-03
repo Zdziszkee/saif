@@ -67,6 +67,64 @@ export function filterAuditEvents(
 	);
 }
 
+/**
+ * Whether an event is a user-facing governance decision: exactly one is
+ * recorded per `guardInteraction()` call. Registration admissions, control
+ * failures, and verdict-less info notes (e.g. consumer-key resolution) live in
+ * the same sink for the security export but are not decisions — counting them
+ * is what made one guard call show up as several dashboard rows.
+ */
+export function isAuditDecision(event: { kind?: string; verdict?: unknown }): boolean {
+	return event.kind === "interaction" && event.verdict !== undefined;
+}
+
+/**
+ * Typed read of an audit sink's recorded events. Sinks expose `events` only
+ * by convention (the interface is append-only), so this is the one place
+ * that duck-types the access instead of every consumer doing it inline.
+ */
+export function readAuditEvents(sink: AuditSink): readonly AuditEvent[] {
+	if ("events" in sink) {
+		const { events } = sink as { events?: unknown };
+		if (Array.isArray(events)) {
+			return events as AuditEvent[];
+		}
+	}
+	return [];
+}
+
+export interface AuditDecisionSummary {
+	byControl: [string, number][];
+	byVerdict: [string, number][];
+	recent: AuditEvent[];
+	total: number;
+}
+
+/**
+ * Dashboard shaping over the sink: counts and recent rows cover decisions
+ * only (see {@link isAuditDecision}), newest first, capped at `recentLimit`.
+ */
+export function summarizeAuditDecisions(
+	events: readonly AuditEvent[],
+	recentLimit = 20,
+): AuditDecisionSummary {
+	const decisions = events.filter(isAuditDecision);
+	const byCount = (key: (event: AuditEvent) => string): [string, number][] => {
+		const counts = new Map<string, number>();
+		for (const event of decisions) {
+			const label = key(event);
+			counts.set(label, (counts.get(label) ?? 0) + 1);
+		}
+		return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+	};
+	return {
+		byControl: byCount((event) => event.controlId ?? "none"),
+		byVerdict: byCount((event) => event.verdict ?? "none"),
+		recent: decisions.slice(-recentLimit).reverse(),
+		total: decisions.length,
+	};
+}
+
 const CSV_COLUMNS = [
 	"timestamp",
 	"kind",

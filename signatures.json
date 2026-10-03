@@ -78,6 +78,32 @@
 		"enabled": true
 	},
 	{
+		"id": "exfil-system-prompt",
+		"name": "System-prompt retrieval",
+		"description": "Prompt-injection attempt to make the model reveal its hidden system instructions",
+		"pattern": "(?:reveal|show|print|output|repeat|leak)\\s+(?:me\\s+)?(?:your|the|all)\\s+(?:system|initial|hidden|original)\\s+(?:prompt|instructions?|messages?)",
+		"kind": "injection",
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"references": ["https://owasp.org/www-project-top-10-for-large-language-model-applications/"],
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"updatedAt": "2026-10-03T00:00:00.000Z",
+		"enabled": true
+	},
+	{
+		"id": "exfil-secret-file",
+		"name": "Credential-file read request",
+		"description": "Prompt-injection attempt to make the model read credential files or system identity files",
+		"pattern": "(?:cat|read|open|print|type|show)\\s+(?:the\\s+)?(?:\\.env\\b|\\.aws/credentials|id_rsa\\b|/etc/(?:passwd|shadow)|\\.ssh/)",
+		"kind": "injection",
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"references": ["https://owasp.org/www-project-top-10-for-large-language-model-applications/"],
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"updatedAt": "2026-10-03T00:00:00.000Z",
+		"enabled": true
+	},
+	{
 		"id": "tool-shell-pipe",
 		"name": "Tool-call shell pipe",
 		"description": "Tool-call argument piping content into a shell interpreter",

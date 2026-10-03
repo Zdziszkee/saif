@@ -18,6 +18,7 @@ import {
 	type InspectionResult,
 	type Interaction,
 	isVerdict,
+	OUTCOME_SEVERITY,
 	type RedactionSpan,
 	type Verdict,
 } from "./types.ts";
@@ -32,13 +33,6 @@ export interface ControlPipelineOptions {
 }
 
 const DEFAULT_CONTROL_TIMEOUT_MS = 10_000;
-
-const VERDICT_SEVERITY: Record<Verdict, number> = {
-	allow: 0,
-	block: 3,
-	escalate: 2,
-	redact: 1,
-};
 
 interface InspectionState {
 	blockingControl: string | undefined;
@@ -100,7 +94,7 @@ function mergeControlResult(
 	if (result.redactions && result.redactions.length > 0) {
 		state.redactions.push(...result.redactions);
 	}
-	if (VERDICT_SEVERITY[result.verdict] > VERDICT_SEVERITY[state.verdict]) {
+	if (OUTCOME_SEVERITY[result.verdict] > OUTCOME_SEVERITY[state.verdict]) {
 		state.verdict = result.verdict;
 		state.blockingControl = result.verdict === "allow" ? undefined : controlId;
 	}
@@ -127,7 +121,7 @@ function failClosed(
 	);
 	let verdict: Verdict;
 	let blockingControl: string | undefined;
-	if (VERDICT_SEVERITY[state.verdict] >= VERDICT_SEVERITY[failure.failureVerdict]) {
+	if (OUTCOME_SEVERITY[state.verdict] >= OUTCOME_SEVERITY[failure.failureVerdict]) {
 		verdict = state.verdict;
 		blockingControl = state.verdict === "allow" ? undefined : state.blockingControl;
 	} else {

@@ -33,7 +33,7 @@ fuller profile-driven `applyPolicy` engine remains open work (tasks 8.x).
 
 ## Validation
 
-- `bun test`: 201 pass, 0 fail (8 pre-existing integration skips).
-- `npm run verify` (tsc + biome): clean.
+- `bun test`: 210 pass, 0 fail (9 live-model skips, opt-in via SEMANTIC_LIVE=1).
+- `bun run verify` (tsc + biome): clean.
 - Live `bun run dev` smoke: injection blocked with signature provenance,
   `/dashboard` 200, audit export streams JSONL.

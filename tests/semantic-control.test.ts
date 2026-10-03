@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { createSemanticControl } from "#/control/semantic/control.ts";
 import { createFixedClassifier } from "#/control/semantic/double.ts";
+import { SemanticInvalidAnswerError } from "#/control/semantic/errors.ts";
 import type { ControlResult, Interaction } from "#/control/types.ts";
 
 const PROMPT_INJECTION_ID = "prompt_injection";
@@ -89,5 +90,37 @@ describe("semantic control", () => {
 		const result = await inspectControl(control, "ambiguous");
 		expect(result.verdict).toBe("allow");
 		expect(result.hit?.verdict).toBe("flag");
+	});
+
+	it("throws instead of allowing when an answer is missing", async () => {
+		const first = checks[0];
+		if (first === undefined) {
+			throw new Error("expected a first check");
+		}
+		const control = createSemanticControl({
+			checks: [...checks, { ...first, id: "ghost_check" }],
+			classifier: createFixedClassifier({ probabilities: {} }, { checks: [first] }),
+		});
+		await expect(inspectControl(control, "hello")).rejects.toThrow(SemanticInvalidAnswerError);
+	});
+
+	it("skips checks with no ladder for the direction instead of borrowing", async () => {
+		const control = createSemanticControl({
+			checks: [...checks],
+			classifier: createFixedClassifier(
+				{ probabilities: { [PROMPT_INJECTION_ID]: 0.99 } },
+				{ checks: [...checks] },
+			),
+		});
+		const result = await Promise.resolve(
+			control.inspect({
+				content: "definitely an attack",
+				direction: "outbound",
+				id: "sem-outbound",
+				seam: "guard-api",
+				subject: "test",
+			}),
+		);
+		expect(result.verdict).toBe("allow");
 	});
 });

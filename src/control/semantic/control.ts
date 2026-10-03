@@ -8,7 +8,8 @@
  * classifier failures propagate so the pipeline fails closed.
  */
 
-import type { Control, ControlResult, Verdict } from "../types.ts";
+import { type Control, type ControlResult, OUTCOME_SEVERITY, type Verdict } from "../types.ts";
+import { SemanticInvalidAnswerError } from "./errors.ts";
 import type {
 	SemanticCheck,
 	SemanticClassifier,
@@ -37,13 +38,6 @@ function ladderVerdict(
 	return "allow";
 }
 
-const RANK: Record<"allow" | "block" | "flag" | "redact", number> = {
-	allow: 0,
-	block: 3,
-	flag: 1,
-	redact: 2,
-};
-
 interface ScoredChecks {
 	detail: string;
 	kind: string;
@@ -61,13 +55,19 @@ function scoreChecks(
 	for (const check of checks) {
 		const answer = evidence.answers[check.id];
 		if (answer === undefined) {
+			throw new SemanticInvalidAnswerError(`semantic: no answer returned for check "${check.id}"`);
+		}
+		// A check with no ladder for this direction has no opinion on it —
+		// same as a policy rule scoped to the other direction in the
+		// deterministic tier. Skipping must never borrow the other
+		// direction's strictness.
+		const ladder = check.thresholds[direction];
+		if (ladder === undefined) {
 			continue;
 		}
-		const ladder =
-			check.thresholds[direction] ?? check.thresholds.inbound ?? check.thresholds.outbound;
 		const outcome = ladderVerdict(answer.probability, ladder);
 		scored.push(`${check.id}=${answer.probability.toFixed(2)}`);
-		if (RANK[outcome] > RANK[worst]) {
+		if (OUTCOME_SEVERITY[outcome] > OUTCOME_SEVERITY[worst]) {
 			worst = outcome;
 			worstCheck = check.id;
 		}

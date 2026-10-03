@@ -93,9 +93,7 @@ function Home() {
 							<a className="underline" href="/dashboard">
 								Security dashboard
 							</a>{" "}
-							<span className="text-muted-foreground">
-								— verdict counts, recent decisions, feed and policy versions.
-							</span>
+							<span className="text-muted-foreground">— verdict counts and recent decisions.</span>
 						</p>
 						<p>
 							<code className="rounded bg-muted px-2 py-1 font-mono">POST /api/guard</code>{" "}
@@ -106,7 +104,7 @@ function Home() {
 						<p>
 							<code className="rounded bg-muted px-2 py-1 font-mono">GET /api/audit/export</code>{" "}
 							<span className="text-muted-foreground">
-								— audit trail as JSONL or CSV for security review.
+								— audit trail as JSONL or CSV for security review (requires a consumer key).
 							</span>
 						</p>
 					</CardContent>

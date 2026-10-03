@@ -17,7 +17,8 @@ import { createSemanticControl } from "#/control/semantic/control.ts";
 import { SemanticConfigurationError } from "#/control/semantic/errors.ts";
 import { createJevClassifier } from "#/control/semantic/jev.ts";
 import { createSignatureControl } from "#/control/signatures/control.ts";
-import { createSignatureFeedStore } from "#/control/signatures/feed.ts";
+import { createSignatureFeedStore, type SignatureFeedStore } from "#/control/signatures/feed.ts";
+import type { ConsumerPolicy } from "#/control/subjects.ts";
 import type { Control, Verdict } from "#/control/types.ts";
 import { env } from "#/env.ts";
 import { createHubConfig } from "./config.ts";
@@ -34,7 +35,19 @@ let hubPromise: Promise<Hub> | undefined;
 const POLICY_PATH = "policy.json";
 const SIGNATURES_PATH = "signatures.json";
 
-const signatureFeedStore = createSignatureFeedStore(SIGNATURES_PATH);
+let signatureFeedStore: SignatureFeedStore | undefined;
+
+/**
+ * Built on first hub construction, not at module import: creating the store
+ * watches the feed file, which must not run as an import side effect (it
+ * crashed every importer when signatures.json was absent, including routes
+ * that never touch signatures). The store lives for the process lifetime
+ * after that, alongside the hub singleton.
+ */
+function getSignatureFeedStore(): SignatureFeedStore {
+	signatureFeedStore ??= createSignatureFeedStore(SIGNATURES_PATH);
+	return signatureFeedStore;
+}
 
 function policyUnavailableControl(): Control {
 	return {
@@ -72,11 +85,19 @@ function buildSemanticControl(): Control {
 	}
 }
 
-async function buildControls(): Promise<{ controls: readonly Control[]; failureVerdict: Verdict }> {
+async function buildControls(): Promise<{
+	consumers: ConsumerPolicy;
+	controls: readonly Control[];
+	failureVerdict: Verdict;
+}> {
 	const loader = new PolicyLoader(new FilePolicySource(POLICY_PATH));
 	const status = await loader.start();
 	if (!status.ok) {
-		return { controls: [policyUnavailableControl()], failureVerdict: "block" };
+		return {
+			consumers: { defaultSubject: "default", knownKeys: [], unknownKey: "default-subject" },
+			controls: [policyUnavailableControl()],
+			failureVerdict: "block",
+		};
 	}
 	const policy = status.snapshot.policy;
 	const enabled = policy.profiles[policy.defaults.profile].enabledControls;
@@ -86,7 +107,7 @@ async function buildControls(): Promise<{ controls: readonly Control[]; failureV
 			createSignatureControl({
 				config: policy.controls.signatures,
 				getFeed: () => {
-					const snapshot = signatureFeedStore.snapshot();
+					const snapshot = getSignatureFeedStore().snapshot();
 					if (!snapshot.ok) {
 						throw new Error(`signature feed unavailable: ${snapshot.errors[0]?.message}`);
 					}
@@ -101,7 +122,18 @@ async function buildControls(): Promise<{ controls: readonly Control[]; failureV
 	if (enabled.semantic) {
 		controls.push(buildSemanticControl());
 	}
-	return { controls, failureVerdict: policy.defaults.failureVerdict };
+	return {
+		// The policy's consumer table is the known-key set: each key governs
+		// as its own subject. Unknown keys keep the previous default-subject
+		// behavior, so this only narrows, never widens, access.
+		consumers: {
+			defaultSubject: "default",
+			knownKeys: Object.keys(policy.consumers),
+			unknownKey: "default-subject",
+		},
+		controls,
+		failureVerdict: policy.defaults.failureVerdict,
+	};
 }
 
 export function getHub(): Promise<Hub> {
@@ -110,10 +142,13 @@ export function getHub(): Promise<Hub> {
 }
 
 async function createHubAsync(): Promise<Hub> {
-	const { controls, failureVerdict } = await buildControls();
+	const { consumers, controls, failureVerdict } = await buildControls();
 	return createHub({
 		audit: getAuditSink(),
-		config: createHubConfig({ egressAllowlist: parseAllowlist(env.MCP_EGRESS_ALLOWLIST) }),
+		config: createHubConfig({
+			consumers,
+			egressAllowlist: parseAllowlist(env.MCP_EGRESS_ALLOWLIST),
+		}),
 		model: modelConnectionFromEnv(),
 		pipeline: createControlPipeline({ controls, failureVerdict }),
 	});
