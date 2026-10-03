@@ -16,7 +16,7 @@ import {
 	consumerKeyFromRequest,
 	type SubjectResolution,
 } from "./subjects.ts";
-import type { ControlPipeline } from "./types.ts";
+import type { ControlHit, ControlPipeline, InspectionResult } from "./types.ts";
 
 export interface GuardApiDeps {
 	audit?: AuditSink | undefined;
@@ -63,11 +63,15 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 	}
 
 	const outcome = await guardInteraction(validation.interaction, deps.pipeline, { audit });
+	const hits = outcome.inspection.hits.map(toHitView);
+	const reasons = buildReasons(outcome.inspection);
 	if (outcome.rejection) {
 		return Response.json(
 			{
 				control: outcome.rejection.control,
 				error: outcome.verdict === "escalate" ? "escalated" : "blocked",
+				hits,
+				reasons,
 				verdict: outcome.verdict,
 			},
 			{ status: outcome.rejection.status },
@@ -76,8 +80,72 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 	return Response.json({
 		content: outcome.content,
 		flagged: outcome.inspection.flagged,
+		hits,
+		reasons,
 		verdict: outcome.verdict,
 	});
+}
+
+export interface GuardHitView {
+	control: string;
+	detail?: string | undefined;
+	engine: "feed" | "jev" | "policy" | "regex";
+	kind: string;
+}
+
+function toHitView(hit: ControlHit): GuardHitView {
+	const view: GuardHitView = {
+		control: hit.controlId,
+		engine: engineOf(hit.controlId),
+		kind: hit.kind,
+	};
+	if (hit.detail !== undefined) {
+		view.detail = hit.detail;
+	}
+	return view;
+}
+
+/**
+ * Which engine produced a hit. `deterministic` is the regex tier (built-in
+ * detectors + policy regex rules); `semantic` is the JEV decision model
+ * (TypeSafe `decide()`); `signatures` is the signature feed; anything else is
+ * policy/plumbing. The playground renders this badge so a blocked prompt or
+ * tool call shows whether regex or JEV caught it.
+ */
+function engineOf(controlId: string): GuardHitView["engine"] {
+	if (controlId === "deterministic") {
+		return "regex";
+	}
+	if (controlId === "semantic") {
+		return "jev";
+	}
+	if (controlId === "signatures") {
+		return "feed";
+	}
+	return "policy";
+}
+
+/**
+ * Human-readable decision reasons, in the spirit of the early `filterContent`
+ * verdicts (`blockedBy: deterministic | signature` plus `matches` carrying
+ * `source: owasp-llm-top10`). Each hit contributes one reason naming its
+ * engine, control, OWASP/policy kind, and rule detail; each applied redaction
+ * contributes what was replaced and by which placeholder.
+ */
+function buildReasons(inspection: InspectionResult): string[] {
+	const reasons: string[] = [];
+	for (const hit of inspection.hits) {
+		const engine = engineOf(hit.controlId);
+		const detail = hit.detail !== undefined ? ` (${hit.detail})` : "";
+		reasons.push(`[${engine}] ${hit.controlId}: ${hit.kind}${detail}`);
+	}
+	for (const span of inspection.redactions) {
+		reasons.push(`[regex] redacted ${span.kind} via ${span.detectorId} as ${span.placeholder}`);
+	}
+	if (inspection.failure !== undefined) {
+		reasons.push(`fail-closed: ${inspection.failure}`);
+	}
+	return reasons;
 }
 
 /**
