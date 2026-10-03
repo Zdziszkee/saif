@@ -10,6 +10,8 @@
  * Prints the evidence the policy engine would consume. No verdict is produced
  * here: classification is advisory, `applyPolicy()` decides.
  */
+import "dotenv/config";
+
 import { readFileSync } from "node:fs";
 
 import { z } from "zod";
@@ -28,8 +30,9 @@ const PROBE_USAGE = `semantic:probe — classify a prompt with real Jev
   npm run semantic:probe -- --direction outbound "<prompt>"
   npm run semantic:probe -- --checks ./checks.json "<prompt>"
 
-Requires TYPESAFE_API_KEY. Without it createJevClassifier() fails closed with a
-configuration error rather than falling back to a test double.
+Reads TYPESAFE_API_KEY from the environment or from a gitignored .env file.
+Without it createJevClassifier() fails closed with a configuration error rather
+than falling back to a test double.
 `;
 
 const DEFAULT_TIMEOUT_MS = 20_000;
