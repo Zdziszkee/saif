@@ -52,3 +52,9 @@ one pure mapping helper and one control wrapper, each with its own test.
   and out-of-shape `400` responses all matched the documented behavior.
 - The two gaps above (empty `knownKeys`, stale enforcement) were found by these
   observations and are covered by the new tests.
+- **Final-head note**: with the merged semantic stage enabled and no
+  `TYPESAFE_API_KEY`, the pipeline now fails closed to `escalate` on benign
+  traffic (documented behavior; the payload-class burst predates the semantic
+  stage being wired). The live policy-reload binding was re-observed on this
+  exact head: a custom blocking rule's hit appeared within 2s of a policy edit
+  and disappeared within 2s of the revert, with no restart.
