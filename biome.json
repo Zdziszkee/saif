@@ -91,6 +91,9 @@
 						"noUnresolvedImports": "off",
 						"useQwikValidLexicalScope": "off"
 					},
+					"performance": {
+						"useSolidForComponent": "off"
+					},
 					"style": {
 						"noJsxLiterals": "off",
 						"useExportsLast": "off",
@@ -159,6 +162,9 @@
 			"includes": ["**/src/routes/__root.tsx"],
 			"linter": {
 				"rules": {
+					"correctness": {
+						"useUniqueElementIds": "off"
+					},
 					"style": {
 						"noHeadElement": "off"
 					}
@@ -191,6 +197,19 @@
 					},
 					"suspicious": {
 						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/src/components/ui/**"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noSecrets": "off"
+					},
+					"style": {
+						"useComponentExportOnlyModules": "off"
 					}
 				}
 			}
