@@ -12,7 +12,7 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 ## 2. Policy engine
 
 - [x] 2.1 Implement the zod policy schema (controls, custom regex detection rules with id, kind, pattern, direction scope and mapped action, semantic check definitions with type, wording, criteria, activation and thresholds, per-direction thresholds, strictness profiles permissive/standard/strict, model allowlist, budget rules, signature severity mapping with per-signature overrides and suspect configuration, failure verdicts) and verify schema tests reject invalid documents, including rules with uncompilable or unbounded regexes (verify: policy schema tests pass)
-- [ ] 2.2 Implement the policy loader with immutable snapshot, atomic swap, file-watch hot reload, and last-valid fallback; verify reload and invalid-reload tests pass (verify: loader tests cover live edit and rejection rollback)
+- [x] 2.2 Implement the policy loader with immutable snapshot, atomic swap, file-watch hot reload, and last-valid fallback; verify reload and invalid-reload tests pass (verify: loader tests cover live edit and rejection rollback)
 - [ ] 2.3 Ship `policy.json` plus `policy.permissive.json` and `policy.strict.json` sample variants and document every field in `docs/policy.md`; verify documented example values validate against the schema (verify: tests load all sample files successfully)
 
 ## 3. Storage layer
