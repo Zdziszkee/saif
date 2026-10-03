@@ -49,57 +49,6 @@ describe("parsePolicy: detection rules", () => {
 	});
 });
 
-describe("parsePolicy: semantic checks", () => {
-	it("rejects a choice check without options", () => {
-		const result = parsePolicy({
-			...cloneBase(),
-			controls: {
-				...cloneBase().controls,
-				semantic: {
-					...cloneBase().controls.semantic,
-					checks: cloneBase().controls.semantic.checks.map((check, index) =>
-						index === 1 ? { ...check, options: undefined } : check,
-					),
-				},
-			},
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects options on a non-choice check", () => {
-		const base = cloneBase();
-		const result = parsePolicy({
-			...base,
-			controls: {
-				...base.controls,
-				semantic: {
-					...base.controls.semantic,
-					checks: base.controls.semantic.checks.map((check, index) =>
-						index === 0 ? { ...check, options: ["yes", "no"] } : check,
-					),
-				},
-			},
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects an out-of-range threshold probability", () => {
-		const base = cloneBase();
-		firstOf(base.controls.semantic.checks).thresholds.inbound = {
-			block: 2,
-			flag: 0,
-			redact: 0,
-		};
-		expect(parsePolicy(base).success).toBe(false);
-	});
-
-	it("rejects duplicate semantic check ids", () => {
-		const base = cloneBase();
-		base.controls.semantic.checks.push(structuredClone(firstOf(base.controls.semantic.checks)));
-		expect(parsePolicy(base).success).toBe(false);
-	});
-});
-
 describe("parsePolicy: signatures, budget, and structure", () => {
 	it("rejects a signature severity without a mapped action", () => {
 		const result = parsePolicy({

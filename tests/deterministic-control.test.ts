@@ -139,6 +139,31 @@ describe("deterministic control", () => {
 		});
 	});
 
+	it("ranks redact above flag regardless of rule order", async () => {
+		const control = createDeterministicControl({
+			...baseConfig(),
+			rules: [
+				{
+					action: "flag",
+					directions: ["inbound"],
+					id: "flag-first",
+					kind: "custom",
+					pattern: "MARKER",
+				},
+				{
+					action: "redact",
+					directions: ["inbound"],
+					id: "redact-second",
+					kind: "custom",
+					pattern: "MARKER",
+				},
+			],
+		});
+		const result = await inspectControl(control, interaction("MARKER here"));
+		expect(result.verdict).toBe("redact");
+		expect(result.redactions).toHaveLength(1);
+	});
+
 	it("builds from the shipped policy.json detection section", async () => {
 		const document = policyDocument as unknown as { controls: { detection: unknown } };
 		const parsed = detectionConfigSchema.safeParse(document.controls.detection);

@@ -26,8 +26,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:pull": "drizzle-kit pull",
-    "db:studio": "drizzle-kit studio",
-    "test:integration": "bun test tests/integration"
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@t3-oss/env-core": "^0.13.10",

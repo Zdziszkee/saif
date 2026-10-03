@@ -58,19 +58,26 @@ the TypeSafe REST API (reimplements answer mapping and typing), AI SDK
 `experimental_evaluate` (second AI stack in a TanStack AI repo). Configuration injected at
 the module boundary so tests never touch the network.
 
-### D3. Binary semantic checks defined by the policy document
-Every semantic check is a binary yes/no question authored in `policy.json` and answered
-by Jev in one round trip. There is no question catalog in code: the shipped `policy.json`
-is the catalog, and a judge adds a guardrail — "Does this text contain insider trading
-information?" — by appending a check entry. Each check carries `id`, `type: "boolean"`,
-`instructions`, `enabled`, and per-direction threshold ladders; verdict mapping is the
-explicit condition `if probability(check) ≥ blockThreshold then block`, else
-`redact`/`flag`/`allow`. Rationale: judges need to define what the model checks, not
-only flip toggles (explicitly named in the challenge). Binary-only keeps the answer
-contract uniform — one P(true) per check — so the verdict mapper is a single generic
-ladder rather than a switch over question kinds. Trade-off: no compile-time narrowing on
-answer *ids* (they are policy data), so answers are runtime-validated against their
-declared check definitions and unusable answers fail closed.
+### D3. Binary semantic checks defined by `policy.jev.json`
+Every semantic check is a binary yes/no question authored in `policy.jev.json` at the
+project root and answered by Jev in one round trip. There is no question catalog in code:
+that file is the catalog, and a judge adds a guardrail — "Does this text contain insider
+trading information?" — by appending a check entry. Each check carries `id`,
+`type: "boolean"`, `instructions`, `enabled`, and per-direction threshold ladders.
+
+Jev configuration is deliberately kept out of the policy engine's `policy.json`. That
+document owns *whether* the semantic tier runs and *how strictly* its evidence maps to
+verdicts (`profiles.*.thresholds.semantic`, `enabledControls.semantic`); `policy.jev.json`
+owns *what the model is asked*, plus the deadline, decisiveness floor and egress cap. One
+concern per file, so a Jev change is one edit in one place and the two owners can work
+independently.
+
+Binary-only keeps the answer contract uniform — one P(true) per check — so the verdict
+mapper is a single generic ladder rather than a switch over question kinds. Rationale:
+judges need to define what the model checks, not only flip toggles (explicitly named in
+the challenge). Trade-off: no compile-time narrowing on answer *ids* (they are config
+data), so answers are runtime-validated against their declared check definitions and
+unusable answers fail closed.
 
 ### D4. Cheap-first pipeline order
 `shape validation -> model allowlist -> signature feed -> deterministic PII/secrets ->
@@ -149,10 +156,9 @@ itself is D4; this section specifies what each stage actually does.
   policy subjects.
   `controls.detection` carries custom regex rules (`rules[]` with id, kind, pattern,
   target directions, mapped action) plus built-in detector-family toggles and per-kind
-  default actions; `controls.semantic` carries the typed check definitions (`checks[]`
-  with id, type, wording/criteria, activation, per-direction thresholds). Zod
-  schema is the single definition, shared by runtime loader and tests; unknown keys
-  rejected (`z.strictObject`).
+  default actions. Jev question definitions are NOT here: they live in
+  `policy.jev.json` at the project root (D3). Zod schema is the single definition,
+  shared by runtime loader and tests; unknown keys rejected (`z.strictObject`).
 - **Resolution order**: base document → profile overlay (permissive/standard/strict,
   deep-merge) → per-consumer / per-route override. Precedence is deterministic and
   documented in `docs/policy.md`; every merge result is itself schema-valid.
@@ -205,9 +211,9 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 ### R2b. Semantic (AI-based) controls — Jev
 
 - **Question catalog** (one round trip, questions evaluated in parallel against one `state`):
-  the policy's enabled binary checks, each a TypeSafe `noul` question keyed by its check
-  id. Adding, disabling or rewording a check is a policy edit only (D3). The shipped
-  `policy.json` seeds `prompt_injection`, `jailbreak`, `data_exfiltration`,
+  the enabled binary checks from `policy.jev.json`, each a TypeSafe `noul` question keyed
+  by its check id. Adding, disabling or rewording a check is an edit to that file only
+  (D3). The shipped document seeds `prompt_injection`, `jailbreak`, `data_exfiltration`,
   `malicious_code`, `privacy_violation` and `insider_trading` as examples.
 - **Egress minimization (no sensitive data to Jev)**: `state` is a constructed allowlist
   object (`{ role, direction, content, contentLength, flags[] }`) built in exactly one
@@ -217,8 +223,8 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **Egress gate**: deterministic detectors run once more over the exact serialized `state`
   before `decide()`; residual sensitive span → policy `residualSensitiveAction`
   (`block` default / `escalate` / `redact-and-send`).
-- **Routing**: `controls.semantic.egress.mode`: `minimized` (default) | `off`
-  (deterministic-only for sensitive consumers/routes).
+- **Routing**: the policy's `enabledControls.semantic` turns the tier off for a profile
+  (deterministic-only); the egress truncation cap is `maxChars` in `policy.jev.json`.
 - **Consumption**: binary answers carry P(true) and no confidence value, so uncertainty is
   measured as decisiveness `max(p, 1 - p)` against a per-action floor; below floor →
   profile's uncertainty verdict (default `escalate`). Answers that do not match their

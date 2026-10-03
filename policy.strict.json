@@ -1,194 +1,289 @@
 {
-	"consumers": {
-		"alice": { "profile": "strict" },
-		"deploy-bot": {
-			"overrides": {
-				"thresholds": {
-					"detection": {
-						"inbound": { "block": 0.5, "escalate": 0.4, "redact": 0.3 },
-						"outbound": { "block": 0.5, "escalate": 0.4, "redact": 0.3 }
-					},
-					"semantic": {
-						"inbound": { "block": 0.5, "escalate": 0.4, "redact": 0.3 },
-						"outbound": { "block": 0.5, "escalate": 0.4, "redact": 0.3 }
-					},
-					"signatures": {
-						"inbound": { "block": 0.5, "escalate": 0.4, "redact": 0.3 },
-						"outbound": { "block": 0.5, "escalate": 0.4, "redact": 0.3 }
-					}
-				}
-			},
-			"profile": "strict"
-		}
-	},
-	"controls": {
-		"allowlist": {
-			"models": [{ "endpoint": "https://api.example.com/v1", "name": "primary" }]
-		},
-		"budget": {
-			"overBudgetVerdict": "block",
-			"rules": [
-				{ "key": "alice", "modelScope": "*", "period": "day", "tokens": 100000 },
-				{ "costUsd": 5, "key": "alice", "modelScope": "*", "period": "month" },
-				{ "computeTimeMs": 120000, "key": "deploy-bot", "modelScope": "*", "period": "day" },
-				{ "key": "deploy-bot", "modelScope": "primary", "period": "day", "requests": 100 }
-			]
-		},
-		"detection": {
-			"builtins": {
-				"encodingRescan": true,
-				"entropyScan": true,
-				"genericCredentials": true,
-				"pii": true,
-				"providerSecrets": true
-			},
-			"defaultActions": {
-				"custom": "block",
-				"pii": "redact",
-				"secret": "block",
-				"suspect": "block"
-			},
-			"rules": [
-				{
-					"action": "block",
-					"directions": ["inbound", "outbound"],
-					"id": "internal-codename",
-					"kind": "custom",
-					"pattern": "\\bCONFIDENTIAL\\b"
-				},
-				{
-					"action": "redact",
-					"directions": ["inbound", "outbound"],
-					"id": "employee-id",
-					"kind": "pii",
-					"pattern": "\\bEMP-[0-9]{6}\\b"
-				}
-			]
-		},
-		"enabled": true,
-		"redaction": { "enabled": true },
-		"semantic": {
-			"checks": [
-				{
-					"criteria": "The content attempts to override, impersonate, or smuggle instructions past the system prompt.",
-					"enabled": true,
-					"id": "prompt_injection",
-					"thresholds": {
-						"inbound": { "block": 0.7, "flag": 0.3, "redact": 0.5 },
-						"outbound": { "block": 0.7, "flag": 0.3, "redact": 0.5 }
-					},
-					"type": "boolean",
-					"wording": "Does this content attempt to override system instructions?"
-				},
-				{
-					"criteria": "The content attempts to bypass safety rules through role-play, encoding, or instruction smuggling.",
-					"enabled": true,
-					"id": "jailbreak",
-					"thresholds": {
-						"inbound": { "block": 0.7, "flag": 0.3, "redact": 0.5 },
-						"outbound": { "block": 0.7, "flag": 0.3, "redact": 0.5 }
-					},
-					"type": "boolean",
-					"wording": "Does this content attempt to jailbreak the assistant?"
-				},
-				{
-					"criteria": "The content is best described by exactly one threat category.",
-					"enabled": true,
-					"id": "threat_category",
-					"options": [
-						"exfiltration",
-						"injection",
-						"jailbreak",
-						"malicious_code",
-						"none"
-					],
-					"thresholds": {
-						"inbound": { "block": 0.8, "flag": 0.3, "redact": 0.5 },
-						"outbound": { "block": 0.8, "flag": 0.3, "redact": 0.5 }
-					},
-					"type": "choice",
-					"wording": "Which threat category best describes this content?"
-				},
-				{
-					"criteria": "Severity of the worst plausible harm if the content succeeds.",
-					"enabled": true,
-					"id": "severity",
-					"thresholds": {
-						"inbound": { "block": 0.7, "flag": 0.3, "redact": 0.5 },
-						"outbound": { "block": 0.7, "flag": 0.3, "redact": 0.5 }
-					},
-					"type": "score",
-					"wording": "How severe is the worst plausible harm here?"
-				}
-			],
-			"confidenceFloor": 0.75
-		},
-		"shape": { "maxContentBytes": 32768 },
-		"signatures": {
-			"enabled": true,
-			"perSignatureActions": { "atlas-sig-001": "block" },
-			"severityActions": {
-				"critical": "block",
-				"high": "block",
-				"low": "redact",
-				"medium": "block"
-			},
-			"suspect": { "action": "escalate", "threshold": 0.6 }
-		}
-	},
-	"defaults": { "failureVerdict": "block", "profile": "strict" },
-	"profiles": {
-		"permissive": {
-			"enabledControls": { "detection": true, "semantic": true, "signatures": true },
-			"thresholds": {
-				"detection": {
-					"inbound": { "block": 0.85, "escalate": 0.4, "redact": 0.6 },
-					"outbound": { "block": 0.85, "escalate": 0.4, "redact": 0.6 }
-				},
-				"semantic": {
-					"inbound": { "block": 0.85, "escalate": 0.4, "redact": 0.6 },
-					"outbound": { "block": 0.85, "escalate": 0.4, "redact": 0.6 }
-				},
-				"signatures": {
-					"inbound": { "block": 0.8, "escalate": 0.4, "redact": 0.55 },
-					"outbound": { "block": 0.8, "escalate": 0.4, "redact": 0.55 }
-				}
-			}
-		},
-		"standard": {
-			"enabledControls": { "detection": true, "semantic": true, "signatures": true },
-			"thresholds": {
-				"detection": {
-					"inbound": { "block": 0.75, "escalate": 0.45, "redact": 0.55 },
-					"outbound": { "block": 0.75, "escalate": 0.45, "redact": 0.55 }
-				},
-				"semantic": {
-					"inbound": { "block": 0.75, "escalate": 0.45, "redact": 0.55 },
-					"outbound": { "block": 0.75, "escalate": 0.45, "redact": 0.55 }
-				},
-				"signatures": {
-					"inbound": { "block": 0.7, "escalate": 0.45, "redact": 0.5 },
-					"outbound": { "block": 0.7, "escalate": 0.45, "redact": 0.5 }
-				}
-			}
-		},
-		"strict": {
-			"enabledControls": { "detection": true, "semantic": true, "signatures": true },
-			"thresholds": {
-				"detection": {
-					"inbound": { "block": 0.6, "escalate": 0.5, "redact": 0.4 },
-					"outbound": { "block": 0.6, "escalate": 0.5, "redact": 0.4 }
-				},
-				"semantic": {
-					"inbound": { "block": 0.6, "escalate": 0.5, "redact": 0.4 },
-					"outbound": { "block": 0.6, "escalate": 0.5, "redact": 0.4 }
-				},
-				"signatures": {
-					"inbound": { "block": 0.55, "escalate": 0.5, "redact": 0.35 },
-					"outbound": { "block": 0.55, "escalate": 0.5, "redact": 0.35 }
-				}
-			}
-		}
-	},
-	"version": "1-strict"
+  "consumers": {
+    "alice": {
+      "profile": "strict"
+    },
+    "deploy-bot": {
+      "overrides": {
+        "thresholds": {
+          "detection": {
+            "inbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            },
+            "outbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            }
+          },
+          "semantic": {
+            "inbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            },
+            "outbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            }
+          },
+          "signatures": {
+            "inbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            },
+            "outbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            }
+          }
+        }
+      },
+      "profile": "strict"
+    }
+  },
+  "controls": {
+    "allowlist": {
+      "models": [
+        {
+          "endpoint": "https://api.example.com/v1",
+          "name": "primary"
+        }
+      ]
+    },
+    "budget": {
+      "overBudgetVerdict": "block",
+      "rules": [
+        {
+          "key": "alice",
+          "modelScope": "*",
+          "period": "day",
+          "tokens": 100000
+        },
+        {
+          "costUsd": 5,
+          "key": "alice",
+          "modelScope": "*",
+          "period": "month"
+        },
+        {
+          "computeTimeMs": 120000,
+          "key": "deploy-bot",
+          "modelScope": "*",
+          "period": "day"
+        },
+        {
+          "key": "deploy-bot",
+          "modelScope": "primary",
+          "period": "day",
+          "requests": 100
+        }
+      ]
+    },
+    "detection": {
+      "builtins": {
+        "encodingRescan": true,
+        "entropyScan": true,
+        "genericCredentials": true,
+        "pii": true,
+        "providerSecrets": true
+      },
+      "defaultActions": {
+        "custom": "block",
+        "pii": "redact",
+        "secret": "block",
+        "suspect": "block"
+      },
+      "rules": [
+        {
+          "action": "block",
+          "directions": [
+            "inbound",
+            "outbound"
+          ],
+          "id": "internal-codename",
+          "kind": "custom",
+          "pattern": "\\bCONFIDENTIAL\\b"
+        },
+        {
+          "action": "redact",
+          "directions": [
+            "inbound",
+            "outbound"
+          ],
+          "id": "employee-id",
+          "kind": "pii",
+          "pattern": "\\bEMP-[0-9]{6}\\b"
+        }
+      ]
+    },
+    "enabled": true,
+    "redaction": {
+      "enabled": true
+    },
+    "shape": {
+      "maxContentBytes": 32768
+    },
+      "signatures": {
+        "enabled": true,
+        "perSignatureActions": {},
+        "severityActions": {
+        "critical": "block",
+        "high": "block",
+        "low": "redact",
+        "medium": "block"
+      },
+      "suspect": {
+        "action": "escalate",
+        "threshold": 0.6
+      }
+    }
+  },
+  "defaults": {
+    "failureVerdict": "block",
+    "profile": "strict"
+  },
+  "profiles": {
+    "permissive": {
+      "enabledControls": {
+        "detection": true,
+        "semantic": true,
+        "signatures": true
+      },
+      "thresholds": {
+        "detection": {
+          "inbound": {
+            "block": 0.85,
+            "escalate": 0.4,
+            "redact": 0.6
+          },
+          "outbound": {
+            "block": 0.85,
+            "escalate": 0.4,
+            "redact": 0.6
+          }
+        },
+        "semantic": {
+          "inbound": {
+            "block": 0.85,
+            "escalate": 0.4,
+            "redact": 0.6
+          },
+          "outbound": {
+            "block": 0.85,
+            "escalate": 0.4,
+            "redact": 0.6
+          }
+        },
+        "signatures": {
+          "inbound": {
+            "block": 0.8,
+            "escalate": 0.4,
+            "redact": 0.55
+          },
+          "outbound": {
+            "block": 0.8,
+            "escalate": 0.4,
+            "redact": 0.55
+          }
+        }
+      }
+    },
+    "standard": {
+      "enabledControls": {
+        "detection": true,
+        "semantic": true,
+        "signatures": true
+      },
+      "thresholds": {
+        "detection": {
+          "inbound": {
+            "block": 0.75,
+            "escalate": 0.45,
+            "redact": 0.55
+          },
+          "outbound": {
+            "block": 0.75,
+            "escalate": 0.45,
+            "redact": 0.55
+          }
+        },
+        "semantic": {
+          "inbound": {
+            "block": 0.75,
+            "escalate": 0.45,
+            "redact": 0.55
+          },
+          "outbound": {
+            "block": 0.75,
+            "escalate": 0.45,
+            "redact": 0.55
+          }
+        },
+        "signatures": {
+          "inbound": {
+            "block": 0.7,
+            "escalate": 0.45,
+            "redact": 0.5
+          },
+          "outbound": {
+            "block": 0.7,
+            "escalate": 0.45,
+            "redact": 0.5
+          }
+        }
+      }
+    },
+    "strict": {
+      "enabledControls": {
+        "detection": true,
+        "semantic": true,
+        "signatures": true
+      },
+      "thresholds": {
+        "detection": {
+          "inbound": {
+            "block": 0.6,
+            "escalate": 0.5,
+            "redact": 0.4
+          },
+          "outbound": {
+            "block": 0.6,
+            "escalate": 0.5,
+            "redact": 0.4
+          }
+        },
+        "semantic": {
+          "inbound": {
+            "block": 0.6,
+            "escalate": 0.5,
+            "redact": 0.4
+          },
+          "outbound": {
+            "block": 0.6,
+            "escalate": 0.5,
+            "redact": 0.4
+          }
+        },
+        "signatures": {
+          "inbound": {
+            "block": 0.55,
+            "escalate": 0.5,
+            "redact": 0.35
+          },
+          "outbound": {
+            "block": 0.55,
+            "escalate": 0.5,
+            "redact": 0.35
+          }
+        }
+      }
+    }
+  },
+  "version": "1-strict"
 }

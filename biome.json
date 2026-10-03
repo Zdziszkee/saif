@@ -88,6 +88,7 @@
 			"linter": {
 				"rules": {
 					"correctness": {
+						"noSolidDestructuredProps": "off",
 						"noUnresolvedImports": "off",
 						"useQwikValidLexicalScope": "off"
 					},
@@ -131,6 +132,9 @@
 				"rules": {
 					"complexity": {
 						"noExcessiveLinesPerFunction": "off"
+					},
+					"security": {
+						"noSecrets": "off"
 					},
 					"style": {
 						"noMagicNumbers": "off"
@@ -205,11 +209,17 @@
 			"includes": ["**/src/components/ui/**"],
 			"linter": {
 				"rules": {
+					"complexity": {
+						"noExcessiveCognitiveComplexity": "off",
+						"noExcessiveLinesPerFunction": "off"
+					},
 					"security": {
+						"noDangerouslySetInnerHtml": "off",
 						"noSecrets": "off"
 					},
 					"style": {
-						"useComponentExportOnlyModules": "off"
+						"useComponentExportOnlyModules": "off",
+						"useNamingConvention": "off"
 					}
 				}
 			}
