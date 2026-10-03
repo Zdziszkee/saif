@@ -136,6 +136,41 @@ describe("guard API", () => {
 		expect(audit.events.some((event) => event.kind === "failure")).toBe(true);
 	});
 
+	it("keeps an earlier block when a later control fails", async () => {
+		const audit = auditSink();
+		const response = await handleGuardRequest(
+			guardRequest({ ...envelope, content: "MARKER please block" }, "alice"),
+			{
+				audit,
+				consumers: consumerResolver(),
+				pipeline: pipelineWith(
+					[
+						{
+							id: "fixture-blocker",
+							inspect: (interaction: Interaction) =>
+								interaction.content.includes("MARKER")
+									? {
+											hit: {
+												controlId: "fixture-blocker",
+												kind: "fixture",
+												verdict: "block",
+											},
+											verdict: "block",
+										}
+									: { verdict: "allow" },
+						},
+						failingControl("boom"),
+					],
+					{ audit, failureVerdict: "escalate" },
+				),
+			},
+		);
+		expect(response.status).toBe(403);
+		const body = await jsonOf(response);
+		expect(body.verdict).toBe("block");
+		expect(body.control).toBe("fixture-blocker");
+	});
+
 	it("governs concurrent consumers in isolation", async () => {
 		const audit = auditSink();
 		const deps = {

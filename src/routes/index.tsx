@@ -71,6 +71,47 @@ function Home() {
 					and semantic defenses, budget enforcement, and a full audit trail.
 				</p>
 			</header>
+			<section aria-label="Try it live">
+				<Card>
+					<CardHeader>
+						<CardTitle>Try it live</CardTitle>
+						<CardDescription>
+							Every chat prompt, MCP tool call, and guard request flows through one cheap-first
+							pipeline.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="flex flex-col gap-2 text-sm">
+						<p>
+							<a className="underline" href="/playground">
+								Guard playground
+							</a>{" "}
+							<span className="text-muted-foreground">
+								— try allow, redact, block, and escalate paths live.
+							</span>
+						</p>
+						<p>
+							<a className="underline" href="/dashboard">
+								Security dashboard
+							</a>{" "}
+							<span className="text-muted-foreground">
+								— verdict counts, recent decisions, feed and policy versions.
+							</span>
+						</p>
+						<p>
+							<code className="rounded bg-muted px-2 py-1 font-mono">POST /api/guard</code>{" "}
+							<span className="text-muted-foreground">
+								— the generic guard endpoint (chat, MCP, and custom seams post here).
+							</span>
+						</p>
+						<p>
+							<code className="rounded bg-muted px-2 py-1 font-mono">GET /api/audit/export</code>{" "}
+							<span className="text-muted-foreground">
+								— audit trail as JSONL or CSV for security review.
+							</span>
+						</p>
+					</CardContent>
+				</Card>
+			</section>
 			<section aria-label="Capabilities" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{capabilities.map((capability) => (
 					<Card key={capability.title}>

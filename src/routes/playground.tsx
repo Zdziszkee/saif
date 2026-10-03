@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-
 import {
 	GuardForm,
 	type GuardHit,
@@ -9,6 +8,14 @@ import {
 	type Sample,
 	SamplePicker,
 } from "#/components/playground.tsx";
+import { Badge } from "#/components/ui/badge.tsx";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "#/components/ui/card.tsx";
 
 const samples: readonly Sample[] = [
 	{
@@ -181,33 +188,45 @@ function Playground() {
 	}
 
 	return (
-		<div className="mx-auto max-w-3xl p-8">
-			<h1 className="text-3xl font-bold">AI Control Layer playground</h1>
-			<p className="mt-2 text-sm text-gray-600">
-				Sends an interaction through POST /api/guard and the shared control pipeline — deterministic
-				(regex) tier active, no model call involved. Each hit carries an engine badge:{" "}
-				<span className="font-mono">regex</span> for the deterministic tier,{" "}
-				<span className="font-mono">JEV</span> once the semantic tier is wired in.
-			</p>
-			<SamplePicker
-				items={samples}
-				onPick={(sample: Sample) => {
-					setText(sample.text);
-					setDirection(sample.direction);
-					setSeam(sample.seam);
-				}}
-			/>
-			<GuardForm
-				busy={busy}
-				direction={direction}
-				onDirectionChange={setDirection}
-				onSeamChange={setSeam}
-				onSubmit={submit}
-				onTextChange={setText}
-				seam={seam}
-				text={text}
-			/>
+		<main className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+			<header className="flex flex-col gap-2">
+				<Badge className="w-fit">AI Control Layer playground</Badge>
+				<h1 className="text-3xl font-bold tracking-tight">Guard playground</h1>
+				<p className="text-muted-foreground text-sm">
+					Sends an interaction through POST /api/guard and the shared control pipeline —
+					deterministic (regex) tier, signature feed, and JEV semantic tier when TYPESAFE_API_KEY is
+					configured. Each hit carries an engine badge: <span className="font-mono">regex</span> for
+					the deterministic tier, <span className="font-mono">feed</span> for signatures,{" "}
+					<span className="font-mono">JEV</span> for the semantic tier.
+				</p>
+			</header>
+			<Card>
+				<CardHeader>
+					<CardTitle>Try a sample</CardTitle>
+					<CardDescription>Pick an OWASP-mapped attack or a benign prompt.</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<SamplePicker
+						items={samples}
+						onPick={(sample: Sample) => {
+							setText(sample.text);
+							setDirection(sample.direction);
+							setSeam(sample.seam);
+						}}
+					/>
+					<GuardForm
+						busy={busy}
+						direction={direction}
+						onDirectionChange={setDirection}
+						onSeamChange={setSeam}
+						onSubmit={submit}
+						onTextChange={setText}
+						seam={seam}
+						text={text}
+					/>
+				</CardContent>
+			</Card>
 			{result ? <ResultPanel result={result} /> : null}
-		</div>
+		</main>
 	);
 }

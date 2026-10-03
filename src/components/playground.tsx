@@ -1,5 +1,9 @@
 import { useId } from "react";
 
+import { Badge } from "#/components/ui/badge.tsx";
+import { Button } from "#/components/ui/button.tsx";
+import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card.tsx";
+
 export interface GuardHit {
 	control: string;
 	detail?: string;
@@ -25,11 +29,11 @@ export interface Sample {
 	text: string;
 }
 
-const verdictStyles: Record<string, string> = {
-	allow: "bg-emerald-100 text-emerald-800",
-	block: "bg-red-100 text-red-800",
-	escalate: "bg-amber-100 text-amber-800",
-	redact: "bg-sky-100 text-sky-800",
+const verdictVariants: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
+	allow: "default",
+	block: "destructive",
+	escalate: "secondary",
+	redact: "outline",
 };
 
 export function SamplePicker({
@@ -42,14 +46,15 @@ export function SamplePicker({
 	return (
 		<div className="mt-4 flex flex-wrap gap-2">
 			{items.map((sample) => (
-				<button
-					className="rounded-full border border-gray-300 px-3 py-1 text-sm hover:bg-gray-100"
+				<Button
 					key={sample.label}
 					onClick={() => onPick(sample)}
+					size="sm"
 					type="button"
+					variant="outline"
 				>
 					{sample.label}
-				</button>
+				</Button>
 			))}
 		</div>
 	);
@@ -111,24 +116,23 @@ export function GuardForm(props: GuardFormProps) {
 					<option value="guard-api">guard-api</option>
 					<option value="mcp-tool">mcp-tool</option>
 				</select>
-				<button
-					className="rounded-md bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+				<Button
 					disabled={props.busy || props.text.length === 0}
 					onClick={props.onSubmit}
 					type="button"
 				>
 					{props.busy ? "Checking…" : "Run guard"}
-				</button>
+				</Button>
 			</div>
 		</div>
 	);
 }
 
-const engineStyles: Record<string, string> = {
-	feed: "bg-amber-100 text-amber-800",
-	jev: "bg-violet-100 text-violet-800",
-	policy: "bg-gray-100 text-gray-700",
-	regex: "bg-sky-100 text-sky-800",
+const engineVariants: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
+	feed: "secondary",
+	jev: "default",
+	policy: "outline",
+	regex: "secondary",
 };
 
 function engineLabel(engine: string): string {
@@ -140,71 +144,68 @@ function engineLabel(engine: string): string {
 
 export function ResultPanel({ result }: { result: GuardView }) {
 	return (
-		<div className="mt-6 rounded-md border border-gray-200 p-4">
-			<div className="flex items-center gap-3">
-				<span
-					className={`rounded-full px-3 py-1 text-sm font-semibold ${verdictStyles[result.verdict ?? ""] ?? "bg-gray-100"}`}
-				>
-					{result.verdict ?? result.error ?? "unknown"}
-				</span>
-				{result.blockedBy ? (
-					<span className="text-sm text-gray-600">blocked by: {result.blockedBy}</span>
-				) : null}
-				{result.flagged ? (
-					<span className="rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-800">
-						flagged for review
-					</span>
-				) : null}
-			</div>
-			{result.hits && result.hits.length > 0 ? (
-				<ul className="mt-3 space-y-1">
-					{result.hits.map((hit) => (
-						<li
-							className="flex flex-wrap items-center gap-2 font-mono text-sm"
-							key={`${hit.control}-${hit.kind}-${hit.detail ?? ""}`}
-						>
-							<span
-								className={`rounded-full px-2 py-0.5 text-xs font-semibold ${engineStyles[hit.engine] ?? "bg-gray-100"}`}
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle>Guard result</CardTitle>
+			</CardHeader>
+			<CardContent>
+				<div className="flex items-center gap-3">
+					<Badge variant={verdictVariants[result.verdict ?? ""] ?? "outline"}>
+						{result.verdict ?? result.error ?? "unknown"}
+					</Badge>
+					{result.blockedBy ? (
+						<span className="text-muted-foreground text-sm">blocked by: {result.blockedBy}</span>
+					) : null}
+					{result.flagged ? <Badge variant="secondary">flagged for review</Badge> : null}
+				</div>
+				{result.hits && result.hits.length > 0 ? (
+					<ul className="mt-3 space-y-1">
+						{result.hits.map((hit) => (
+							<li
+								className="flex flex-wrap items-center gap-2 font-mono text-sm"
+								key={`${hit.control}-${hit.kind}-${hit.detail ?? ""}`}
 							>
-								{engineLabel(hit.engine)}
-							</span>
-							<span className="text-gray-700">
-								{hit.control}: {hit.kind}
-							</span>
-							{hit.detail ? <span className="text-gray-500">{hit.detail}</span> : null}
-						</li>
-					))}
-				</ul>
-			) : null}
-			{result.reasons && result.reasons.length > 0 ? (
-				<div className="mt-3">
-					<h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-						Why this decision
-					</h2>
-					<ul className="mt-1 list-disc space-y-1 pl-5 font-mono text-sm">
-						{result.reasons.map((reason) => (
-							<li key={reason}>{reason}</li>
+								<Badge variant={engineVariants[hit.engine] ?? "outline"}>
+									{engineLabel(hit.engine)}
+								</Badge>
+								<span>
+									{hit.control}: {hit.kind}
+								</span>
+								{hit.detail ? <span className="text-muted-foreground">{hit.detail}</span> : null}
+							</li>
 						))}
 					</ul>
-				</div>
-			) : null}
-			{result.details && result.details.length > 0 ? (
-				<ul className="mt-3 list-disc space-y-1 pl-5 font-mono text-sm">
-					{result.details.map((detail) => (
-						<li key={detail}>{detail}</li>
-					))}
-				</ul>
-			) : null}
-			{result.content !== undefined ? (
-				<div className="mt-4">
-					<h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-						Forwarded content
-					</h2>
-					<pre className="mt-1 whitespace-pre-wrap rounded bg-gray-50 p-3 font-mono text-sm">
-						{result.content}
-					</pre>
-				</div>
-			) : null}
-		</div>
+				) : null}
+				{result.reasons && result.reasons.length > 0 ? (
+					<div className="mt-3">
+						<h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">
+							Why this decision
+						</h2>
+						<ul className="mt-1 list-disc space-y-1 pl-5 font-mono text-sm">
+							{result.reasons.map((reason) => (
+								<li key={reason}>{reason}</li>
+							))}
+						</ul>
+					</div>
+				) : null}
+				{result.details && result.details.length > 0 ? (
+					<ul className="mt-3 list-disc space-y-1 pl-5 font-mono text-sm">
+						{result.details.map((detail) => (
+							<li key={detail}>{detail}</li>
+						))}
+					</ul>
+				) : null}
+				{result.content !== undefined ? (
+					<div className="mt-4">
+						<h2 className="text-muted-foreground text-sm font-semibold uppercase tracking-wide">
+							Forwarded content
+						</h2>
+						<pre className="bg-muted mt-1 whitespace-pre-wrap rounded p-3 font-mono text-sm">
+							{result.content}
+						</pre>
+					</div>
+				) : null}
+			</CardContent>
+		</Card>
 	);
 }

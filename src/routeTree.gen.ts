@@ -10,13 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as ApiGuardRouteImport } from './routes/api.guard'
+import { Route as ApiAuditExportRouteImport } from './routes/api.audit.export'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -34,39 +41,71 @@ const ApiGuardRoute = ApiGuardRouteImport.update({
   path: '/api/guard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuditExportRoute = ApiAuditExportRouteImport.update({
+  id: '/api/audit/export',
+  path: '/api/audit/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/mcp' | '/playground' | '/api/guard'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/mcp'
+    | '/playground'
+    | '/api/guard'
+    | '/api/audit/export'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/mcp' | '/playground' | '/api/guard'
-  id: '__root__' | '/' | '/mcp' | '/playground' | '/api/guard'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/mcp'
+    | '/playground'
+    | '/api/guard'
+    | '/api/audit/export'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/mcp'
+    | '/playground'
+    | '/api/guard'
+    | '/api/audit/export'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DashboardRoute: typeof DashboardRoute
   McpRoute: typeof McpRoute
   PlaygroundRoute: typeof PlaygroundRoute
   ApiGuardRoute: typeof ApiGuardRoute
+  ApiAuditExportRoute: typeof ApiAuditExportRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -76,6 +115,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -99,14 +145,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGuardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/audit/export': {
+      id: '/api/audit/export'
+      path: '/api/audit/export'
+      fullPath: '/api/audit/export'
+      preLoaderRoute: typeof ApiAuditExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DashboardRoute: DashboardRoute,
   McpRoute: McpRoute,
   PlaygroundRoute: PlaygroundRoute,
   ApiGuardRoute: ApiGuardRoute,
+  ApiAuditExportRoute: ApiAuditExportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

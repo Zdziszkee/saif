@@ -125,14 +125,23 @@ function failClosed(
 			verdict: failure.failureVerdict,
 		}),
 	);
+	let verdict: Verdict;
+	let blockingControl: string | undefined;
+	if (VERDICT_SEVERITY[state.verdict] >= VERDICT_SEVERITY[failure.failureVerdict]) {
+		verdict = state.verdict;
+		blockingControl = state.verdict === "allow" ? undefined : state.blockingControl;
+	} else {
+		verdict = failure.failureVerdict;
+		blockingControl = failure.failureVerdict === "allow" ? undefined : failure.controlId;
+	}
 	return {
-		blockingControl: failure.failureVerdict === "allow" ? undefined : failure.controlId,
+		blockingControl,
 		content: interaction.content,
 		failure: failure.error,
 		flagged: false,
 		hits: state.hits,
 		redactions: state.redactions,
-		verdict: failure.failureVerdict,
+		verdict,
 	};
 }
 
