@@ -11,6 +11,7 @@ import { type AuditSink, createInMemoryAuditSink } from "#/control/audit.ts";
 import { createDeterministicControl } from "#/control/deterministic/control.ts";
 import { createControlPipeline } from "#/control/pipeline.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
+import { type ConsumerPolicy, consumerPolicyFromDocument } from "#/control/subjects.ts";
 import type { Control } from "#/control/types.ts";
 import { env } from "#/env.ts";
 import { createHubConfig } from "./config.ts";
@@ -41,13 +42,24 @@ function policyUnavailableControl(): Control {
 	};
 }
 
-async function buildControls(): Promise<readonly Control[]> {
+interface Governance {
+	consumers: ConsumerPolicy;
+	controls: readonly Control[];
+}
+
+async function buildGovernance(): Promise<Governance> {
 	const loader = new PolicyLoader(new FilePolicySource(POLICY_PATH));
 	const status = await loader.start();
 	if (!status.ok) {
-		return [policyUnavailableControl()];
+		return {
+			consumers: consumerPolicyFromDocument({}),
+			controls: [policyUnavailableControl()],
+		};
 	}
-	return [createDeterministicControl(status.snapshot.policy.controls.detection)];
+	return {
+		consumers: consumerPolicyFromDocument(status.snapshot.policy.consumers),
+		controls: [createDeterministicControl(status.snapshot.policy.controls.detection)],
+	};
 }
 
 export function getHub(): Promise<Hub> {
@@ -56,11 +68,15 @@ export function getHub(): Promise<Hub> {
 }
 
 async function createHubAsync(): Promise<Hub> {
+	const governance = await buildGovernance();
 	return createHub({
 		audit: getAuditSink(),
-		config: createHubConfig({ egressAllowlist: parseAllowlist(env.MCP_EGRESS_ALLOWLIST) }),
+		config: createHubConfig({
+			consumers: governance.consumers,
+			egressAllowlist: parseAllowlist(env.MCP_EGRESS_ALLOWLIST),
+		}),
 		model: modelConnectionFromEnv(),
-		pipeline: createControlPipeline({ controls: await buildControls() }),
+		pipeline: createControlPipeline({ controls: governance.controls }),
 	});
 }
 

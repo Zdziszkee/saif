@@ -56,3 +56,23 @@ export function consumerKeyFromRequest(request: Request): string | undefined {
 	const key = request.headers.get(CONSUMER_KEY_HEADER);
 	return key === null || key.length === 0 ? undefined : key;
 }
+
+/**
+ * Derive the consumer-key policy from the policy document's `consumers` map:
+ * every policy-defined consumer key identifies a policy subject of the same
+ * name. Unknown and missing keys keep the configured default-subject or
+ * rejection behavior and never inherit a known subject's configuration.
+ */
+export function consumerPolicyFromDocument(
+	consumers: Readonly<Record<string, unknown>>,
+	options: Pick<ConsumerPolicy, "defaultSubject" | "unknownKey"> = {
+		defaultSubject: "default",
+		unknownKey: "default-subject",
+	},
+): ConsumerPolicy {
+	return {
+		defaultSubject: options.defaultSubject,
+		knownKeys: Object.keys(consumers).sort(),
+		unknownKey: options.unknownKey,
+	};
+}

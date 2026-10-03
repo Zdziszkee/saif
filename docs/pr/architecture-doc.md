@@ -50,3 +50,15 @@ implementation status table instead of being presented as shipped.
 - The concurrency tests exercise the real `handleGuardRequest` seam with an
   interleaving pipeline double: 40 concurrent requests across two subjects plus
   an unknown-key rejection, asserting verdict, status, and audit attribution.
+- **Live observation** (not inspection): the hosted app (`bun --bun run dev`)
+  answered 24 concurrent `POST /api/guard` requests across 4 consumer keys in
+  under 60 ms each with governed verdicts; PII payloads were redacted to
+  `[EMAIL]` with verdict `redact` on every subject; an unknown key followed the
+  configured default-subject behavior (governed under the default subject,
+  never inheriting a known subject's policy).
+- The live check surfaced that the hosted runtime built its consumer resolver
+  with empty `knownKeys`, collapsing every key to the default subject. Fixed by
+  wiring the policy document's `consumers` keys through the new pure
+  `consumerPolicyFromDocument()` (`src/control/subjects.ts`) in
+  `src/hub/runtime.ts`, pinned by `tests/consumer-policy.test.ts`.
+- GitHub Actions on this PR: `unit-tests` pass, `verify` pass.

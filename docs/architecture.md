@@ -297,7 +297,7 @@ error or timeout fails closed to the policy failure verdict).
 | Stage / area | Status |
 |---|---|
 | Shape validation, guard API, chat seam, MCP hub seams | implemented |
-| Consumer-key subject resolution | implemented |
+| Consumer-key subject resolution | implemented (policy consumer keys wired into the hosted runtime at startup) |
 | Policy engine (schema, loader, hot reload, samples) | implemented |
 | Deterministic detection + redaction + custom rules | implemented |
 | Semantic tier (Jev catalog, doubles, fail-closed) | implemented |
