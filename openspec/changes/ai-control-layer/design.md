@@ -117,6 +117,138 @@ actual usage from the model response settles and reconciles. Jev input tokens co
 the layer's own metering so semantic cost is visible. Over-budget uses the policy's
 over-budget verdict (default `block`).
 
+## Detailed Solution Design (per requirement)
+
+Concrete solution for each challenge requirement, layered cheap-first. Pipeline stage order
+itself is D4; this section specifies what each stage actually does.
+
+### R1. Centralized policy engine
+
+- **Document shape**: `policy.json` = `{ version, defaults { profile, failureVerdict },
+  consumers { <key-hash>: { profile, overrides } }, controls { shape, allowlist, signatures,
+  redaction, budget, semantic }, observability }`. Zod schema is the single definition,
+  shared by runtime loader and tests; unknown keys rejected (`z.strictObject`).
+- **Resolution order**: base document → profile overlay (permissive/standard/strict,
+  deep-merge) → per-consumer / per-route override. Precedence is deterministic and
+  documented in `docs/policy.md`; every merge result is itself schema-valid.
+- **Hot reload**: `fs.watch` + 250 ms debounce → parse → validate → compute
+  `policyVersion = sha256(canonical JSON)` → atomic snapshot swap (each request pins one
+  snapshot and stamps the version into its audit row). Invalid reload keeps last valid
+  policy and emits an audit error event. Startup with no valid policy refuses to run
+  (fail closed); the explicit `controls.enabled: false` kill-switch is the observe-only mode.
+- **Judge tunability**: thresholds, actions, allowlists, question activation/wording are all
+  policy fields; nothing security-relevant is hard-coded outside the pattern catalog.
+
+### R2a. Deterministic (non-AI) controls — layered regex defense
+
+The "first line of defense" is a layered detector pipeline. Regex is layer 1, but validators
+(layer 2) are what keep it precise enough to act on:
+
+- **L0 Shape & limits**: envelope schema validation (seam, direction, content size ≤ 64 KB),
+  control-char stripping, malformed → fail closed. Rejects garbage before any scanning.
+- **L1 Pattern catalog (regex)** — one pass, named catalog `{ id, kind, regex, validator? }`,
+  compiled once at load:
+  - *Provider-shaped secrets (high precision)*: AWS `AKIA[0-9A-Z]{16}`,
+    GitHub `gh[pousr]_[A-Za-z0-9]{36,}`, Slack `xox[baprs]-[0-9A-Za-z-]{10,}`,
+    Google `AIza[0-9A-Za-z_-]{35}`, Stripe `(sk|pk)_(live|test)_…`, OpenAI-style
+    `sk-[A-Za-z0-9_-]{20,}`, JWT `eyJ[A-Za-z0-9_-]+\.eyJ…\.…`,
+    PEM `-----BEGIN [A-Z ]*PRIVATE KEY-----`.
+  - *Generic credential assignments*: `(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*…`.
+  - *PII*: pragmatic email subset, E.164-ish phone with separators and context words,
+    payment card `\b(?:\d[ -]?){13,19}\b`, IBAN `\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b`,
+    US SSN `\b\d{3}-\d{2}-\d{4}\b`, configurable national-ID patterns.
+- **L2 Validators (false-positive killers)**: Luhn for cards, IBAN mod-97, checksums for gov
+  IDs, nearby keyword context ("cvv", "iban", "password"). Regex hit without validator pass
+  downgrades to `suspect` (default action redact, not block).
+- **L3 Entropy scan**: token runs (length ≥ 20, base64/hex-shaped) with Shannon entropy
+  ≥ ~3.5–4.0 bits/char → generic-secret `suspect`. Catches unknown credential formats.
+- **L4 Encoding-aware re-scan**: bounded decode (base64/URL/hex, depth ≤ 2) then re-run L1
+  on decoded text. Catches light obfuscation of secrets/injection.
+- **Output contract**: `Detection { kind, span, detectorId, confidence, validated }`.
+  Redaction maps kinds to typed placeholders (`[EMAIL]`, `[CARD_LAST4:4242]`, `[API_KEY]`),
+  per-kind action (allow/redact/block) comes from policy. Redacted text is the only input
+  later stages (semantic tier) may see (D4 + R2b egress rules).
+- **Implementation choice**: in-house typed pattern catalog (tables in code), no heavy
+  dependency — judge-tunable, license-clean, fixture-tested. Per-pattern length cap and
+  match budget; `re2js` (linear-time) is the drop-in if catastrophic backtracking shows up.
+
+### R2b. Semantic (AI-based) controls — Jev
+
+- **Question catalog** (one round trip, questions evaluated in parallel against one `state`):
+  `noul` booleans (prompt injection? jailbreak? data exfiltration request? malicious code?),
+  `choice` (threat category, full distribution), `score` (severity 0–1). Catalog is typed TS;
+  policy toggles activation and may override wording/thresholds (D3).
+- **Egress minimization (no sensitive data to Jev)**: `state` is a constructed allowlist
+  object (`{ role, direction, content, contentLength, flags[] }`) built in exactly one
+  function from post-redaction text of the inspected span only — no history, system prompts,
+  tool schemas, or keys. Consistent pseudonyms (`[USER_1]`) preserve relational structure;
+  truncation to `maxChars` happens after redaction/pseudonymization.
+- **Egress gate**: deterministic detectors run once more over the exact serialized `state`
+  before `decide()`; residual sensitive span → policy `residualSensitiveAction`
+  (`block` default / `escalate` / `redact-and-send`).
+- **Routing**: `controls.semantic.egress.mode`: `minimized` (default) | `local-only`
+  (force Ollama/mock classifier for sensitive consumers/routes) | `off` (deterministic-only).
+- **Consumption**: confidence floors per action; below floor → profile's uncertainty verdict
+  (default `escalate`). Timeout bounded, failure verdict fail-closed. Classification is
+  advisory: only `applyPolicy()` maps answers to verdicts (D5).
+
+### R3. Budget and resource governance
+
+- **Pre-flight**: token estimate = chars/4 + per-message overhead → reserve against
+  `budget_windows` in one SQLite transaction (conditional upsert: `used + estimate ≤ limit`).
+  Model allowlist checked earlier in the pipeline (with shape validation).
+- **Post-flight**: settle from actual usage (model response + Jev input tokens — the layer
+  meters its own semantic spend), reconcile against the reservation (refund delta).
+- **Windows**: tumbling time buckets (hour/day) keyed `(subject, model, window)`; bucket is
+  computed from timestamp, so rollover is free (D7). Over-budget → policy's over-budget
+  verdict (default `block`).
+- **Burst control (optional refinement)**: token-bucket rate limit per consumer for runaway
+  agent loops, complementing the windowed spend cap.
+
+### R4. Historical attack mitigation (signature feed)
+
+- **Feed format** `signatures.json`: entries `{ id, name, description, pattern, kind, severity,
+  source, addedAt, action? }` with kinds `prompt_injection | jailbreak | tool_abuse |
+  unsafe_deserialization | supply_chain`. Loaded at startup and hot-reloaded like the policy;
+  per-entry validation, invalid entries skipped with an audit warning (one bad row never
+  kills the feed).
+- **Matching**: compiled pattern set applied to prompts, tool calls, and outputs (same L1
+  pass slot). Severity → default action, overridable in policy. Provenance (`id`, `source`)
+  lands in the audit row so false-positive tuning is observable.
+- **Seed entries**: classic injection markers ("ignore previous instructions", persona
+  overrides), tool-abuse shapes (`rm -rf /`, `curl … | bash`), unsafe deserialization
+  (`__reduce__`, `yaml.load(`, `pickle.loads`), supply-chain markers (install-script hooks,
+  known-malicious/typosquat package names).
+
+### R5. Security reporting and auditing
+
+- **Audit**: append-only `audit_events` (WAL) — timestamp, interaction id, seam, direction,
+  consumer key hash, policy version hash, verdict + control hits, semantic answer summary,
+  redaction counts, usage, per-stage latency. Raw outbound state is never logged.
+- **Metrics**: aggregation queries over audit/usage (verdicts by control and category,
+  redactions, budget consumption, latency p50/p95/p99) served to the dashboard via polling;
+  incrementally maintained counters if query cost matters.
+- **Export**: `/api/audit/export` as JSONL and CSV with filters (time range, verdict,
+  control, consumer key) — parseable output for security teams.
+
+### R6. Self-testing suite
+
+- **Hermetic by default** (D8): `mockDecider` fixtures, temp SQLite, no network/keys.
+- **Fixture matrix per control**: positive (allowed) and negative (blocked/redacted) cases;
+  every spec scenario maps to at least one test.
+- **Cross-cutting tests**: profile divergence (same evidence, different verdicts), budget
+  exhaustion and reconciliation, policy/feed hot reload, seam tests (guard API, chat, MCP),
+  and the Jev leak suite (captured `decide()` body contains zero raw sensitive spans).
+- **Live smoke** (`test:live`, gated on `TYPESAFE_API_KEY`): real Jev path end to end.
+
+### Problem → controls map (challenge §1)
+
+| Problem | Controls |
+| --- | --- |
+| Over-broad access / impersonation | subject keys + model allowlist, tool-call governance in the MCP seam, per-consumer policy overrides |
+| Prompt injection & sensitive output | R2a L1–L4 inbound + output direction, R2b semantic questions, signature feed (R4) |
+| Runaway loops / resource blowup | budget windows + reservations (R3), optional token-bucket rate limit, per-stage latency telemetry (R5) |
+
 ## Risks / Trade-offs
 
 - [Jev is early-access; judges may lack a key] → The suite is hermetic (D8); the
