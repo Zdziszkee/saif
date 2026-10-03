@@ -176,7 +176,14 @@ Policy resolution is deterministic: base document, then profile overlay, then
 per-consumer override. Each request reads one immutable snapshot and stamps its
 version hash (sha256 of canonical JSON) into the audit record. A file watcher
 swaps snapshots atomically; an invalid reload is rejected and the last valid
-policy stays active, with the validation errors reported.
+policy stays active, with the validation errors reported. The hosted runtime
+binds its deterministic enforcement to the active snapshot
+(`src/control/policy/live-control.ts`, rebuilding the detection control per
+policy version), so a reload changes enforcement on the next interaction
+without a restart; the signature feed reloads through its own store. The
+remaining stage configuration (allowlist models, signature severity mapping,
+semantic checks, profile enablement) and the consumer-key list are resolved at
+startup; per-stage rebinding is follow-up.
 
 ## Observability
 
@@ -222,7 +229,9 @@ history. Human users authenticate in front of the seams (session or token
 auth); the audit seam already carries a `subject` field, and the authenticated
 principal is recorded alongside the consumer key once the auth work flagged in
 the status table lands. Machine callers (agents, apps, MCP clients) present a
-consumer key per subject.
+consumer key per subject. Bulk-data endpoints such as the audit export require
+a known consumer key outright (`requireKnownConsumer` in
+`src/control/subjects.ts`) and never fall back to the default subject.
 
 **Shared-state rules** (the real work of multi-tenancy):
 
@@ -278,14 +287,15 @@ network.
 | guardInteraction | `src/control/guard.ts` |
 | Pipeline runner | `src/control/pipeline.ts` |
 | Shape validation | `src/control/shape.ts` |
+| Model allowlist | `src/control/allowlist.ts` |
 | Deterministic detection | `src/control/deterministic/` (`control`, `detectors`, `ner`, `name-index`, `placeholders`), `src/control/redact.ts` |
-| Signature engine | planned: `src/control/signatures/` (feed, matcher), `src/control/text/` (canonicalization, spec-pinned in `openspec/changes/ai-control-layer/design.md`) |
-| Semantic tier | `src/control/semantic/` (`checks`, `classifier`, `jev`, `config`, `types`) |
+| Signature engine | `src/control/signatures/` (`control`, `feed`: per-row feed validation, SHA-256 versioning, hot reload); shared `src/control/text/` canonicalization remains planned |
+| Semantic tier | `src/control/semantic/` (`checks`, `classifier`, `jev`, `config`, `types`, `control`, `double`, `errors`, `index`) |
 | Verdict mapping | planned: `applyPolicy(evidence, profile)` in `src/control/pipeline.ts` (design D5) |
 | Subjects / consumer keys | `src/control/subjects.ts` |
-| Policy engine | `src/control/policy/` (`schema`, `loader`) |
+| Policy engine | `src/control/policy/` (`schema`, `loader`, `live-control`) |
 | Audit, usage, budget | `src/control/audit.ts`, `src/db/` |
-| Dashboard | `src/routes/` (dashboard route) |
+| Dashboard, audit export, playground | `src/routes/dashboard.tsx`, `src/routes/api.audit.export.ts`, `src/routes/playground.tsx` |
 
 ## Implementation status
 
@@ -297,14 +307,14 @@ error or timeout fails closed to the policy failure verdict).
 | Stage / area | Status |
 |---|---|
 | Shape validation, guard API, chat seam, MCP hub seams | implemented |
-| Consumer-key subject resolution | implemented (policy consumer keys wired into the hosted runtime at startup) |
+| Consumer-key subject resolution | implemented (policy consumer keys wired into the hosted runtime; the key list is resolved at startup, refresh on policy reload is follow-up) |
 | Policy engine (schema, loader, hot reload, samples) | implemented |
 | Deterministic detection + redaction + custom rules | implemented |
 | Semantic tier (Jev catalog, doubles, fail-closed) | implemented |
 | Verdict mapping (`applyPolicy`) | in progress (control verdicts merge by severity today; profile-threshold mapping pending) |
-| Signature engine + feed ingestion | in progress |
+| Signature engine + feed ingestion | implemented (per-row feed validation, SHA-256 versioning, hot reload) |
 | Budget pre-flight / settlement | in progress (reservation must be atomic across concurrent requests) |
 | Durable audit store, metrics, export | in progress (in-memory sink today) |
-| Dashboard route | in progress |
+| Dashboard route | implemented (`/dashboard`, `/api/audit/export`, `/playground`) |
 | Human-user authentication (sessions/tokens in front of the seams) | not started (consumer keys only) |
 | Durable hub grants | in process memory today |

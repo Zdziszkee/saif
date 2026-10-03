@@ -4,13 +4,15 @@
  * env; when it is not configured, `askModel` fails with a clear configuration
  * error instead of the app failing to start. The control pipeline runs the
  * stages enabled by the default policy profile in cheap-first order —
- * allowlist, signature feed, deterministic, semantic last.
+ * allowlist, signature feed, deterministic (bound live to the policy loader's
+ * active snapshot, so detection reloads reach enforcement without a restart),
+ * semantic last.
  */
 
 import { createAllowlistControl } from "#/control/allowlist.ts";
 import { type AuditSink, createInMemoryAuditSink } from "#/control/audit.ts";
-import { createDeterministicControl } from "#/control/deterministic/control.ts";
 import { createControlPipeline } from "#/control/pipeline.ts";
+import { createLiveDetectionControl } from "#/control/policy/live-control.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
 import { SEMANTIC_DEFAULTS } from "#/control/semantic/config.ts";
 import { createSemanticControl } from "#/control/semantic/control.ts";
@@ -18,7 +20,7 @@ import { SemanticConfigurationError } from "#/control/semantic/errors.ts";
 import { createJevClassifier } from "#/control/semantic/jev.ts";
 import { createSignatureControl } from "#/control/signatures/control.ts";
 import { createSignatureFeedStore, type SignatureFeedStore } from "#/control/signatures/feed.ts";
-import type { ConsumerPolicy } from "#/control/subjects.ts";
+import { type ConsumerPolicy, consumerPolicyFromDocument } from "#/control/subjects.ts";
 import type { Control, Verdict } from "#/control/types.ts";
 import { env } from "#/env.ts";
 import { createHubConfig } from "./config.ts";
@@ -94,7 +96,7 @@ async function buildControls(): Promise<{
 	const status = await loader.start();
 	if (!status.ok) {
 		return {
-			consumers: { defaultSubject: "default", knownKeys: [], unknownKey: "default-subject" },
+			consumers: consumerPolicyFromDocument({}),
 			controls: [policyUnavailableControl()],
 			failureVerdict: "block",
 		};
@@ -117,7 +119,17 @@ async function buildControls(): Promise<{
 		);
 	}
 	if (enabled.detection) {
-		controls.push(createDeterministicControl(policy.controls.detection));
+		controls.push(
+			createLiveDetectionControl(() => {
+				const snapshot = loader.snapshot;
+				return snapshot === undefined
+					? undefined
+					: {
+							config: snapshot.policy.controls.detection,
+							policyVersion: snapshot.policyVersion,
+						};
+			}),
+		);
 	}
 	if (enabled.semantic) {
 		controls.push(buildSemanticControl());
@@ -126,11 +138,7 @@ async function buildControls(): Promise<{
 		// The policy's consumer table is the known-key set: each key governs
 		// as its own subject. Unknown keys keep the previous default-subject
 		// behavior, so this only narrows, never widens, access.
-		consumers: {
-			defaultSubject: "default",
-			knownKeys: Object.keys(policy.consumers),
-			unknownKey: "default-subject",
-		},
+		consumers: consumerPolicyFromDocument(policy.consumers),
 		controls,
 		failureVerdict: policy.defaults.failureVerdict,
 	};
