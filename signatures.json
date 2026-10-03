@@ -245,7 +245,7 @@
 		"id": "supply-pip-untrusted-index",
 		"name": "pip install from untrusted index",
 		"description": "pip install from an index other than the official PyPI mirrors",
-		"pattern": "pip3?\\s+install\\s+[^\\n]*--index-url\\s+https?://(?!pypi\\.org|files\\.pythonhosted\\.org)[^\\s]+",
+		"pattern": "pip3?\\s+install\\s+[^\\n]*--index-url\\s+https?://(?!pypi\\.org(?=[/:?#]|$)|files\\.pythonhosted\\.org(?=[/:?#]|$))[^\\s]+",
 		"kind": "supply_chain",
 		"severity": "medium",
 		"source": "owasp-llm-top10",
