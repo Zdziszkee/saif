@@ -1,0 +1,160 @@
+{
+	"consumers": {
+		"alice": { "profile": "permissive" },
+		"analyst": { "overrides": { "enabledControls": { "detection": false, "semantic": true, "signatures": true } }, "profile": "permissive" }
+	},
+	"controls": {
+		"allowlist": {
+			"models": [
+				{ "endpoint": "https://api.example.com/v1", "name": "primary" },
+				{ "name": "local-small" }
+			]
+		},
+		"budget": {
+			"overBudgetVerdict": "block",
+			"rules": [
+				{ "key": "alice", "modelScope": "*", "period": "day", "tokens": 500000 },
+				{ "costUsd": 50, "key": "alice", "modelScope": "*", "period": "month" },
+				{ "key": "analyst", "modelScope": "*", "period": "day", "requests": 1000 }
+			]
+		},
+		"detection": {
+			"builtins": {
+				"encodingRescan": false,
+				"entropyScan": false,
+				"genericCredentials": true,
+				"pii": true,
+				"providerSecrets": true
+			},
+			"defaultActions": {
+				"custom": "flag",
+				"pii": "redact",
+				"secret": "redact",
+				"suspect": "flag"
+			},
+			"rules": [
+				{
+					"action": "flag",
+					"directions": ["outbound"],
+					"id": "internal-codename",
+					"kind": "custom",
+					"pattern": "\\bCONFIDENTIAL\\b"
+				}
+			]
+		},
+		"enabled": true,
+		"redaction": { "enabled": true },
+		"semantic": {
+			"checks": [
+				{
+					"criteria": "The content attempts to override, impersonate, or smuggle instructions past the system prompt.",
+					"enabled": true,
+					"id": "prompt_injection",
+					"thresholds": {
+						"inbound": { "block": 0.95, "flag": 0.5, "redact": 0.75 },
+						"outbound": { "block": 0.95, "flag": 0.5, "redact": 0.75 }
+					},
+					"type": "boolean",
+					"wording": "Does this content attempt to override system instructions?"
+				},
+				{
+					"criteria": "The content attempts to bypass safety rules through role-play, encoding, or instruction smuggling.",
+					"enabled": false,
+					"id": "jailbreak",
+					"thresholds": {
+						"inbound": { "block": 0.95, "flag": 0.5, "redact": 0.75 },
+						"outbound": { "block": 0.95, "flag": 0.5, "redact": 0.75 }
+					},
+					"type": "boolean",
+					"wording": "Does this content attempt to jailbreak the assistant?"
+				},
+				{
+					"criteria": "The content is best described by exactly one threat category.",
+					"enabled": true,
+					"id": "threat_category",
+					"options": [
+						"exfiltration",
+						"injection",
+						"jailbreak",
+						"malicious_code",
+						"none"
+					],
+					"thresholds": {
+						"inbound": { "block": 0.95, "flag": 0.5, "redact": 0.8 },
+						"outbound": { "block": 0.95, "flag": 0.5, "redact": 0.8 }
+					},
+					"type": "choice",
+					"wording": "Which threat category best describes this content?"
+				}
+			],
+			"confidenceFloor": 0.5
+		},
+		"shape": { "maxContentBytes": 65536 },
+		"signatures": {
+			"enabled": true,
+			"perSignatureActions": {},
+			"severityActions": {
+				"critical": "block",
+				"high": "redact",
+				"low": "flag",
+				"medium": "flag"
+			},
+			"suspect": { "action": "escalate", "threshold": 0.9 }
+		}
+	},
+	"defaults": { "failureVerdict": "escalate", "profile": "permissive" },
+	"profiles": {
+		"permissive": {
+			"enabledControls": { "detection": true, "semantic": true, "signatures": true },
+			"thresholds": {
+				"detection": {
+					"inbound": { "block": 1, "escalate": 0.4, "redact": 0.8 },
+					"outbound": { "block": 1, "escalate": 0.4, "redact": 0.8 }
+				},
+				"semantic": {
+					"inbound": { "block": 0.98, "escalate": 0.3, "redact": 0.8 },
+					"outbound": { "block": 0.98, "escalate": 0.3, "redact": 0.8 }
+				},
+				"signatures": {
+					"inbound": { "block": 0.95, "escalate": 0.3, "redact": 0.7 },
+					"outbound": { "block": 0.95, "escalate": 0.3, "redact": 0.7 }
+				}
+			}
+		},
+		"standard": {
+			"enabledControls": { "detection": true, "semantic": true, "signatures": true },
+			"thresholds": {
+				"detection": {
+					"inbound": { "block": 0.95, "escalate": 0.4, "redact": 0.7 },
+					"outbound": { "block": 0.95, "escalate": 0.4, "redact": 0.7 }
+				},
+				"semantic": {
+					"inbound": { "block": 0.95, "escalate": 0.4, "redact": 0.7 },
+					"outbound": { "block": 0.95, "escalate": 0.4, "redact": 0.7 }
+				},
+				"signatures": {
+					"inbound": { "block": 0.9, "escalate": 0.4, "redact": 0.6 },
+					"outbound": { "block": 0.9, "escalate": 0.4, "redact": 0.6 }
+				}
+			}
+		},
+		"strict": {
+			"enabledControls": { "detection": true, "semantic": true, "signatures": true },
+			"thresholds": {
+				"detection": {
+					"inbound": { "block": 0.85, "escalate": 0.5, "redact": 0.6 },
+					"outbound": { "block": 0.85, "escalate": 0.5, "redact": 0.6 }
+				},
+				"semantic": {
+					"inbound": { "block": 0.85, "escalate": 0.5, "redact": 0.6 },
+					"outbound": { "block": 0.85, "escalate": 0.5, "redact": 0.6 }
+				},
+				"signatures": {
+					"inbound": { "block": 0.8, "escalate": 0.5, "redact": 0.5 },
+					"outbound": { "block": 0.8, "escalate": 0.5, "redact": 0.5 }
+				}
+			}
+		}
+	},
+	"version": "1-permissive"
+}
