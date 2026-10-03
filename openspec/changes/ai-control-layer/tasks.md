@@ -61,6 +61,8 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 - [x] 9.1 Implement the generic guard API route (`/api/guard`) with request shape validation and defined rejection response; verify positive and negative route tests pass (verify: route tests cover allow, redact, block, and malformed request)
 - [x] 9.2 Create a minimal chat demo seam wired through the `guardInteraction()` wrapper over prompt and answer; verify chat seam tests pass (verify: tests cover blocked prompt and redacted answer)
+- [ ] 9.3 Re-scope the MCP hub to a tools-only catalog (design D10): remove the `askModel` registration and model-connection assembly from `src/hub`, keep the served catalog to hub-hosted tools and connected external MCP tools; verify no model-reaching tool is exposed (verify: hub tests assert the MCP catalog contains only tool entries and that connected-tool calls execute through tool-call governance)
+- [ ] 9.4 Wire the chat seam's `ask` to the TanStack AI gateway (`chat()` over the configured OpenAI-compatible adapter) and move the bounded tool loop to the gateway side (request-count and compute-time caps retained, every tool call routed through hub governance); verify prompt/answer guard flow and governed tool rounds (verify: chat seam tests cover blocked prompt, redacted answer, governed tool-call round trip, and over-budget loop termination)
 
 ## 10. Observability
 

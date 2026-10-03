@@ -34,15 +34,15 @@ installed. Constraints that shape this design:
   to policy subjects, not authenticated against an IdP.
 - A full human-review workflow; escalations are recorded and surfaced in the dashboard,
   resolution is out of scope.
-- Multi-provider model routing; the layer wraps one configured OpenAI-compatible model
-  connection.
+- Multi-provider model routing; the TanStack AI gateway wraps one configured
+  OpenAI-compatible model connection.
 
 ## Decisions
 
 ### D1. In-process middleware pipeline inside TanStack Start, not a separate proxy service
 The control layer is a `src/control/` pipeline module invoked by three enforcement seams:
 the generic guard API (`src/routes/api.guard.ts`), a chat seam (the guarded chat demo page
-and its prompt/answer direction), and the tool-call surface (`src/routes/mcp.ts`). A thin `guardInteraction()`
+and its prompt/answer direction), and the tool-call surface (the MCP tools hub at `src/routes/mcp.ts`). A thin `guardInteraction()`
 wrapper exposes the SDK-style integration the challenge mentions. Alternative: standalone reverse proxy (extra deployable, harder for judges to
 run) or SDK-only (trivially bypassed, no central reporting). Single-process keeps the
 "lightweight" requirement and reuses the existing Nitro deployment story.
@@ -119,6 +119,21 @@ Token estimates (chars/4 heuristic plus fixed overhead) reserve budget before fo
 actual usage from the model response settles and reconciles. Jev input tokens count toward
 the layer's own metering so semantic cost is visible. Over-budget uses the policy's
 over-budget verdict (default `block`).
+
+### D10. Two planes: prompts through the TanStack AI gateway, MCP as a tools-only hub
+AI prompt traffic is handled by the TanStack AI chat stack (`chat()` over the configured
+OpenAI-compatible adapter) at the chat seam, with the pipeline guarding the inbound prompt
+and the outbound answer. The MCP surface (`createMCPServer` at `src/routes/mcp.ts`) is a
+hub for tools only: it serves the governed tool catalog — hub-hosted tools plus tools from
+connected external MCP servers — and every tool call executes under tool-call governance
+(grants, verdicts, audit, budgets). No model-reaching tool exists in the MCP catalog:
+model access is never exposed through the tool plane, and prompt traffic stays visible to
+the prompt-plane controls. The model's bounded tool loop (request-count and compute-time
+caps) runs on the gateway side and routes each tool call through hub governance.
+Alternatives: an `askModel` MCP tool as the single model-reaching interface (launders
+inference through tool semantics, hides prompt traffic from the prompt-plane controls, and
+couples the tool catalog to model routing), or an external LLM gateway product (extra
+deployable; the TanStack AI stack already provides the gateway).
 
 ## Detailed Solution Design (per requirement)
 
