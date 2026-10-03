@@ -32,7 +32,7 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   non-serializable capture — added when `src/control/semantic/` introduced
   abort/deadline callbacks).
 - Scoped overrides relax rules only where the stack demands it: node/process usage in
-  server files (mcp, db, drizzle.config), `noDefaultExport` in config files,
+  server files (mcp, db, drizzle.config, scripts), `noDefaultExport` in config files,
   `noHeadElement` in `src/routes/__root.tsx`, and CONSTANT_CASE object keys for env
   vars and HTTP method keys.
 - If a guardrail change is needed, relax the narrowest scope (override or rule) and

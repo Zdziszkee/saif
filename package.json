@@ -17,6 +17,7 @@
     "verify": "tsc --noEmit && biome check .",
     "test": "vitest run --exclude 'tests/integration/**'",
     "test:integration": "vitest run tests/integration",
+    "semantic:probe": "tsx scripts/semantic-smoke.ts",
     "intent": "node node_modules/@tanstack/intent/dist/cli.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
