@@ -67,7 +67,8 @@ route. Most tasks land in these skills:
     states and connection adapters. NOT Vercel AI SDK.
   - **client-persistence** `@tanstack/ai#ai-core/client-persistence` [sub-skill] -
     Browser chat persistence (`localStoragePersistence`,
-    `sessionStoragePersistence`, `indexedDBPersistence`), client- vs server-authoritative (`persistence: true`),
+    `sessionStoragePersistence`, `indexedDBPersistence`), client- vs
+    server-authoritative (`persistence: true`),
     reload restore, pending interrupts, mid-stream rejoin. Also generation hooks
     (`useGenerateImage` etc.), server-driven only.
   - **custom-backend-integration** `@tanstack/ai#ai-core/custom-backend-integration`
