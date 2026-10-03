@@ -57,3 +57,7 @@ The system SHALL provide an interactive dashboard showing configured controls an
 #### Scenario: Policy managed in dashboard
 - **WHEN** a user edits the policy in the dashboard
 - **THEN** the edit is validated, a new version is created on success, and version history and rollback are available in the same surface
+
+#### Scenario: Signature feed view usable
+- **WHEN** signatures fire and external sources refresh while the dashboard is open
+- **THEN** the dashboard shows the top firing signatures with counts and sources and each source's last successful refresh, and its per-signature actions take effect on subsequent interactions

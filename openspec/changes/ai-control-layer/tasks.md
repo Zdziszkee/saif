@@ -88,6 +88,7 @@
 - [ ] 13.2 Build the policy editing surface (edit, validate, save as new version, version history, rollback, JSON import/export); verify editing and rollback tests pass (verify: tests cover valid save, invalid save rejected, and rollback)
 - [ ] 13.3 Build the approvals queue UI (pending tool calls with tool, action, arguments and approve/deny actions) and the tool decision log view; verify it renders and dispatches decisions (verify: UI tests cover approve and deny actions against a fixture queue)
 - [ ] 13.4 Add live refresh (polling) and the policy/signature feed state view showing versions in force; verify policy edits are reflected after reload (verify: manual check on `bun run dev`)
+- [ ] 13.5 Build the signature feed operations view (top firing signatures with counts and sources, per-source refresh state, per-signature enable/disable and mark-as-false-positive actions writing policy overrides); verify actions change subsequent verdicts without editing the feed (verify: dashboard tests cover signature counts, refresh state, and the false-positive override flow)
 
 ## 14. Demo, docs, and architecture
 

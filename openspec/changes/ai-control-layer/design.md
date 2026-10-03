@@ -275,7 +275,9 @@ surface, not just message content.
   tombstones signatures without losing history; optional detached-signature verification
   (e.g. ed25519) for externally managed feeds — a feed failing verification is not loaded
   and the previous feed stays in force. External sources are refreshed on a configurable
-  poll interval with conditional GET (ETag/Last-Modified) so newly published signatures
+  poll interval with conditional GET (ETag/Last-Modified) — enabled by default, with the
+  vendored snapshot and locally edited feed file as fallback and override inputs — so newly
+  published signatures
   reach the running system without operator action; refresh failures keep the
   last-known-good feed and record per-source last-success. A vendored feed snapshot keeps
   the hermetic suite and offline demos fully functional.
