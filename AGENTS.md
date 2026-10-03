@@ -37,5 +37,16 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `npm run dev` / `npm run build` — never run the standalone `tsr generate` CLI:
   it emits the tree without the Start `declare module` type registrations and
   breaks typechecking (the old `generate-routes` script was removed for this).
+- After adding/renaming routes, run `npm run dev` (or `vite build`) once and
+  commit the regenerated `routeTree.gen.ts`: the tsc gate validates the committed
+  tree, so a brand-new route path fails with TS2345 until the tree is regenerated.
+  This is intentional — unregistered routes must not build.
+- Generated UI components must satisfy the strict rules too: React 19 ref-as-prop
+  instead of `forwardRef` (suspicious/noReactForwardRef), named imports instead of
+  `import * as React` (performance/noNamespaceImport), and extensions on `#/*`
+  imports (`#/lib/utils.ts`). Assists (sorted keys/imports) fix on save.
+- Tests (`tests/**/*.test.ts`, per vitest.config.ts) are covered by the same
+  guardrails; the `test` domain rules run at `all`. `vitest.config.ts` is linted
+  like `vite.config.ts` (default export allowed there).
 
 Installed skill catalog: see [skills.md](./skills.md).

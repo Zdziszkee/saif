@@ -18,9 +18,11 @@
 		"ignoreUnknown": true,
 		"includes": [
 			"**/src/**/*",
+			"**/tests/**/*",
 			"**/.vscode/**/*",
 			"**/index.html",
 			"**/vite.config.ts",
+			"**/vitest.config.ts",
 			"**/drizzle.config.ts",
 			"!**/src/routeTree.gen.ts",
 			"!**/src/styles.css"
@@ -109,7 +111,7 @@
 			}
 		},
 		{
-			"includes": ["**/vite.config.ts", "**/drizzle.config.ts"],
+			"includes": ["**/vite.config.ts", "**/vitest.config.ts", "**/drizzle.config.ts"],
 			"linter": {
 				"rules": {
 					"style": {
