@@ -85,8 +85,16 @@ export interface ControlPipeline {
 
 export const VERDICTS: readonly Verdict[] = ["allow", "redact", "block", "escalate"];
 
+/** Verdicts that never forward content: the gateway answers with the rejection shape. */
+const BLOCKING_VERDICTS: readonly Verdict[] = ["block", "escalate"];
+
 export function isVerdict(value: unknown): value is Verdict {
 	return typeof value === "string" && (VERDICTS as readonly string[]).includes(value);
+}
+
+/** True for the two verdicts that refuse forwarding (`block`, `escalate`). */
+export function isBlockingVerdict(verdict: Verdict): boolean {
+	return BLOCKING_VERDICTS.includes(verdict);
 }
 
 /**

@@ -90,6 +90,42 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `unit-tests` check — failed tests block PR merges to `master`/`main`, and
   direct pushes to those branches are disabled via a GitHub ruleset.
 
+## TypeScript idioms
+
+Application code uses current, idiomatic TypeScript/JavaScript. Prefer these
+forms; each is either enforced by a lint rule or is the narrowest fix for one.
+
+- **Nullish coalescing for defaults.** `x ?? fallback` when only `null`/`undefined`
+  should fall back. Keep `||` only for deliberate falsy-coercion: e.g.
+  `headers.get(name) || undefined` drops both the absent `null` and the empty
+  `""`, whereas `??` would pass `""` through as a value.
+- **Optional chaining for traversal and calls.** `a?.b`, `a?.()`, and
+  `fn?.(value) ?? default` (defaulted callback). Never `a && a.b`
+  (`useOptionalChain` rejects it).
+- **Explicit null checks.** `noEqualsToNull` bans `== null` / `!= null`; write
+  `x === undefined`, `x === null`, or `x === undefined || x === null`.
+- **Length checks are explicit.** `useExplicitLengthCheck` requires
+  `xs.length > 0`, never `if (xs.length)`. Since `xs?.length > 0` is a TS error
+  (`number | undefined`), write `if (xs && xs.length > 0)`.
+- **Logical assignment.** `x ??= y`, `x ||= y`, `x &&= y` instead of
+  `x = x ?? y`.
+- **No redundant `undefined`.** `noUselessUndefined` rejects `return undefined;`
+  and `let x = undefined;`. A function whose return type includes `undefined`
+  must still return on every path (`noImplicitReturns`), so keep an explicit
+  `T | undefined` local and return it rather than falling off the end.
+- **`.at()` for ends.** `xs.at(-1)` instead of `xs[xs.length - 1]`.
+- **Type-only imports.** Use `import type { X }` or inline `type X` specifiers
+  (`verbatimModuleSyntax`); import `ReactNode` from `react` rather than reaching
+  through a `React.*` namespace.
+- **`Error` causes.** `throw new XError(message, { cause })` (`useErrorCause`).
+- **`satisfies` over widening casts** when a literal must be validated against a
+  type but its own literal types are still useful.
+- **No ES2023+ array methods** (`toSorted`, `toReversed`, `with`, `findLast`)
+  until the build target is raised: Vite's default baseline predates them and
+  they cannot be downleveled, so keep `[...xs].sort(...)`.
+- Prefer `const`, `readonly`, `#private` fields, and `override` on overriding
+  members.
+
 ## Pull requests
 
 Every PR carries a compact, textbook-style summary of the change: what changed,

@@ -53,8 +53,10 @@ export function createConsumerResolver(policy: ConsumerPolicy): ConsumerResolver
 }
 
 export function consumerKeyFromRequest(request: Request): string | undefined {
-	const key = request.headers.get(CONSUMER_KEY_HEADER);
-	return key === null || key.length === 0 ? undefined : key;
+	// `||` is deliberate: `headers.get` returns `null` when the header is absent
+	// and `""` when it is present but empty, and both mean "no key presented".
+	// `??` would pass `""` through.
+	return request.headers.get(CONSUMER_KEY_HEADER) || undefined;
 }
 
 /**
