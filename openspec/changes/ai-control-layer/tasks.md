@@ -59,8 +59,8 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 ## 9. Enforcement seams
 
-- [ ] 9.1 Implement the generic guard API route (`/api/guard`) with request shape validation and defined rejection response; verify positive and negative route tests pass (verify: route tests cover allow, redact, block, and malformed request)
-- [ ] 9.2 Create a minimal chat demo seam wired through the `guardInteraction()` wrapper over prompt and answer; verify chat seam tests pass (verify: tests cover blocked prompt and redacted answer)
+- [x] 9.1 Implement the generic guard API route (`/api/guard`) with request shape validation and defined rejection response; verify positive and negative route tests pass (verify: route tests cover allow, redact, block, and malformed request)
+- [x] 9.2 Create a minimal chat demo seam wired through the `guardInteraction()` wrapper over prompt and answer; verify chat seam tests pass (verify: tests cover blocked prompt and redacted answer)
 
 ## 10. Observability
 
