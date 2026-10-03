@@ -132,6 +132,17 @@ describe("signature feed store", () => {
 	});
 });
 
+it("keeps the last good feed when a reload invalidates every entry", () => {
+	const temp = track(tempFeed([benignEntry]));
+	const store = createSignatureStore(temp.path);
+	cleanups.push(() => store.close());
+	temp.write([invalidEntry]);
+	const snapshot = store.reload();
+	expect(snapshot.ok).toBe(false);
+	expect(snapshot.feed.signatures.map((signature) => signature.id)).toEqual(["filler"]);
+	expect(snapshot.errors.length).toBeGreaterThan(0);
+});
+
 describe("signature feed failure handling", () => {
 	it("keeps valid entries active when a reload adds an invalid one", () => {
 		const temp = track(tempFeed([benignEntry]));

@@ -62,7 +62,7 @@ export function createSignatureStore(
 		const next = read();
 		state =
 			next.errors.length > 0 && next.feed.signatures.length === 0
-				? { errors: next.errors, feed: state.feed }
+				? { errors: next.errors, feed: state.feed, ok: false }
 				: next;
 		return state;
 	}
