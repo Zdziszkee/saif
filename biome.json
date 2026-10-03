@@ -23,6 +23,7 @@
 			"**/index.html",
 			"**/vite.config.ts",
 			"**/vitest.config.ts",
+			"**/vitest.live.config.ts",
 			"**/drizzle.config.ts",
 			"!**/src/routeTree.gen.ts",
 			"!**/src/styles.css"
@@ -89,6 +90,9 @@
 					"correctness": {
 						"noUnresolvedImports": "off"
 					},
+					"performance": {
+						"useSolidForComponent": "off"
+					},
 					"style": {
 						"noJsxLiterals": "off",
 						"useExportsLast": "off",
@@ -111,7 +115,12 @@
 			}
 		},
 		{
-			"includes": ["**/vite.config.ts", "**/vitest.config.ts", "**/drizzle.config.ts"],
+			"includes": [
+				"**/vite.config.ts",
+				"**/vitest.config.ts",
+				"**/vitest.live.config.ts",
+				"**/drizzle.config.ts"
+			],
 			"linter": {
 				"rules": {
 					"style": {
@@ -131,13 +140,27 @@
 			}
 		},
 		{
+			"includes": ["**/tests/**"],
+			"linter": {
+				"rules": {
+					"security": {
+						"noSecrets": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": [
 				"**/mcp-todos.ts",
 				"**/mcp-handler.ts",
 				"**/db/**",
 				"**/routes/mcp.ts",
+				"**/signature-store.ts",
+				"**/vault.ts",
+				"**/tests/**",
 				"**/vite.config.ts",
 				"**/vitest.config.ts",
+				"**/vitest.live.config.ts",
 				"**/drizzle.config.ts"
 			],
 			"linter": {

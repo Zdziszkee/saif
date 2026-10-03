@@ -2,7 +2,7 @@
 
 ## 1. Scaffolding and dependencies
 
-- [ ] 1.1 Add `@tanstack/ai-typesafe` and `vitest` to package.json, add `test` and `test:live` scripts, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
+- [x] 1.1 Add `@tanstack/ai-typesafe` and `vitest` to package.json, add `test` and `test:live` scripts, and verify `bun install` and `bunx vitest run` execute a smoke test (verify: smoke test passes via `bun run test`)
 - [ ] 1.2 Extend `src/env.ts` with optional `TYPESAFE_API_KEY`, policy/feed paths, and budget window defaults; verify `bun run typecheck` passes and the app starts without the key set (verify: `bun run typecheck` and `bun run dev` both succeed)
 - [ ] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit) and `src/lib/jev/` (adapter, catalog) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
 
@@ -19,15 +19,15 @@
 
 ## 4. Deterministic tier
 
-- [ ] 4.1 Implement detectors for secrets (API keys, tokens) and PII (email, phone, card, government-ID-like) returning kind and span; verify positive and negative detector tests pass (verify: detector tests pass)
-- [ ] 4.2 Implement typed-placeholder redaction of detected spans and verify redaction preserves surrounding content (verify: redaction tests pass)
-- [ ] 4.3 Document detection kinds and placeholder formats in `docs/controls.md`; verify documented examples match test fixtures (verify: examples in docs correspond 1:1 to passing fixtures)
+- [x] 4.1 Implement detectors for secrets (API keys, tokens) and PII (email, phone, card, government-ID-like) returning kind and span; verify positive and negative detector tests pass (verify: detector tests pass)
+- [x] 4.2 Implement typed-placeholder redaction of detected spans and verify redaction preserves surrounding content (verify: redaction tests pass)
+- [x] 4.3 Document detection kinds and placeholder formats in `docs/controls.md`; verify documented examples match test fixtures (verify: examples in docs correspond 1:1 to passing fixtures)
 
 ## 5. Signature feed
 
-- [ ] 5.1 Implement the signature feed schema and loader (identifier, description, pattern, severity, source, timestamps) with per-entry validation and skip-invalid behavior; verify loader tests pass (verify: feed loader tests pass)
-- [ ] 5.2 Implement matching and policy-mapped action selection for prompts, tool calls, and output; verify exploit-positive and benign-negative tests pass (verify: matcher tests cover injection payload, malicious tool-call shape, unsafe-deserialization marker, and supply-chain marker)
-- [ ] 5.3 Implement feed hot reload and ship a sample `signatures.json` seeded with known historical AI-exploit patterns; verify a reload test adds a pattern that blocks a matching request (verify: hot-reload integration test passes)
+- [x] 5.1 Implement the signature feed schema and loader (identifier, description, pattern, severity, source, timestamps) with per-entry validation and skip-invalid behavior; verify loader tests pass (verify: feed loader tests pass)
+- [x] 5.2 Implement matching and policy-mapped action selection for prompts, tool calls, and output; verify exploit-positive and benign-negative tests pass (verify: matcher tests cover injection payload, malicious tool-call shape, unsafe-deserialization marker, and supply-chain marker)
+- [x] 5.3 Implement feed hot reload and ship a sample `signatures.json` seeded with known historical AI-exploit patterns; verify a reload test adds a pattern that blocks a matching request (verify: hot-reload integration test passes)
 
 ## 6. Semantic tier (Jev)
 
@@ -50,7 +50,7 @@
 
 ## 9. Enforcement seams
 
-- [ ] 9.1 Implement the generic guard API route (`/api/guard`) with request shape validation and defined rejection response; verify positive and negative route tests pass (verify: route tests cover allow, redact, block, and malformed request)
+- [x] 9.1 Implement the generic guard API route (`/api/guard`) with request shape validation and defined rejection response; verify positive and negative route tests pass (verify: route tests cover allow, redact, block, and malformed request)
 - [ ] 9.2 Create a minimal chat route (the chat seam does not exist yet) and wire the pipeline into it (inbound prompt and outbound output) via the `guardInteraction()` wrapper; verify chat seam tests pass (verify: tests cover blocked prompt and redacted output)
 - [ ] 9.3 Wire the pipeline into the MCP route so tool calls and tool output are governed; verify MCP seam tests pass with the existing todos tool (verify: tests cover blocked tool call and allowed tool call)
 
