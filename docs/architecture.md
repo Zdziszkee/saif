@@ -279,7 +279,7 @@ network.
 | Pipeline runner | `src/control/pipeline.ts` |
 | Shape validation | `src/control/shape.ts` |
 | Deterministic detection | `src/control/deterministic/` (`control`, `detectors`, `ner`, `name-index`, `placeholders`), `src/control/redact.ts` |
-| Signature engine | `src/control/signatures/` (feed, matcher, canonicalization in `src/control/text/`) |
+| Signature engine | planned: `src/control/signatures/` (feed, matcher), `src/control/text/` (canonicalization, spec-pinned in `openspec/changes/ai-control-layer/design.md`) |
 | Semantic tier | `src/control/semantic/` (`checks`, `classifier`, `jev`, `config`, `types`) |
 | Verdict mapping | `src/control/pipeline.ts` (`applyPolicy`) |
 | Subjects / consumer keys | `src/control/subjects.ts` |
