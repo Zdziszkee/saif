@@ -93,8 +93,9 @@ of prompt-parseable.
   agentic tool loop, the OpenAI-compatible model connection (env-configured endpoint,
   model, key), external MCP server connections with dynamic tool registration, and
   credential custody for connected-service credentials. Both MCP roles come from the
-  TanStack MCP module (`@tanstack/ai-mcp`): `createMCPServer` serves the hub's MCP
-  surface and `createMCPClient`/`createMCPClients` host external MCP servers.
+  TanStack MCP module (`@tanstack/ai-mcp`): `createMCPServer` (from its `./server` subpath)
+  serves the hub's MCP surface and `createMCPClient`/`createMCPClients` (root module) host
+  external MCP servers.
 - `tool-authorization`: per-user authorization of every tool call before execution —
   grant sets over a tool catalog with capability verbs (`read`, `create`, `modify`,
   `delete`, `execute`, `network`), deny-by-default, `require-approval` via the dashboard
@@ -114,13 +115,14 @@ None — the repo has no existing specs (`openspec list --specs` is empty).
   the guard API, audit export, and metrics; dashboard routes (posture, policy editor,
   approvals queue, tool decisions); `src/routes/mcp.ts` becomes the MCP safety hub
   (`askModel`, hub-hosted tools, governed tool loop, external MCP connections), served
-  with `createMCPServer` from `@tanstack/ai-mcp` (the demo `@modelcontextprotocol/sdk`
+  with `createMCPServer` from `@tanstack/ai-mcp/server` (the demo `@modelcontextprotocol/sdk`
   route handler in `src/utils/mcp-handler.ts` is removed);
   `src/db/schema.ts` gains audit, budget, metric, policy-version, MCP-connection, and
   approval tables.
-- **Dependencies**: `@tanstack/ai-mcp` (the TanStack MCP module — `createMCPServer` for
-  the hub's MCP server surface and `createMCPClient`/`createMCPClients` for external MCP
-  connections, built on the modular `@modelcontextprotocol/{core,client,server}@2.x`;
+- **Dependencies**: `@tanstack/ai-mcp` (the TanStack MCP module — `createMCPServer` from
+  its `./server` subpath for the hub's MCP server surface and `createMCPClient`/
+  `createMCPClients` from the root for external MCP connections, built on the modular
+  `@modelcontextprotocol/{core,client,server}@2.x`;
   replaces the demo route's `@modelcontextprotocol/sdk@1.x` usage), `@tanstack/ai-typesafe`
   (Jev over TypeSafe HTTP; `@tanstack/ai@0.64.0`
   already ships `decide()`, `choice()`, `score()`, `boolean()`, `BaseEvaluateAdapter`),

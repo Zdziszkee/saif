@@ -132,7 +132,8 @@ the layer's own metering so semantic cost is visible. Over-budget uses the polic
 over-budget verdict (default `block`).
 
 ### D10. TanStack MCP module (`@tanstack/ai-mcp`) for both MCP roles
-The hub's MCP server surface is `createMCPServer()` from `@tanstack/ai-mcp`: hub tools are
+The hub's MCP server surface is `createMCPServer()` from `@tanstack/ai-mcp/server` (the
+module's server subpath; the root `@tanstack/ai-mcp` exports the client side): hub tools are
 defined once with `toolDefinition()` (`@tanstack/ai`), instantiated with `.server(execute)`,
 and the same `AnyServerTool` list is both served over MCP (`server.fetch` mounted in
 `src/routes/mcp.ts`) and passed to `chat({ tools })` for the governed agentic loop, so the
