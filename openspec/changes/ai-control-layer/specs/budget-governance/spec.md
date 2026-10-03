@@ -13,6 +13,10 @@ The policy SHALL define budget rules per consumer key and model scope, covering 
 - **WHEN** the policy defines a monthly token-spend cap for a consumer key
 - **THEN** interactions attributed to that key are metered against that cap
 
+#### Scenario: Consumers metered separately
+- **WHEN** two consumer keys each define their own budget rules and both send traffic
+- **THEN** each key's usage is counted only against its own budgets and one key's exhaustion does not block another key's interactions
+
 ### Requirement: Pre-flight enforcement
 Before forwarding an interaction, the system MUST check the applicable budgets and reject the interaction when its projected cost would exceed an exhausted or insufficient budget, using the policy's over-budget verdict (default `block`).
 
