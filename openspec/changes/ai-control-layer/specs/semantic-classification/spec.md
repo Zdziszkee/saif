@@ -32,7 +32,7 @@ The system SHALL treat answers whose confidence or probability falls below the p
 - **THEN** the verdict is the profile's uncertainty verdict and the answer's values are recorded in the audit log
 
 ### Requirement: Availability and degradation
-The system MUST bound semantic evaluation with a timeout and apply the policy's failure verdict when the decision model is unavailable or errors. The policy MAY route the semantic tier to an alternate classifier with the same question definitions.
+The system MUST bound semantic evaluation with a timeout and apply the policy's failure verdict when the decision model is unavailable or errors. The policy MAY route the semantic tier to an alternate classifier with the same check definitions.
 
 #### Scenario: Timeout fails closed
 - **WHEN** the decision model does not answer within the configured timeout
@@ -40,7 +40,7 @@ The system MUST bound semantic evaluation with a timeout and apply the policy's 
 
 #### Scenario: Alternate classifier used
 - **WHEN** the policy selects an alternate semantic classifier
-- **THEN** the same question definitions are evaluated by that classifier and the resulting answers are consumed identically
+- **THEN** the same check definitions are evaluated by that classifier and the resulting answers are consumed identically
 
 ### Requirement: Classification is advisory to policy
 Semantic answers MUST NOT directly authorize or reject an action: only the policy engine maps answers to verdicts, and the same answers MUST be able to yield different verdicts under different profiles.
