@@ -18,11 +18,15 @@ The system SHALL record an append-only audit entry for every governed interactio
 - **THEN** an audit entry records the verdict and the evidence summary of every control that evaluated it
 
 ### Requirement: Real-time metrics
-The system SHALL maintain aggregate metrics updated continuously: interaction and verdict counts by control and category, redaction counts, budget consumption by key, and pipeline latency percentiles.
+The system SHALL maintain aggregate metrics updated continuously across all connected agents and clients: interaction and verdict counts by control, category, and consumer key, redaction counts, budget consumption by key, and pipeline latency percentiles (p50/p95/p99).
 
 #### Scenario: Metrics reflect recent activity
 - **WHEN** interactions have been evaluated since the system started
 - **THEN** the metrics surface reports current counts by verdict and control and current budget consumption
+
+#### Scenario: Metrics attributable to a consumer
+- **WHEN** several agents with distinct consumer keys have sent traffic
+- **THEN** verdict counts and budget consumption are queryable per consumer key as well as in aggregate
 
 ### Requirement: Exportable audit trail
 The system SHALL export audit entries in a standard machine-readable format (JSON Lines and CSV), filterable by time range, verdict, control, and consumer key, suitable for offline security analysis.
@@ -32,11 +36,19 @@ The system SHALL export audit entries in a standard machine-readable format (JSO
 - **THEN** the export contains exactly the matching audit entries in the chosen format
 
 ### Requirement: Dashboard
-The system SHALL provide an interactive dashboard showing configured controls and profiles, overall security posture, blocked and redacted threats with their categories, and resource and cost consumption over time. The dashboard MUST show the policy and signature feed versions currently in force.
+The system SHALL provide an interactive dashboard for management and security teams showing: the configured controls and strictness profiles in force; overall security posture (recent verdict counts for `allow`, `redact`, `block`, and `escalate`); blocked and redacted threats broken down by control and category; resource and cost consumption over time against configured budget limits; pipeline latency percentiles; and the recent escalations awaiting review. Every metric section SHALL offer a per-consumer-key breakdown so the activity of each connected agent or client can be viewed in aggregate and in isolation. The dashboard MUST show the policy and signature feed versions currently in force.
 
 #### Scenario: Posture overview
 - **WHEN** a manager opens the dashboard
 - **THEN** it displays current controls, recent verdict counts, top threat categories, and budget usage against configured limits
+
+#### Scenario: Per-consumer breakdown
+- **WHEN** a manager or security analyst selects a consumer key on the dashboard
+- **THEN** verdict counts, threat categories, and budget usage are shown for that consumer alone
+
+#### Scenario: Escalation queue
+- **WHEN** interactions have been escalated
+- **THEN** the dashboard lists the recent escalations for review
 
 #### Scenario: Live refresh
 - **WHEN** new interactions are evaluated while the dashboard is open

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { filterContent } from "#/control/filter.ts";
 import { parseSignatureFeed } from "#/control/signatures.ts";
 import sampleFeedText from "../signatures.json?raw";

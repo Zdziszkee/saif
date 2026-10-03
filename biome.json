@@ -23,7 +23,6 @@
 			"**/index.html",
 			"**/vite.config.ts",
 			"**/vitest.config.ts",
-			"**/vitest.live.config.ts",
 			"**/drizzle.config.ts",
 			"!**/src/routeTree.gen.ts",
 			"!**/src/styles.css"
@@ -118,8 +117,7 @@
 			"includes": [
 				"**/vite.config.ts",
 				"**/vitest.config.ts",
-				"**/vitest.live.config.ts",
-				"**/drizzle.config.ts"
+					"**/drizzle.config.ts"
 			],
 			"linter": {
 				"rules": {
@@ -160,8 +158,7 @@
 				"**/tests/**",
 				"**/vite.config.ts",
 				"**/vitest.config.ts",
-				"**/vitest.live.config.ts",
-				"**/drizzle.config.ts"
+					"**/drizzle.config.ts"
 			],
 			"linter": {
 				"rules": {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { filterContent } from "#/control/filter.ts";
 import type { FirstLayerPolicy } from "#/control/policy.ts";
 import { defaultFirstLayerPolicy } from "#/control/policy.ts";

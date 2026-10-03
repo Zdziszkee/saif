@@ -1,9 +1,22 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { filterContent } from "#/control/filter.ts";
-import { createSignatureStore } from "#/control/signature-store.ts";
+import { createSignatureStore, type SignatureStore } from "#/control/signature-store.ts";
+
+const WatchPollIntervalMs = 50;
+const WatchTimeoutMs = 2000;
+
+async function waitForSignature(store: SignatureStore, id: string): Promise<void> {
+	const deadline = Date.now() + WatchTimeoutMs;
+	while (!store.snapshot().feed.signatures.some((signature) => signature.id === id)) {
+		if (Date.now() >= deadline) {
+			throw new Error(`signature ${id} did not appear within timeout`);
+		}
+		await new Promise<void>((resolve) => setTimeout(resolve, WatchPollIntervalMs));
+	}
+}
 import sampleFeedText from "../signatures.json?raw";
 
 interface TempFeed {
@@ -131,13 +144,6 @@ describe("signature feed watching", () => {
 
 		temp.write([benignEntry, injectedEntry]);
 
-		await vi.waitFor(
-			() => {
-				expect(store.snapshot().feed.signatures.map((signature) => signature.id)).toContain(
-					"hot-reload-marker",
-				);
-			},
-			{ timeout: 2000 },
-		);
+		await waitForSignature(store, "hot-reload-marker");
 	});
 });
