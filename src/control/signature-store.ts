@@ -59,7 +59,11 @@ export function createSignatureStore(
 	}
 
 	function reload(): SignatureStoreSnapshot {
-		state = read();
+		const next = read();
+		state =
+			next.errors.length > 0 && next.feed.signatures.length === 0
+				? { errors: next.errors, feed: state.feed }
+				: next;
 		return state;
 	}
 
