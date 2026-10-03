@@ -28,7 +28,7 @@ export const Route = createRootRoute({
 				name: "viewport",
 			},
 			{
-				title: "TanStack Start Starter",
+				title: "Saif",
 			},
 		],
 	}),
@@ -61,7 +61,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<HeadContent />
 			</head>
 			<body>
-				{children}
+				<div id="root-content">{children}</div>
+				<div id="portal-root" />
 				<TanStackDevtools
 					config={{
 						position: "bottom-right",

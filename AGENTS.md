@@ -39,10 +39,13 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   tsc covers this), `noReactSpecificProps` (this is a React project),
   `noJsxLiterals`, `useExportsLast` (fight TanStack route conventions),
   `noQwikValidLexicalScope` (Qwik-only serialization rule; it fires on the plain
-  factory closures this codebase is built from).
+  factory closures this codebase is built from), `useSolidForComponent` (Solid-only
+  rule; its `.map` advice is wrong for React list rendering).
 - Scoped overrides relax rules only where the stack demands it: node/process usage in
   server files (mcp, db, control, drizzle.config, scripts), `noDefaultExport` in config files,
-  `noHeadElement` in `src/routes/__root.tsx`, and CONSTANT_CASE object keys for env
+  `noHeadElement` and `useUniqueElementIds` in `src/routes/__root.tsx` (stable
+  `#root-content`/`#portal-root` anchors per the TanStack shadcn integration guide),
+  and CONSTANT_CASE object keys for env
   vars and HTTP method keys. The `control` entry exists because the policy loader needs
   `node:fs` file-watch and `node:crypto` sha256. `scripts/build-fixture-env.ts` turns off
   `security/noSecrets` because it assembles obviously-fake detector fixtures (never real
