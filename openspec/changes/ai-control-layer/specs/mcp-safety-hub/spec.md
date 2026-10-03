@@ -39,6 +39,10 @@ Every tool call against a hub-hosted tool MUST be inspected before execution, in
 - **WHEN** tool arguments contain sensitive data and the policy maps it to `redact`
 - **THEN** the tool executes with redacted arguments and the audit record notes the redaction
 
+#### Scenario: Poisoned tool schema refused at registration
+- **WHEN** a tool schema or description (built-in or from a connected MCP server) matches a signature or contains hidden directive content at registration time
+- **THEN** the tool is not admitted to the catalog and the attempt is recorded in the audit log
+
 ### Requirement: Configurable tool-call enforcement
 The policy SHALL configure how a blocked tool call is enforced: tool-scoped (the tool call is refused with a defined tool error and the surrounding conversation may continue) or turn-scoped (the whole turn is blocked). Enforcement mode MUST be selectable per policy profile.
 

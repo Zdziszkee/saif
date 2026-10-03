@@ -29,9 +29,12 @@ of prompt-parseable.
   threat category, severity score), answered in parallel, mapped to verdicts by the policy
   engine. Includes confidence floors and a fail-closed degradation path.
 - Add **historical attack mitigation**: an externally managed signature feed (patterns from
-  known AI exploits: prompt injection payloads, malicious tool calls, unsafe
-  deserialization, model-repo supply-chain markers) matched deterministically, with feed
-  hot-reload.
+  known AI exploits: prompt injection and jailbreak payloads, malicious tool calls, unsafe
+  deserialization, model-repo supply-chain markers, MCP tool poisoning, exfiltration)
+  matched deterministically and evasion-resistant — matching over raw, canonicalized, and
+  decoded forms with spans mapped back to raw content — plus tool-schema scanning at MCP
+  registration, structural suspicion signals, feed integrity (version hash, provenance,
+  optional verification), and feed hot-reload.
 - Add **budget governance**: token/cost/request accounting per key and time window in
   SQLite, enforced before and after downstream calls, covering commercial APIs and locally
   hosted models.
@@ -61,8 +64,10 @@ of prompt-parseable.
 - `semantic-classification`: Jev-based semantic decisions — typed questions, parallel
   evaluation, confidence floors, degradation/fallback behavior when the model is
   unavailable or uncertain.
-- `attack-signature-mitigation`: historical exploit signature feed management and matching
-  (block/flag), including runtime feed updates.
+- `attack-signature-mitigation`: historical exploit signature feed management and
+  evasion-resistant matching over raw, canonicalized, and decoded forms (block/redact/flag,
+  severity-mapped actions), including runtime feed updates, tool-schema scanning at MCP
+  registration, structural suspicion signals, and feed integrity and provenance.
 - `budget-governance`: budget definition, accounting, and enforcement for token spend,
   request counts, and compute time across commercial and local model backends.
 - `security-observability`: audit logging, real-time metrics, exportable reports, and the

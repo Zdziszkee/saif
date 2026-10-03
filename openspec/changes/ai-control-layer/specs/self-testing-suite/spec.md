@@ -29,7 +29,7 @@ The integration/end-to-end tier MUST exercise the real semantic decision model (
 - **THEN** the run fails fast with a message identifying the missing configuration rather than silently skipping
 
 ### Requirement: Budget and exploit test coverage
-The suite SHALL include negative tests proving budget exhaustion blocks further interactions and known historical exploit patterns (injection, malicious tool calls, unsafe deserialization, supply-chain markers) are blocked or redacted per policy.
+The suite SHALL include negative tests proving budget exhaustion blocks further interactions and known historical exploit patterns (injection, malicious tool calls, unsafe deserialization, supply-chain markers) are blocked or redacted per policy. Exploit coverage MUST include evasion variants (encoding, zero-width characters, homoglyphs, leetspeak, whitespace splitting) and poisoned tool-schema descriptions, and MUST assert that fired matches record their signature identifier and feed version.
 
 #### Scenario: Exhausted budget blocks
 - **WHEN** the suite exhausts a configured budget and submits another interaction
@@ -38,3 +38,7 @@ The suite SHALL include negative tests proving budget exhaustion blocks further 
 #### Scenario: Exploit patterns mitigated
 - **WHEN** the suite submits interactions matching seeded historical exploit signatures
 - **THEN** each is blocked or redacted per the policy and the matching signature is recorded
+
+#### Scenario: Evasion variants mitigated
+- **WHEN** the suite submits known exploit payloads transformed with encoding, zero-width characters, homoglyphs, leetspeak, or whitespace splitting
+- **THEN** each variant is still matched and the audit record cites the signature identifier and feed version
