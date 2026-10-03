@@ -20,6 +20,9 @@
   configuration.
 - Mark planned-only module paths in the module map (`src/control/signatures/`,
   `src/control/text/`) as planned, since neither exists on disk yet.
+- Add the shadcn dashboard component set (`chart` on recharts, `table`, `tabs`,
+  `dropdown-menu`, `select`, `progress`, `separator`, `skeleton`, `tooltip`),
+  the recharts dependency, and the rewritten theme tokens in `src/styles.css`.
 
 ## Design
 
@@ -38,8 +41,9 @@ implementation status table instead of being presented as shipped.
 
 - `bun test`: 164 pass, 0 fail, 8 skip (the `SEMANTIC_LIVE=1` opt-in tier),
   including the two new concurrency isolation tests.
-- `bunx biome check tests/concurrency-isolation.test.ts`: clean.
-  `tsc --noEmit` reports no errors in any committed file.
+- `bun run verify` (`tsc --noEmit && biome check .`): passes across all 92
+  files, including the generated shadcn components under the scoped
+  guardrail relaxations.
 - Every claim in the multi-tenancy section traces to a code inspection or an
   implementation-status row; cited `src/` paths were checked against disk and
   the two that are spec-only are now labeled planned.
