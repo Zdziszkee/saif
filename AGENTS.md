@@ -18,8 +18,10 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `npm run build` is gated on `tsc --noEmit`.
 - `tsconfig.json`: all strict + lint-grade flags on (`noUncheckedIndexedAccess`,
   `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`,
-  `erasableSyntaxOnly`, ...). `skipLibCheck: true` is the single exception:
-  dependency d.ts files reference uninstalled optional peers (pg, bun, @babel/*).
+  `erasableSyntaxOnly`, ...). Two exclusions, both evidence-based:
+  `skipLibCheck: true` because dependency d.ts files reference uninstalled optional
+  peers (pg, bun, @babel/*); `isolatedDeclarations` cannot be used at all because it
+  requires `declaration`/`composite` emit (TS5069), conflicting with `noEmit`.
 - `biome.json`: every rule group at `error`, curated nursery rules, sorted keys and
   imports enforced. Rules that fight this toolchain are intentionally off:
   `noUnresolvedImports` (biome resolver false positives on package subpath exports;
