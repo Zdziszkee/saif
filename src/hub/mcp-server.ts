@@ -1,11 +1,12 @@
 /**
  * The MCP safety hub (interaction-gateway/mcp-safety-hub capability).
  *
- * The hub is the single governed path to models and tools: prompts reach the
- * model only through the `askModel` tool, every tool call executes through the
- * hub tool catalog under tool-call governance, and the standard MCP server
- * surface (`createMCPServer` from `@tanstack/ai-mcp/server`) serves the same
- * catalog the governed agentic loop uses, so the two cannot drift.
+ * The hub is the governed tool plane (design D10): every tool call executes
+ * through the hub tool catalog under tool-call governance, and the standard
+ * MCP server surface (`createMCPServer` from `@tanstack/ai-mcp/server`) serves
+ * the same catalog, so the served surface and direct invocations cannot drift.
+ * The catalog is tools-only — model access is never exposed as an MCP tool;
+ * AI prompt traffic belongs to the prompt-plane gateway.
  */
 
 import { toolDefinition } from "@tanstack/ai";
@@ -13,12 +14,7 @@ import { createMCPServer, type MCPServer } from "@tanstack/ai-mcp/server";
 import { type AuditSink, auditEvent, noopAuditSink } from "#/control/audit.ts";
 import { type ConsumerResolver, createConsumerResolver } from "#/control/subjects.ts";
 import type { ControlPipeline } from "#/control/types.ts";
-import {
-	type CatalogEntry,
-	createToolCatalog,
-	type ToolCatalog,
-	type ToolRegistration,
-} from "./catalog.ts";
+import { createToolCatalog, type ToolCatalog, type ToolRegistration } from "./catalog.ts";
 import { createHubConfig, type HubConfig } from "./config.ts";
 import {
 	type ConnectionOutcome,
@@ -34,15 +30,7 @@ import {
 	type ToolRejection,
 } from "./governance.ts";
 import { createGrantRegistry, type GrantRegistry } from "./grants.ts";
-import { type GovernedLoopTool, type LoopResult, runGovernedLoop } from "./loop.ts";
-import type { ModelConnection } from "./model.ts";
-import {
-	type AskModelResult,
-	askModelDescription,
-	askModelInputSchema,
-	askModelName,
-	basicBuiltinTools,
-} from "./tools.ts";
+import { basicBuiltinTools } from "./tools.ts";
 
 export const HUB_NAME = "saif-control-hub";
 export const HUB_VERSION = "0.1.0";
@@ -57,7 +45,6 @@ export interface HubDeps {
 	config?: HubConfig | undefined;
 	/** Transport fetch override for external MCP connections (tests substitute in-process servers). */
 	fetch?: typeof fetch | undefined;
-	model: ModelConnection;
 	pipeline: ControlPipeline;
 }
 
@@ -81,7 +68,6 @@ interface HubContext {
 	config: HubConfig;
 	governor: ToolGovernor;
 	grants: GrantRegistry;
-	model: ModelConnection;
 }
 
 export async function createHub(deps: HubDeps): Promise<Hub> {
@@ -91,9 +77,9 @@ export async function createHub(deps: HubDeps): Promise<Hub> {
 	const grants: GrantRegistry = createGrantRegistry();
 	const catalog: ToolCatalog = createToolCatalog({ audit, pipeline: deps.pipeline });
 	const governor: ToolGovernor = createToolGovernor({ audit, grants, pipeline: deps.pipeline });
-	const context: HubContext = { audit, catalog, config, governor, grants, model: deps.model };
+	const context: HubContext = { audit, catalog, config, governor, grants };
 
-	await admitBuiltinTools(catalog, grants, context);
+	await admitBuiltinTools(catalog, grants);
 
 	const connections: HubConnections = createHubConnections({
 		audit,
@@ -120,22 +106,15 @@ export async function createHub(deps: HubDeps): Promise<Hub> {
 	};
 }
 
-async function admitBuiltinTools(
-	catalog: ToolCatalog,
-	grants: GrantRegistry,
-	context: HubContext,
-): Promise<void> {
-	const registrations: ToolRegistration[] = [
-		...basicBuiltinTools.map((spec) => ({
-			description: spec.description,
-			grantedByDefault: true,
-			implementation: spec.implementation,
-			inputSchema: spec.inputSchema,
-			name: spec.name,
-			source: "builtin" as const,
-		})),
-		createAskModelRegistration(context),
-	];
+async function admitBuiltinTools(catalog: ToolCatalog, grants: GrantRegistry): Promise<void> {
+	const registrations: ToolRegistration[] = basicBuiltinTools.map((spec) => ({
+		description: spec.description,
+		grantedByDefault: true,
+		implementation: spec.implementation,
+		inputSchema: spec.inputSchema,
+		name: spec.name,
+		source: "builtin" as const,
+	}));
 	for (const registration of registrations) {
 		// biome-ignore lint/performance/noAwaitInLoops: admission runs per builtin, in order
 		const admitted = await catalog.register(registration);
@@ -143,82 +122,6 @@ async function admitBuiltinTools(
 			grants.registerTool(registration.name, true);
 		}
 	}
-}
-
-function createAskModelRegistration(context: HubContext): ToolRegistration {
-	return {
-		description: askModelDescription,
-		grantedByDefault: true,
-		implementation: (args, subject) => runAskModel(context, args, subject),
-		inputSchema: askModelInputSchema,
-		name: askModelName,
-		source: "builtin",
-	};
-}
-
-async function runAskModel(
-	context: HubContext,
-	args: unknown,
-	subject: string,
-): Promise<AskModelResult> {
-	const { prompt } = args as { prompt: string };
-	const result = await runGovernedLoop(prompt, {
-		budgets: context.config.loop,
-		enforcement: context.config.toolEnforcement,
-		model: context.model,
-		tools: loopToolsFor(context, subject),
-	});
-	return toAskModelResult(result, subject, context.audit);
-}
-
-function loopToolsFor(context: HubContext, subject: string): GovernedLoopTool[] {
-	return context.catalog
-		.snapshot()
-		.filter((entry) => entry.name !== askModelName)
-		.map((entry) => loopToolFor(entry, context, subject));
-}
-
-function loopToolFor(entry: CatalogEntry, context: HubContext, subject: string): GovernedLoopTool {
-	return {
-		execute: (args) => context.governor.governToolCall(entry, args, subject),
-		spec: {
-			description: entry.description,
-			inputSchema: entry.inputSchema,
-			name: entry.name,
-		},
-	};
-}
-
-function toAskModelResult(result: LoopResult, subject: string, audit: AuditSink): AskModelResult {
-	if (result.kind === "answer") {
-		return { answer: result.answer, control: "", status: "ok", verdict: "allow" };
-	}
-	if (result.kind === "over-budget") {
-		audit.record(
-			auditEvent("budget", {
-				detail: `agentic loop exceeded budget after ${result.rounds} model requests`,
-				subject,
-				verdict: result.verdict,
-			}),
-		);
-		return { answer: "", control: "budget", status: "over-budget", verdict: result.verdict };
-	}
-	return {
-		answer: "",
-		control: result.rejection.control,
-		status: rejectionStatus(result.rejection),
-		verdict: result.rejection.verdict,
-	};
-}
-
-function rejectionStatus(rejection: ToolRejection): "blocked" | "escalated" | "failed" {
-	if (rejection.kind === "failed") {
-		return "failed";
-	}
-	if (rejection.kind === "escalated") {
-		return "escalated";
-	}
-	return "blocked";
 }
 
 function buildServer(catalog: ToolCatalog, governor: ToolGovernor, subject: string): MCPServer {
