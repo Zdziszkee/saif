@@ -14,11 +14,7 @@ import { createMCPServer, type MCPServer } from "@tanstack/ai-mcp/server";
 import { type AuditSink, auditEvent, noopAuditSink } from "#/control/audit.ts";
 import { type ConsumerResolver, createConsumerResolver } from "#/control/subjects.ts";
 import type { ControlPipeline } from "#/control/types.ts";
-import {
-	createToolCatalog,
-	type ToolCatalog,
-	type ToolRegistration,
-} from "./catalog.ts";
+import { createToolCatalog, type ToolCatalog, type ToolRegistration } from "./catalog.ts";
 import { createHubConfig, type HubConfig } from "./config.ts";
 import {
 	type ConnectionOutcome,
