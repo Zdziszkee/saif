@@ -82,6 +82,8 @@ export const detectionConfigSchema = z.strictObject({
 	rules: z.array(detectionRuleSchema),
 });
 
+export type DetectionConfig = z.infer<typeof detectionConfigSchema>;
+
 /** Structural-suspicion configuration for the signature engine. */
 export const suspectConfigSchema = z.strictObject({
 	action: verdictSchema,
