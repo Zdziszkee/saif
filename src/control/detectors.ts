@@ -4,17 +4,23 @@ import { detectNamedEntities } from "#/control/ner.ts";
 export const detectionTypes = [
 	"address",
 	"api-key",
+	"bank-account",
 	"card",
 	"crypto-wallet",
+	"driver-license",
 	"email",
 	"generic-secret",
 	"gov-id",
 	"iban",
 	"ip-address",
+	"mac-address",
+	"passport",
 	"person",
+	"pesel",
 	"phone",
 	"private-key",
 	"token",
+	"uuid",
 ] as const;
 export type DetectionType = (typeof detectionTypes)[number];
 
@@ -39,6 +45,8 @@ export interface Detection {
 interface PatternSpec {
 	context?: readonly string[];
 	detectorId: string;
+	requiresContext?: boolean;
+	score?: number;
 	source: string;
 	type: DetectionType;
 	validate?: (value: string) => boolean;
@@ -48,6 +56,7 @@ const HighConfidence = 0.95;
 const PersonConfidence = 0.9;
 const NerConfidence = 0.85;
 const SuspectConfidence = 0.5;
+const WeakConfidence = 0.25;
 const ContextConfidenceBoost = 0.2;
 const ContextWindowChars = 80;
 
@@ -103,6 +112,74 @@ function ibanValid(value: string): boolean {
 		}
 	}
 	return remainder === 1;
+}
+
+const PeselWeights = "1379137913";
+const PeselLength = 11;
+const CheckModulus = 10;
+const AbaWeights = "371371371";
+const AbaLength = 9;
+const UuidVersionMin = "1";
+const UuidPartCount = 5;
+const DigitsOnly = /^\d+$/u;
+const UuidVersionMax = "8";
+const UuidVariants = ["8", "9", "a", "b"] as const;
+
+function peselValid(value: string): boolean {
+	if (!DigitsOnly.test(value) || value.length !== PeselLength) {
+		return false;
+	}
+	let sum = 0;
+	for (let index = 0; index < PeselWeights.length; index += 1) {
+		const digit = value[index];
+		const weight = Number.parseInt(PeselWeights[index] ?? "0", DecimalRadix);
+		if (digit === undefined) {
+			return false;
+		}
+		sum += Number.parseInt(digit, DecimalRadix) * weight;
+	}
+	const check = value[PeselWeights.length];
+	if (check === undefined) {
+		return false;
+	}
+	return (
+		(CheckModulus - (sum % CheckModulus)) % CheckModulus === Number.parseInt(check, DecimalRadix)
+	);
+}
+
+function abaValid(value: string): boolean {
+	const digits = value.replace(/\D/g, "");
+	if (digits.length !== AbaLength) {
+		return false;
+	}
+	let sum = 0;
+	for (let index = 0; index < AbaWeights.length; index += 1) {
+		const digit = digits[index];
+		if (digit === undefined) {
+			return false;
+		}
+		sum +=
+			Number.parseInt(digit, DecimalRadix) *
+			Number.parseInt(AbaWeights[index] ?? "0", DecimalRadix);
+	}
+	return sum % CheckModulus === 0;
+}
+
+function uuidValid(value: string): boolean {
+	const parts = value.split("-");
+	if (parts.length !== UuidPartCount) {
+		return false;
+	}
+	const version = parts[2]?.[0];
+	const variant = parts[3]?.[0]?.toLowerCase();
+	if (version === undefined || variant === undefined) {
+		return false;
+	}
+	return (
+		version >= UuidVersionMin &&
+		version <= UuidVersionMax &&
+		(UuidVariants as readonly string[]).includes(variant)
+	);
 }
 
 const secretContext = [
@@ -199,13 +276,37 @@ const piiPatterns: readonly PatternSpec[] = [
 		type: "email",
 	},
 	{
-		context: ["call", "mobile", "phone", "tel", "telefon"],
+		context: [
+			"call",
+			"cell",
+			"cellphone",
+			"mobile",
+			"number",
+			"phone",
+			"tel",
+			"telefon",
+			"telephone",
+		],
 		detectorId: "pii.phone",
 		source: String.raw`(?<![\w-])(?:\+\d{1,3}[ .-]?)?(?:\(\d{2,4}\)|\d{2,4})[ .-]\d{3,4}[ .-]\d{3,4}(?![\w-])`,
 		type: "phone",
 	},
 	{
-		context: ["card", "credit", "cvv", "debit", "karta", "mastercard", "payment", "visa"],
+		context: [
+			"amex",
+			"card",
+			"cc",
+			"credit",
+			"cvv",
+			"debit",
+			"diners",
+			"discover",
+			"jcb",
+			"karta",
+			"mastercard",
+			"payment",
+			"visa",
+		],
 		detectorId: "pii.card",
 		source: String.raw`(?<![\d-])\d(?:[ -]?\d){12,18}(?![\d-])`,
 		type: "card",
@@ -225,13 +326,20 @@ const piiPatterns: readonly PatternSpec[] = [
 		type: "gov-id",
 	},
 	{
-		context: ["addr", "host", "ip", "serwer", "server"],
+		context: ["numer", "pesel"],
+		detectorId: "pii.pesel",
+		source: String.raw`(?<!\d)[0-9]{2}(?:[02468][1-9]|[13579][012])(?:0[1-9]|1[0-9]|2[0-9]|3[01])[0-9]{5}(?!\d)`,
+		type: "pesel",
+		validate: peselValid,
+	},
+	{
+		context: ["addr", "host", "ip", "ipv4", "ipv6", "serwer", "server"],
 		detectorId: "pii.ipv4",
 		source: String.raw`\b(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\b`,
 		type: "ip-address",
 	},
 	{
-		context: ["addr", "host", "ip", "serwer", "server"],
+		context: ["addr", "host", "ip", "ipv4", "ipv6", "serwer", "server"],
 		detectorId: "pii.ipv6",
 		source: String.raw`\b(?:[A-F0-9]{1,4}:){7}[A-F0-9]{1,4}\b|\b[A-F0-9]{1,4}(?::[A-F0-9]{1,4})*::(?:[A-F0-9]{1,4}(?::[A-F0-9]{1,4})*)?\b`,
 		type: "ip-address",
@@ -247,6 +355,83 @@ const piiPatterns: readonly PatternSpec[] = [
 		detectorId: "pii.btc-wallet",
 		source: String.raw`\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b`,
 		type: "crypto-wallet",
+	},
+	{
+		context: ["document", "passport", "paszport", "travel"],
+		detectorId: "pii.passport-digits",
+		requiresContext: true,
+		score: WeakConfidence,
+		source: String.raw`\b[0-9]{9}\b`,
+		type: "passport",
+	},
+	{
+		context: ["document", "passport", "paszport", "travel"],
+		detectorId: "pii.passport-nextgen",
+		requiresContext: true,
+		score: WeakConfidence,
+		source: String.raw`\b[A-Z][0-9]{8}\b`,
+		type: "passport",
+	},
+	{
+		context: [
+			"cdl",
+			"dls",
+			"driver",
+			"driving",
+			"identification",
+			"lic",
+			"license",
+			"permit",
+			"prawo jazdy",
+		],
+		detectorId: "pii.driver-license",
+		requiresContext: true,
+		score: WeakConfidence,
+		source: String.raw`\b(?:[A-Z][0-9]{3,6}|[A-Z][0-9]{5,9}|[A-Z][0-9]{6,8}|[A-Z][0-9]{4,8}|[A-Z][0-9]{9,11}|[A-Z]{1,2}[0-9]{5,6}|H[0-9]{8}|V[0-9]{6}|X[0-9]{8}|[A-Z]{2}[0-9]{2,5}|[A-Z]{2}[0-9]{3,7}|[0-9]{2}[A-Z]{3}[0-9]{5,6}|[A-Z][0-9]{13,14}|[A-Z][0-9]{18}|[A-Z][0-9]{6}R|[A-Z][0-9]{9}|[A-Z][0-9]{1,12}|[0-9]{9}[A-Z]|[A-Z]{2}[0-9]{6}[A-Z]|[0-9]{8}[A-Z]{2}|[0-9]{3}[A-Z]{2}[0-9]{4}|[A-Z][0-9][A-Z][0-9][A-Z]|[0-9]{7,8}[A-Z])\b`,
+		type: "driver-license",
+	},
+	{
+		context: ["aba", "bank", "konto", "routing"],
+		detectorId: "pii.aba-routing",
+		source: String.raw`\b[0123678]\d{3}-\d{4}-\d\b`,
+		type: "bank-account",
+		validate: abaValid,
+	},
+	{
+		context: ["aba", "bank", "konto", "routing"],
+		detectorId: "pii.aba-plain",
+		requiresContext: true,
+		score: WeakConfidence,
+		source: String.raw`\b[0123678]\d{8}\b`,
+		type: "bank-account",
+		validate: abaValid,
+	},
+	{
+		context: ["account", "bank", "konto", "rachunek"],
+		detectorId: "pii.bank-digits",
+		requiresContext: true,
+		score: WeakConfidence,
+		source: String.raw`\b[0-9]{8,17}\b`,
+		type: "bank-account",
+	},
+	{
+		context: ["guid", "identifier", "uuid"],
+		detectorId: "pii.uuid",
+		source: String.raw`\b[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\b`,
+		type: "uuid",
+		validate: uuidValid,
+	},
+	{
+		context: ["ethernet", "hardware", "mac"],
+		detectorId: "pii.mac-colon",
+		source: String.raw`\b[0-9A-Fa-f]{2}(?:[:-][0-9A-Fa-f]{2}){5}\b`,
+		type: "mac-address",
+	},
+	{
+		context: ["ethernet", "hardware", "mac"],
+		detectorId: "pii.mac-cisco",
+		source: String.raw`\b[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\b`,
+		type: "mac-address",
 	},
 ];
 
@@ -349,11 +534,15 @@ function detectionFromMatch(
 	text: string,
 	value: string,
 	start: number,
-): Detection {
+): Detection | null {
 	const span = { end: start + value.length, start };
-	const validated = pattern.validate === undefined || pattern.validate(value);
+	const validated =
+		pattern.validate === undefined ? pattern.requiresContext !== true : pattern.validate(value);
 	const context = pattern.context === undefined ? [] : contextHits(text, span, pattern.context);
-	const base = validated ? HighConfidence : SuspectConfidence;
+	if (pattern.requiresContext === true && context.length === 0) {
+		return null;
+	}
+	const base = validated ? HighConfidence : (pattern.score ?? SuspectConfidence);
 	const confidence = Math.min(1, base + (context.length > 0 ? ContextConfidenceBoost : 0));
 	const detection: Detection = {
 		confidence,
@@ -380,7 +569,10 @@ function collect(text: string, patterns: readonly PatternSpec[]): Detection[] {
 			if (value === undefined || start === undefined) {
 				continue;
 			}
-			found.push(detectionFromMatch(pattern, text, value, start));
+			const detection = detectionFromMatch(pattern, text, value, start);
+			if (detection !== null) {
+				found.push(detection);
+			}
 		}
 	}
 	return found;

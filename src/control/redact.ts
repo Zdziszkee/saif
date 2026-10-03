@@ -8,12 +8,16 @@ export function placeholderFor(detection: Detection, personIndex: number): strin
 			return "[ADDRESS]";
 		case "api-key":
 			return "[API_KEY]";
+		case "bank-account":
+			return "[BANK_ACCOUNT]";
 		case "card": {
 			const digits = detection.value.replace(/\D/g, "");
 			return `[CARD_LAST4:${digits.slice(-CardMaskLength)}]`;
 		}
 		case "crypto-wallet":
 			return "[CRYPTO_WALLET]";
+		case "driver-license":
+			return "[DRIVER_LICENSE]";
 		case "email":
 			return "[EMAIL]";
 		case "generic-secret":
@@ -24,14 +28,22 @@ export function placeholderFor(detection: Detection, personIndex: number): strin
 			return "[IBAN]";
 		case "ip-address":
 			return "[IP_ADDRESS]";
+		case "mac-address":
+			return "[MAC_ADDRESS]";
 		case "person":
 			return `[PERSON_${personIndex}]`;
+		case "passport":
+			return "[PASSPORT]";
+		case "pesel":
+			return "[PESEL]";
 		case "phone":
 			return "[PHONE]";
 		case "private-key":
 			return "[PRIVATE_KEY]";
 		case "token":
 			return "[TOKEN]";
+		case "uuid":
+			return "[UUID]";
 		default:
 			return "[REDACTED]";
 	}

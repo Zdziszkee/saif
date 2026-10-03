@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { filterContent } from "#/control/filter.ts";
 import type { FirstLayerPolicy } from "#/control/policy.ts";
+import { defaultFirstLayerPolicy } from "#/control/policy.ts";
 import { parseSignatureFeed } from "#/control/signatures.ts";
 import sampleFeedText from "../signatures.json?raw";
 import { ApiKeyFixture } from "./secret-fixtures.ts";
@@ -17,6 +18,7 @@ const blockingPolicy: FirstLayerPolicy = {
 			secret: { input: "block", output: "redact" },
 		},
 		enabled: true,
+		minConfidence: 0.4,
 		suspectAction: "redact",
 		typeOverrides: {},
 	},
@@ -118,5 +120,18 @@ describe("verdict policy and provenance", () => {
 	it("carries the feed version in force for provenance", () => {
 		const result = filterContent({ surface: "prompt", text: "do anything now" }, { feed });
 		expect(result.feedVersion).toBe(feed.version);
+	});
+
+	it("drops detections below the policy confidence floor", () => {
+		const strictFloor = {
+			...defaultFirstLayerPolicy,
+			deterministic: { ...defaultFirstLayerPolicy.deterministic, minConfidence: 0.9 },
+		} satisfies FirstLayerPolicy;
+		const result = filterContent(
+			{ surface: "prompt", text: "Card 4111111111111112 was declined." },
+			{ feed, policy: strictFloor },
+		);
+		expect(result.verdict).toBe("allow");
+		expect(result.detections).toEqual([]);
 	});
 });

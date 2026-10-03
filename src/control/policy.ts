@@ -42,6 +42,7 @@ export const firstLayerPolicySchema = z.object({
 	deterministic: z.object({
 		actions: deterministicActionsSchema,
 		enabled: z.boolean(),
+		minConfidence: z.number().min(0).max(1),
 		suspectAction: verdictSchema,
 		typeOverrides: typeOverridesSchema,
 	}),
@@ -60,6 +61,7 @@ export const defaultFirstLayerPolicy: FirstLayerPolicy = {
 			secret: { input: "block", output: "redact" },
 		},
 		enabled: true,
+		minConfidence: 0.4,
 		suspectAction: "redact",
 		typeOverrides: {},
 	},

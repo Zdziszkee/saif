@@ -101,6 +101,12 @@ describe("scenario: addresses and financial identifiers", () => {
 		expect(typesOf("Regards, Anna Nowak at 42 Green Street")).toContain("person");
 		expect(typesOf("Regards, Anna Nowak at 42 Green Street")).toContain("address");
 	});
+
+	it("redacts a PESEL like other government identifiers", () => {
+		expect(redactedTextOf("My PESEL is 44051401359, please update my file")).toBe(
+			"My PESEL is [PESEL], please update my file",
+		);
+	});
 });
 
 describe("scenario: sensitive data upload", () => {

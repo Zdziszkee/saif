@@ -161,6 +161,7 @@ describe("policy-mapped action selection", () => {
 					secret: { input: "redact", output: "redact" },
 				},
 				enabled: true,
+				minConfidence: 0.4,
 				suspectAction: "redact",
 				typeOverrides: {},
 			},

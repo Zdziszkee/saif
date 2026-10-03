@@ -41,7 +41,10 @@ export function filterContent(input: FilterInput, options: FilterOptions): Filte
 	const matches = policy.signatures.enabled
 		? matchSignatures(input.text, options.feed.signatures)
 		: [];
-	const detections = policy.deterministic.enabled ? detectSensitive(input.text) : [];
+	const rawDetections = policy.deterministic.enabled ? detectSensitive(input.text) : [];
+	const detections = rawDetections.filter(
+		(detection) => detection.confidence >= policy.deterministic.minConfidence,
+	);
 
 	const redactKinds = new Set<DetectionKind>();
 	const verdicts: Verdict[] = [];

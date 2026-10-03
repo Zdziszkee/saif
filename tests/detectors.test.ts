@@ -135,3 +135,65 @@ describe("negative detector cases", () => {
 		expect(detectSensitive("user@localhost is not routed")).toEqual([]);
 	});
 });
+
+describe("ported Presidio recognizers", () => {
+	it("validates a PESEL with checksum and structure", () => {
+		const detection = onlyDetection("My PESEL is 44051401359 on file.");
+		expect(detection?.type).toBe("pesel");
+		expect(detection?.value).toBe("44051401359");
+		expect(detection?.validated).toBe(true);
+		expect(detection?.detectorId).toBe("pii.pesel");
+	});
+
+	it("downgrades a PESEL with a bad checksum to a suspect", () => {
+		const detection = onlyDetection("My PESEL is 44051401358 on file.");
+		expect(detection?.type).toBe("pesel");
+		expect(detection?.validated).toBe(false);
+	});
+
+	it("validates an ABA routing number with checksum", () => {
+		const detection = onlyDetection("Send to routing 011401533 today.");
+		expect(detection?.type).toBe("bank-account");
+		expect(detection?.validated).toBe(true);
+		expect(detection?.detectorId).toBe("pii.aba-plain");
+	});
+
+	it("validates the dashed ABA form", () => {
+		const detection = onlyDetection("Send to routing 0114-0153-3 today.");
+		expect(detection?.detectorId).toBe("pii.aba-routing");
+		expect(detection?.validated).toBe(true);
+	});
+
+	it("flags passport numbers only with supporting context", () => {
+		const detection = onlyDetection("Passport 123456789 ready.");
+		expect(detection?.type).toBe("passport");
+		expect(detection?.validated).toBe(false);
+		expect(detectSensitive("Code 123456789 ready.")).toEqual([]);
+	});
+
+	it("flags driver licenses only with supporting context", () => {
+		const detection = onlyDetection("Driver license D1234567 shown.");
+		expect(detection?.type).toBe("driver-license");
+		expect(detectSensitive("Serial D1234567 shown.")).toEqual([]);
+	});
+
+	it("flags bare bank digit runs only with supporting context", () => {
+		const detection = onlyDetection("Account 23456789 active.");
+		expect(detection?.type).toBe("bank-account");
+		expect(detectSensitive("Order 23456789 shipped.")).toEqual([]);
+	});
+
+	it("validates UUID version and variant", () => {
+		const valid = onlyDetection("Session 123e4567-e89b-12d3-a456-426614174000 started.");
+		expect(valid?.type).toBe("uuid");
+		expect(valid?.validated).toBe(true);
+		const invalid = onlyDetection("Session 123e4567-e89b-92d3-a456-426614174000 started.");
+		expect(invalid?.type).toBe("uuid");
+		expect(invalid?.validated).toBe(false);
+	});
+
+	it("detects MAC addresses in both notations", () => {
+		expect(onlyDetection("Device mac 00:1B:44:11:3A:B7 online.")?.type).toBe("mac-address");
+		expect(onlyDetection("Interface aabb.ccdd.eeff up.")?.type).toBe("mac-address");
+	});
+});

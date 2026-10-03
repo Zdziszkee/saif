@@ -23,6 +23,12 @@ Every detection carries a `kind`, a fine-grained `type`, and the exact span
 | `pii`     | `address`     | Street addresses via Compromise NER (`42 Green Street`)    |
 | `pii`     | `ip-address`  | IPv4/IPv6 addresses (`203.0.113.42`)                      |
 | `pii`     | `crypto-wallet` | BTC/ETH wallet addresses (`0x5290…EE7`)                 |
+| `pii`     | `pesel`       | Polish PESEL numbers — structure + checksum (`44051401359`) |
+| `pii`     | `passport`    | US passport numbers (`123456789`, `X12345678`) — weak, needs context |
+| `pii`     | `driver-license` | US driver-license numbers (`D1234567`) — weak, needs context |
+| `pii`     | `bank-account` | ABA routing numbers — checksum (`011401533`); bare digit runs — weak, need context |
+| `pii`     | `uuid`        | UUIDs with version/variant check (`123e4567-e89b-12d3-…`) |
+| `pii`     | `mac-address` | MAC addresses, colon/hyphen and Cisco-dot notation      |
 
 Failed-Luhn card-shaped groups remain low-confidence `suspect` detections and are redacted by
 default. ISO dates and unseparated digit runs are not phone numbers, and `user@localhost`
@@ -105,9 +111,28 @@ scanners would otherwise flag them, and they would pollute the tree. Tests load 
 through `tests/secret-fixtures.ts`, which regenerates `.env` automatically when missing.
 
 Placeholders in use (plan-format): `[EMAIL]`, `[PHONE]`, `[CARD_LAST4:4242]` (card digits are
-masked down to the last four), `[IBAN]`, `[SSN]`, `[API_KEY]`, `[TOKEN]`, `[PRIVATE_KEY]`,
+masked down to the last four), `[IBAN]`, `[SSN]`, `[PESEL]`, `[PASSPORT]`, `[DRIVER_LICENSE]`,
+`[BANK_ACCOUNT]`, `[UUID]`, `[MAC_ADDRESS]`, `[API_KEY]`, `[TOKEN]`, `[PRIVATE_KEY]`,
 `[GENERIC_SECRET]`, `[ADDRESS]`, and `[PERSON_1]`, `[PERSON_2]`, … — person names get
 consistent pseudonyms so the same person keeps the same placeholder within one text.
+
+## Pattern provenance: Presidio recognizer catalog
+
+The recognizer patterns, context-word lists, and checksum validators for `pesel`, `passport`,
+`driver-license`, `bank-account` (`ABA`), `uuid`, and `mac-address` — plus merged context
+words for cards, phones, IPs, and wallets — are ported from Microsoft Presidio
+([data-privacy-stack/presidio](https://github.com/data-privacy-stack/presidio)), MIT-licensed
+© Presidio Contributors. Cloned for reference only (`/tmp`, not vendored); only the pattern
+data was ported into `src/control/detectors.ts`. The Python runtime, spaCy NER, and service
+layer were deliberately not ported: this app's engine (pattern catalog + validators + context
+scoring + typed anonymizer) already mirrors Presidio's `PatternRecognizer` architecture, and
+Compromise covers the NER slot locally.
+
+Presidio semantics we follow: weak patterns (digit-only passport/bank/driver-license shapes)
+carry a low base score and are **dropped unless supporting context words appear nearby**
+(`requiresContext`); checksum-validated hits are emitted regardless. On top of that, the
+policy's `deterministic.minConfidence` (default `0.4`) drops any detection below the floor —
+the equivalent of Presidio's score threshold.
 
 Examples with names and addresses:
 
