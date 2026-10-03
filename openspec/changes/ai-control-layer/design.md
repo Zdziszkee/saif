@@ -133,12 +133,13 @@ over-budget verdict (default `block`).
 
 ### D10. TanStack MCP module (`@tanstack/ai-mcp`) for both MCP roles
 The hub's MCP server surface is `createMCPServer()` from `@tanstack/ai-mcp`: hub tools are
-defined once with `toolDefinition()` (`@tanstack/ai`) and the same `AnyServerTool` list is
-served over MCP (`server.fetch` mounted in `src/routes/mcp.ts`) and passed to
-`chat({ tools })` for the governed agentic loop, so the catalog cannot drift between the
-two surfaces. External MCP servers connect through `createMCPClient` /
-`createMCPClients` (http/sse/stdio transports; per-connection `headers` carry the user's
-service token, keeping it out of tool content) and feed `chat({ mcp: { clients } })`. The
+defined once with `toolDefinition()` (`@tanstack/ai`), instantiated with `.server(execute)`,
+and the same `AnyServerTool` list is both served over MCP (`server.fetch` mounted in
+`src/routes/mcp.ts`) and passed to `chat({ tools })` for the governed agentic loop, so the
+catalog cannot drift between the two surfaces. External MCP servers connect through
+`createMCPClient` / `createMCPClients` (http/sse/stdio transports; per-connection
+`headers` carry the user's service token, keeping it out of tool content) and feed
+`chat({ mcp: { clients } })`. The
 package runs on the modular `@modelcontextprotocol/{core,client,server}@2.x`, so the
 monolithic `@modelcontextprotocol/sdk@1.x` and the `InMemoryTransport` request/response
 hack in `src/utils/mcp-handler.ts` are removed. Alternatives: keep sdk v1 for the server
