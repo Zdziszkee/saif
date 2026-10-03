@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as PlaygroundRouteImport } from './routes/playground'
 import { Route as ApiGuardRouteImport } from './routes/api.guard'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const McpRoute = McpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlaygroundRoute = PlaygroundRouteImport.update({
+  id: '/playground',
+  path: '/playground',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGuardRoute = ApiGuardRouteImport.update({
   id: '/api/guard',
   path: '/api/guard',
@@ -32,30 +38,34 @@ const ApiGuardRoute = ApiGuardRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/mcp': typeof McpRoute
+  '/playground': typeof PlaygroundRoute
   '/api/guard': typeof ApiGuardRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/mcp' | '/api/guard'
+  fullPaths: '/' | '/mcp' | '/playground' | '/api/guard'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/mcp' | '/api/guard'
-  id: '__root__' | '/' | '/mcp' | '/api/guard'
+  to: '/' | '/mcp' | '/playground' | '/api/guard'
+  id: '__root__' | '/' | '/mcp' | '/playground' | '/api/guard'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   McpRoute: typeof McpRoute
+  PlaygroundRoute: typeof PlaygroundRoute
   ApiGuardRoute: typeof ApiGuardRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/playground': {
+      id: '/playground'
+      path: '/playground'
+      fullPath: '/playground'
+      preLoaderRoute: typeof PlaygroundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/guard': {
       id: '/api/guard'
       path: '/api/guard'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   McpRoute: McpRoute,
+  PlaygroundRoute: PlaygroundRoute,
   ApiGuardRoute: ApiGuardRoute,
 }
 export const routeTree = rootRouteImport

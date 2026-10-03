@@ -91,6 +91,9 @@
 						"noUnresolvedImports": "off",
 						"useQwikValidLexicalScope": "off"
 					},
+					"performance": {
+						"useSolidForComponent": "off"
+					},
 					"style": {
 						"noJsxLiterals": "off",
 						"useExportsLast": "off",

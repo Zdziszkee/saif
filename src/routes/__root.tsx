@@ -25,8 +25,24 @@ export const Route = createRootRoute({
 			},
 		],
 	}),
+	notFoundComponent: NotFound,
 	shellComponent: RootDocument,
 });
+
+function NotFound() {
+	return (
+		<div className="mx-auto max-w-3xl p-8">
+			<h1 className="text-3xl font-bold">Page not found</h1>
+			<p className="mt-2 text-sm text-gray-600">
+				The address does not match any route. Try the{" "}
+				<a className="underline" href="/playground">
+					guard playground
+				</a>
+				.
+			</p>
+		</div>
+	);
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	return (
