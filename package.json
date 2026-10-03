@@ -19,6 +19,7 @@
     "test:live": "vitest run --config vitest.live.config.ts",
     "data:names": "bun scripts/build-name-data.ts",
     "fixtures:env": "bun scripts/build-fixture-env.ts",
+    "intent": "node node_modules/@tanstack/intent/dist/cli.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

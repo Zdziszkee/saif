@@ -7,15 +7,11 @@ Intercepts AI interactions at every seam (chat, MCP tool calls, generic guard AP
 ## ADDED Requirements
 
 ### Requirement: Interaction interception
-The system SHALL route every governed AI interaction — app-to-agent chat prompts, agent-to-MCP tool calls, and generic guard API requests — through the same control pipeline before forwarding, and SHALL inspect both inbound prompts and outbound model or tool output.
+The system SHALL route every governed AI interaction through the same control pipeline before forwarding, and SHALL inspect both inbound prompts and outbound model or tool output. Chat prompts, tool calls, and generic guard API requests are intercepted at their respective seams and flow through the shared pipeline.
 
-#### Scenario: Chat prompt intercepted
-- **WHEN** a client sends a chat prompt to a governed chat endpoint
-- **THEN** the prompt passes through the control pipeline and is forwarded to the model only if the resulting verdict allows it
-
-#### Scenario: MCP tool call intercepted
-- **WHEN** an agent issues a tool call through the MCP endpoint
-- **THEN** the tool call arguments are inspected and a blocking verdict prevents the tool from executing
+#### Scenario: Guard API request intercepted
+- **WHEN** a client sends a request to the generic guard API
+- **THEN** the request passes through the control pipeline and is forwarded only if the resulting verdict allows it
 
 ### Requirement: Verdict enforcement
 The system SHALL apply exactly one verdict per inspected direction: `allow`, `redact`, `block`, or `escalate`. Redaction MUST replace flagged content with typed placeholders before forwarding; block MUST NOT forward the content; escalate MUST record the interaction for review and MUST NOT forward the content while unresolved.

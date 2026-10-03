@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Provides the single centralized policy source that defines all controls, sensitivity thresholds, strictness profiles, model allowlists, and budget rules, and makes changes effective at runtime without a restart.
+Provides the single centralized policy source that defines all controls, the deterministic detection rules, the semantic check definitions, sensitivity thresholds, strictness profiles, model allowlists, signature severity mapping, and budget rules, and makes changes effective at runtime without a restart. The policy is a zod-validated JSON document.
 
 ## ADDED Requirements
 
 ### Requirement: Single policy source
-All controls MUST be configured from one policy document. The system SHALL validate the document against a schema at load time and MUST refuse to apply a partially invalid policy, keeping the last valid policy active and reporting the validation errors.
+All controls MUST be configured from one policy document. The document covers content controls, the deterministic detection rules, the model allowlist, budget rules, semantic check definitions, and signature enforcement configuration. The system SHALL validate the document against a zod schema at load time and MUST refuse to apply a partially invalid policy, keeping the last valid policy active and reporting the validation errors.
 
 #### Scenario: Invalid policy rejected
 - **WHEN** a policy document fails schema validation at startup
@@ -35,12 +35,50 @@ The policy SHALL define the set of permitted LLM models and endpoints. The syste
 Policy changes MUST take effect for subsequent interactions without restarting the system. Each audit record SHALL reference the policy version in force at decision time.
 
 #### Scenario: Live threshold change
-- **WHEN** the policy file is edited while the system is running
+- **WHEN** the policy is edited while the system is running
 - **THEN** the next interaction is evaluated with the new thresholds and its audit record references the updated policy version
 
-### Requirement: Semantic control configuration
-The policy SHALL select which semantic checks are active and the thresholds applied to their answers, and MAY override the question wording used by the semantic tier.
+### Requirement: Deterministic rule configuration
+The policy SHALL define the deterministic detection rules as custom regex rules, each with a stable identifier, a detection kind, a regex pattern, the target directions it applies to (inbound prompt, outbound output), and the mapped action (`allow`, `redact`, `block`, or `flag`). The `flag` action forwards the content and records the match as flagged for review: it maps to the `allow` verdict with a flagged audit annotation, while `allow`, `redact`, and `block` map directly to the corresponding gateway verdicts. The policy SHALL also select which built-in detector families are active (provider-shaped secrets, generic credential assignments, PII kinds, entropy scanning, encoding-aware re-scan) and the default action per detection kind. Every regex MUST compile and pass a bounded-complexity check at policy validation; a policy carrying an uncompilable or unbounded pattern MUST be rejected like any other schema violation.
+
+#### Scenario: Custom regex rule fires
+- **WHEN** content matches a custom regex rule defined in the policy
+- **THEN** the detection is reported with the rule's kind, the matched span, and the rule identifier, and the rule's mapped action is applied
+
+#### Scenario: Rule scoped to a direction
+- **WHEN** a custom rule targets outbound output only and the content is an inbound prompt
+- **THEN** the rule does not fire
+
+#### Scenario: Invalid regex rejected with the policy
+- **WHEN** a policy document contains a custom rule whose pattern does not compile or is unbounded
+- **THEN** the whole policy version is rejected with the validation errors and the last valid policy stays active
+
+### Requirement: Semantic check configuration
+The policy SHALL define the semantic checks as typed questions the decision model evaluates: `boolean` checks (for example prompt injection, jailbreak, data exfiltration request, malicious code), `choice` checks (a threat category over a fixed option set), and `score` checks (severity 0–1). Each check definition SHALL carry an identifier, its type, the wording and criteria the model evaluates, an activation toggle, and per-direction thresholds. The policy MAY override the wording and criteria of built-in checks. Verdict mapping SHALL be expressed as explicit threshold conditions over the check's answer: if the check's probability is at or above the block threshold the action is `block`; otherwise at or above the redact threshold `redact`; otherwise at or above the flag threshold `flag`; otherwise `allow`. Answers whose confidence falls below the configured floor MUST follow the profile's uncertainty verdict.
+
+#### Scenario: Check definition drives the question
+- **WHEN** the policy defines or enables a semantic check
+- **THEN** the decision model is asked exactly that check's typed question with its configured wording and criteria
 
 #### Scenario: Semantic check disabled
 - **WHEN** a semantic check is disabled in the policy
 - **THEN** that check is not evaluated and its thresholds cannot affect verdicts until it is re-enabled
+
+#### Scenario: Threshold conditions map answers to verdicts
+- **WHEN** a check returns probability 0.9 and the active profile sets its block threshold at 0.8
+- **THEN** the verdict is `block`, while the same answer under a profile whose block threshold is 0.95 is not `block`
+
+#### Scenario: Wording override replaces default criteria
+- **WHEN** a check definition overrides the wording and criteria of a built-in check
+- **THEN** the decision model evaluates the overridden wording and the answer is consumed under the same check identifier
+
+### Requirement: Signature control configuration
+The policy SHALL map signature-feed severity levels to default actions and MAY override the action per signature identifier. It SHALL also configure the suspect action and threshold for structural suspicion signals. A severity mapping change MUST apply to subsequent matches without restart. The signature feed itself is externally managed threat-intel data kept outside the policy document; the policy governs its enforcement — severity mapping, per-signature action overrides, and enable/disable toggles.
+
+#### Scenario: Severity mapping applied
+- **WHEN** the policy maps a signature severity level to `block` and a signature of that severity fires
+- **THEN** the interaction is blocked and the audit record cites the severity mapping in force
+
+#### Scenario: Per-signature override wins
+- **WHEN** the policy overrides the action for a specific signature identifier
+- **THEN** that override applies instead of the severity default when the signature fires

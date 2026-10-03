@@ -21,7 +21,8 @@ installed. Constraints that shape this design:
 
 - One enforcement pipeline shared by all interception seams, with verdicts decided in
   exactly one place (the policy engine).
-- Semantic tier swappable at the interface level: real Jev, hermetic mock, local fallback.
+- Semantic tier behind an interface with the real Jev decision model as the only
+  product-path implementation; test doubles live in the test harness only.
 - Deterministic tier must be able to decide the common case without any model call.
 - Every decision observable: audit, metrics, budget state.
 - Test suite deterministic and credential-free by default.
@@ -31,19 +32,18 @@ installed. Constraints that shape this design:
 - Training or fine-tuning any classifier; Jev is consumed as a hosted decision model.
 - Identity/authn provider integration; consumer keys are presented via header and mapped
   to policy subjects, not authenticated against an IdP.
-- A full human-review workflow UI; escalation is recorded and surfaced in the dashboard,
+- A full human-review workflow; escalations are recorded and surfaced in the dashboard,
   resolution is out of scope.
-- Replacing the app's chat/model stack; the layer wraps existing flows, it does not own
-  agent behavior.
+- Multi-provider model routing; the layer wraps one configured OpenAI-compatible model
+  connection.
 
 ## Decisions
 
 ### D1. In-process middleware pipeline inside TanStack Start, not a separate proxy service
 The control layer is a `src/control/` pipeline module invoked by three enforcement seams:
-the generic guard API (`src/routes/api.guard.ts`), a chat seam introduced by this change
-(a guarded chat endpoint plus demo page — the repo currently has no chat route), and the
-existing MCP route (`src/routes/mcp.ts`). A thin `guardInteraction()` wrapper exposes the
-SDK-style integration the challenge mentions. Alternative: standalone reverse proxy (extra deployable, harder for judges to
+the generic guard API (`src/routes/api.guard.ts`), a chat seam (the guarded chat demo page
+and its prompt/answer direction), and the tool-call surface (`src/routes/mcp.ts`). A thin `guardInteraction()`
+wrapper exposes the SDK-style integration the challenge mentions. Alternative: standalone reverse proxy (extra deployable, harder for judges to
 run) or SDK-only (trivially bypassed, no central reporting). Single-process keeps the
 "lightweight" requirement and reuses the existing Nitro deployment story.
 
@@ -51,27 +51,25 @@ run) or SDK-only (trivially bypassed, no central reporting). Single-process keep
 `@tanstack/ai@0.64.0` already exports `decide()`, `choice()`, `score()`, `boolean()`, and
 `BaseEvaluateAdapter` with the exact TypeSafe wire format (`choice`/`score`/`noul`).
 `@tanstack/ai-typesafe` (the official direct-TypeSafe adapter) supplies the transport;
-our `SemanticClassifier` interface wraps `decide()` and carries a `mockDecider`
-(fixed answers) and an optional `ollamaFallbackDecider` (small local model via
-`@tanstack/ai-ollama`, same question shapes, degraded quality). Because
-`@tanstack/ai-ollama` is a chat adapter with no evaluate activity, the fallback is a
-custom evaluate implementation: its free-form output is untrusted text, so answers are
-strictly validated into the wire shape (invalid output fails closed), and confidence —
-which a chat model cannot calibrate — is derived from distribution concentration
-(1 - normalized entropy). Alternatives: Vercel AI
+our `SemanticClassifier` interface wraps `decide()`; fixed-answer doubles are injected at
+the interface boundary only by the unit-test harness. Alternatives: Vercel AI
 Gateway (requires Vercel account/OIDC, conflicts with self-host constraint), raw fetch to
 the TypeSafe REST API (reimplements answer mapping and typing), AI SDK
 `experimental_evaluate` (second AI stack in a TanStack AI repo). Configuration injected at
 the module boundary so tests never touch the network.
 
-### D3. Question catalog in code, policy controls activation and thresholds
-Semantic question definitions (instructions, criteria) live in a typed TS catalog so
-answer handling keeps `decide()`'s compile-time unions. The policy file enables/disables
-questions, sets per-profile probability/confidence thresholds, and may override question
-wording for judge tunability. Rationale: judges mainly need to flip controls and
-thresholds (explicitly named in the challenge), while typed answers keep the verdict
-mapper safe. Alternative (fully declarative questions in policy) buys flexibility at the
-cost of type safety; retained as an override path.
+### D3. Typed checks: built-in catalog in code, policy-defined checks first-class
+Built-in semantic question definitions (instructions, criteria) live in a typed TS catalog
+so answer handling keeps `decide()`'s compile-time unions. The policy defines checks
+first-class: it enables/disables built-in checks, sets per-profile
+probability/confidence thresholds and explicit threshold-to-verdict conditions, overrides
+check wording/criteria, and may define custom typed checks (`boolean`/`choice`/`score`)
+consumed through the same answer contract — this is the "if statement" judges write: if
+`probability(check) ≥ blockThreshold` then `block`, else `redact`/`flag`/`allow`.
+Rationale: judges need to define what the model checks, not only flip toggles (explicitly
+named in the challenge), while built-in typed answers keep the verdict mapper safe.
+Custom checks trade compile-time narrowing for tunability; their answers flow through the
+generic typed-answer path, never free-form text.
 
 ### D4. Cheap-first pipeline order
 `shape validation -> model allowlist -> signature feed -> deterministic PII/secrets ->
@@ -91,25 +89,25 @@ Escalation = audit entry flagged for review, content not forwarded. This is the
 verdicts under different profiles, which is also what makes the threshold behavior
 unit-testable.
 
-### D6. Policy as versioned JSON with zod validation and file-watch hot reload
-One `policy.json` (plus sample variants `policy.permissive.json`, `policy.strict.json`)
+### D6. Policy as zod-validated JSON with file-watch hot reload
+One policy document (plus sample variants `policy.permissive.json`, `policy.strict.json`)
 validated by a zod schema shared with runtime checks. A watcher swaps an immutable policy
-snapshot atomically; each request reads one snapshot and stamps its version hash into the
-audit record. Invalid reloads keep the last valid policy and log the error. JSON over
-YAML: zod-native, no parser dependency, diff-friendly for judges.
+snapshot atomically; each request reads one snapshot and stamps its version hash (sha256 of
+canonical JSON) into the audit record. Invalid reloads keep the last valid policy and log
+the error. JSON over YAML: zod-native, no parser dependency, diff-friendly for judges.
 
 ### D7. SQLite (Drizzle) for audit, usage, and budget state
-Three new tables: `audit_events` (append-only, one row per governed interaction with
+Core tables: `audit_events` (append-only, one row per governed interaction with
 evidence JSON), `usage_records` (tokens, cost, latency per call, incl. Jev's own usage),
-and `budget_windows` (key, window, counters). Windows are computed by time bucket, so
-rollover needs no cron. Alternatives: Postgres (operational overhead), in-memory (loses
+and `budget_windows` (key, window, counters; windows are computed by time bucket, so
+rollover needs no cron). Alternatives: Postgres (operational overhead), in-memory (loses
 audit durability), files (no queryability for dashboards/exports).
 
-### D8. Hermetic test suite by default, live smoke suite opt-in
-Vitest drives the suite with `mockDecider` fixtures and temp SQLite files; every spec
-scenario maps to a test. A `test:live` script (gated on `TYPESAFE_API_KEY`) exercises the
-real Jev path. Judges run `bun run test` and get deterministic pass/fail with no network
-or keys — mandatory given the no-paid-services evaluation setup.
+### D8. Hermetic test suite by default, live smoke opt-in
+Vitest drives the suite with fixed-evidence doubles injected at the
+`SemanticClassifier` boundary and temp SQLite files; every spec scenario maps to a test,
+and it runs with no network or keys — mandatory given the no-paid-services evaluation
+setup. A `test:live` script (gated on `TYPESAFE_API_KEY`) exercises the real Jev path.
 
 ### D9. Budget enforcement: estimate pre-flight, settle post-flight
 Token estimates (chars/4 heuristic plus fixed overhead) reserve budget before forwarding;
@@ -125,19 +123,27 @@ itself is D4; this section specifies what each stage actually does.
 ### R1. Centralized policy engine
 
 - **Document shape**: `policy.json` = `{ version, defaults { profile, failureVerdict },
-  consumers { <key-hash>: { profile, overrides } }, controls { shape, allowlist, signatures,
-  redaction, budget, semantic }, observability }`. Zod schema is the single definition,
-  shared by runtime loader and tests; unknown keys rejected (`z.strictObject`).
+  consumers { <id>: { profile, overrides } }, controls { shape, allowlist, signatures,
+  detection, redaction, budget, semantic }, observability }` where `consumers` identifies
+  policy subjects.
+  `controls.detection` carries custom regex rules (`rules[]` with id, kind, pattern,
+  target directions, mapped action) plus built-in detector-family toggles and per-kind
+  default actions; `controls.semantic` carries the typed check definitions (`checks[]`
+  with id, type, wording/criteria, activation, per-direction thresholds). Zod
+  schema is the single definition, shared by runtime loader and tests; unknown keys
+  rejected (`z.strictObject`).
 - **Resolution order**: base document → profile overlay (permissive/standard/strict,
   deep-merge) → per-consumer / per-route override. Precedence is deterministic and
   documented in `docs/policy.md`; every merge result is itself schema-valid.
-- **Hot reload**: `fs.watch` + 250 ms debounce → parse → validate → compute
-  `policyVersion = sha256(canonical JSON)` → atomic snapshot swap (each request pins one
-  snapshot and stamps the version into its audit row). Invalid reload keeps last valid
-  policy and emits an audit error event. Startup with no valid policy refuses to run
-  (fail closed); the explicit `controls.enabled: false` kill-switch is the observe-only mode.
-- **Judge tunability**: thresholds, actions, allowlists, question activation/wording are all
-  policy fields; nothing security-relevant is hard-coded outside the pattern catalog.
+- **Versioned activation**: dashboard save or JSON import → validate → new version row
+  (`policyVersion = sha256(canonical JSON)`) → atomic snapshot swap (each request pins one
+  snapshot and stamps the version into its audit row). Invalid edits are rejected and the
+  last valid policy stays active; rollback re-activates a prior version row. Startup with
+  no valid policy refuses to run (fail closed); the explicit `controls.enabled: false`
+  kill-switch is the observe-only mode.
+- **Judge tunability**: thresholds, actions, allowlists, custom regex rules, and semantic
+  check definitions (type, wording, criteria) are all policy fields; nothing
+  security-relevant is hard-coded outside the built-in pattern and question catalogs.
 
 ### R2a. Deterministic (non-AI) controls — layered regex defense
 
@@ -147,7 +153,8 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **L0 Shape & limits**: envelope schema validation (seam, direction, content size ≤ 64 KB),
   control-char stripping, malformed → fail closed. Rejects garbage before any scanning.
 - **L1 Pattern catalog (regex)** — one pass, named catalog `{ id, kind, regex, validator? }`,
-  compiled once at load:
+  compiled once at load; policy-defined custom rules (`controls.detection.rules[]`) join
+  the same catalog and are regex-validated at policy load:
   - *Provider-shaped secrets (high precision)*: AWS `AKIA[0-9A-Z]{16}`,
     GitHub `gh[pousr]_[A-Za-z0-9]{36,}`, Slack `xox[baprs]-[0-9A-Za-z-]{10,}`,
     Google `AIza[0-9A-Za-z_-]{35}`, Stripe `(sk|pk)_(live|test)_…`, OpenAI-style
@@ -163,10 +170,11 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **L3 Entropy scan**: token runs (length ≥ 20, base64/hex-shaped) with Shannon entropy
   ≥ ~3.5–4.0 bits/char → generic-secret `suspect`. Catches unknown credential formats.
 - **L4 Encoding-aware re-scan**: bounded decode (base64/URL/hex, depth ≤ 2) then re-run L1
-  on decoded text. Catches light obfuscation of secrets/injection.
+  on decoded text, via the shared `src/control/text/` canonicalization module (also used by
+  the signature engine, R4). Catches light obfuscation of secrets/injection.
 - **Output contract**: `Detection { kind, span, detectorId, confidence, validated }`.
   Redaction maps kinds to typed placeholders (`[EMAIL]`, `[CARD_LAST4:4242]`, `[API_KEY]`),
-  per-kind action (allow/redact/block) comes from policy. Redacted text is the only input
+  per-kind action (allow/redact/block/flag) comes from policy. Redacted text is the only input
   later stages (semantic tier) may see (D4 + R2b egress rules).
 - **Implementation choice**: in-house typed pattern catalog (tables in code), no heavy
   dependency — judge-tunable, license-clean, fixture-tested. Per-pattern length cap and
@@ -176,8 +184,9 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 
 - **Question catalog** (one round trip, questions evaluated in parallel against one `state`):
   `noul` booleans (prompt injection? jailbreak? data exfiltration request? malicious code?),
-  `choice` (threat category, full distribution), `score` (severity 0–1). Catalog is typed TS;
-  policy toggles activation and may override wording/thresholds (D3).
+  `choice` (threat category, full distribution), `score` (severity 0–1). Catalog is typed TS
+  for the built-ins; policy toggles activation, overrides wording/thresholds, and may
+  define additional typed checks consumed through the same answer contract (D3).
 - **Egress minimization (no sensitive data to Jev)**: `state` is a constructed allowlist
   object (`{ role, direction, content, contentLength, flags[] }`) built in exactly one
   function from post-redaction text of the inspected span only — no history, system prompts,
@@ -186,8 +195,8 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **Egress gate**: deterministic detectors run once more over the exact serialized `state`
   before `decide()`; residual sensitive span → policy `residualSensitiveAction`
   (`block` default / `escalate` / `redact-and-send`).
-- **Routing**: `controls.semantic.egress.mode`: `minimized` (default) | `local-only`
-  (force Ollama/mock classifier for sensitive consumers/routes) | `off` (deterministic-only).
+- **Routing**: `controls.semantic.egress.mode`: `minimized` (default) | `off`
+  (deterministic-only for sensitive consumers/routes).
 - **Consumption**: confidence floors per action; below floor → profile's uncertainty verdict
   (default `escalate`). Timeout bounded, failure verdict fail-closed. Classification is
   advisory: only `applyPolicy()` maps answers to verdicts (D5).
@@ -205,20 +214,69 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **Burst control (optional refinement)**: token-bucket rate limit per consumer for runaway
   agent loops, complementing the windowed spend cap.
 
-### R4. Historical attack mitigation (signature feed)
+### R4. Historical attack mitigation (signature engine)
 
-- **Feed format** `signatures.json`: entries `{ id, name, description, pattern, kind, severity,
-  source, addedAt, action? }` with kinds `prompt_injection | jailbreak | tool_abuse |
-  unsafe_deserialization | supply_chain`. Loaded at startup and hot-reloaded like the policy;
-  per-entry validation, invalid entries skipped with an audit warning (one bad row never
-  kills the feed).
-- **Matching**: compiled pattern set applied to prompts, tool calls, and outputs (same L1
-  pass slot). Severity → default action, overridable in policy. Provenance (`id`, `source`)
-  lands in the audit row so false-positive tuning is observable.
-- **Seed entries**: classic injection markers ("ignore previous instructions", persona
-  overrides), tool-abuse shapes (`rm -rf /`, `curl … | bash`), unsafe deserialization
-  (`__reduce__`, `yaml.load(`, `pickle.loads`), supply-chain markers (install-script hooks,
-  known-malicious/typosquat package names).
+A signature engine detects known historical AI exploits — the L1 pass slot in D4 — designed
+to 2025/2026 practice: character-transform evasion defeats naive string matching (studies
+show 100% → 0% detection under base64/homoglyph/zero-width/leetspeak transforms), so
+matching runs over canonicalized and decoded forms, and MCP tool schemas are an inspection
+surface, not just message content.
+
+- **Feed format** `signatures.json`: entries
+  `{ id, name, description, pattern, kind, severity, source, references[], addedAt,
+  updatedAt, enabled, validator?, action? }` with kinds
+  `prompt_injection | jailbreak | tool_abuse | unsafe_deserialization | supply_chain |
+  mcp_tool_poisoning | exfiltration`. `references[]` carries external technique ids
+  (MITRE ATLAS / OWASP). Feed-level `version` hash computed over canonical content.
+  Plain JSON core (judge-editable, zod-validated); external sources are first-class
+  ingestion adapters normalizing into the internal schema with external ids retained in
+  `references[]` — MITRE ATLAS STIX 2.1 (`mitre-atlas/atlas-data`), OSV API
+  malicious-package reports (OpenSSF `MAL-`), and an offline corpus importer
+  (JailbreakBench artifacts, in-the-wild jailbreak prompts, the AISec 2026 prompt-injection
+  benchmark, tldrsec, PayloadsAllTheThings) — classified against OWASP LLM Top 10 2026,
+  Agentic AI Top 10 (2025), and MCP Top 10 (2025).
+- **Lifecycle**: loaded at startup and hot-reloaded like the policy (file watch + atomic
+  snapshot swap); per-entry validation, invalid entries skipped with an audit warning (one
+  bad row never kills the feed); deterministic dedup of repeated ids; `enabled: false`
+  tombstones signatures without losing history; optional detached-signature verification
+  (e.g. ed25519) for externally managed feeds — a feed failing verification is not loaded
+  and the previous feed stays in force. External sources are refreshed on a configurable
+  poll interval with conditional GET (ETag/Last-Modified) — enabled by default, with the
+  vendored snapshot and locally edited feed file as fallback and override inputs — so newly
+  published signatures
+  reach the running system without operator action; refresh failures keep the
+  last-known-good feed and record per-source last-success. A vendored feed snapshot keeps
+  the hermetic suite and offline demos fully functional.
+- **Inspection surfaces**: raw prompts, tool calls and arguments, tool schemas and
+  descriptions at MCP registration (poisoned tool descriptions are rejected at catalog
+  admission, before any call), and outbound model/tool output.
+- **Canonicalization + decode** (shared `src/control/text/` module, also feeding the
+  deterministic tier L4 re-scan): NFKC + casefold, zero-width and bidi-control stripping,
+  homoglyph folding, leetspeak folding, whitespace/punctuation collapsing; bounded layered
+  decode (base64/URL/hex/HTML entities, depth ≤ 2). Every match carries a span map back to
+  raw content so redaction and audit point at the original text, and the matched form
+  (raw/canonical/decoded) is recorded.
+- **Matching**: cheap literal prefilter (Aho-Corasick over canonical + decoded forms) →
+  per-signature compiled regex → optional validator stage → severity → policy-mapped
+  action (severity defaults with per-id overrides; `suspect` structural signals —
+  invisible-char density, payload splitting/fragmentation, high-entropy encoded blobs —
+  map to the policy's suspect action, default redact/escalate). Deterministic `block` is
+  final per D4; matched form never changes the verdict path, only the evidence.
+- **Match safety**: bounded pattern count per feed, per-pattern and per-content match
+  budget, ReDoS-safe compilation (linear-time `re2js` is the drop-in if backtracking shows
+  up); a pattern exhausting its budget is reported and skipped without stalling the
+  pipeline.
+- **Seed entries** (~30-50, each with positive + evasion-variant fixtures; rewritten from
+  public sources — OWASP prompt-injection cheat sheet, tldrsec/prompt-injection-defenses,
+  MCP attack matrix — so licensing stays clean): classic injection markers ("ignore
+  previous instructions", persona overrides), jailbreak templates (DAN-style, role-play
+  envelopes), tool-abuse shapes (`rm -rf /`, `curl … | bash`), unsafe deserialization
+  (`__reduce__`, `yaml.load(`, `pickle.loads`), supply-chain markers (install-script
+  hooks, known typosquat package names), MCP tool-poisoning markers (hidden instructions in
+  tool descriptions, schema fields carrying directives), and exfiltration patterns
+  (markdown-image/beacon URLs, encoded outbound blobs).
+- **Audit provenance**: signature id, source, feed version hash, matched form, raw-mapped
+  span land in the audit row so false-positive tuning and feed attribution are observable.
 
 ### R5. Security reporting and auditing
 
@@ -230,29 +288,29 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
   incrementally maintained counters if query cost matters.
 - **Export**: `/api/audit/export` as JSONL and CSV with filters (time range, verdict,
   control, consumer key) — parseable output for security teams.
+- **Dashboard surfaces**: posture overview and policy/feed versions in force.
 
 ### R6. Self-testing suite
 
-- **Hermetic by default** (D8): `mockDecider` fixtures, temp SQLite, no network/keys.
-- **Fixture matrix per control**: positive (allowed) and negative (blocked/redacted) cases;
-  every spec scenario maps to at least one test.
+- **Hermetic, credential-free** (D8): fixed-evidence doubles at the classifier boundary,
+  temp SQLite, no network/keys; positive (allowed) and negative (blocked/redacted) cases
+  for every control, every spec scenario mapped to at least one test.
 - **Cross-cutting tests**: profile divergence (same evidence, different verdicts), budget
-  exhaustion and reconciliation, policy/feed hot reload, seam tests (guard API, chat, MCP),
-  and the Jev leak suite (captured `decide()` body contains zero raw sensitive spans).
-- **Live smoke** (`test:live`, gated on `TYPESAFE_API_KEY`): real Jev path end to end.
+  exhaustion and reconciliation, policy/feed reload, seam tests (guard API, chat, tool
+  calls), and the Jev leak suite (captured `decide()` body contains zero raw
+  sensitive spans).
 
 ### Problem → controls map (challenge §1)
 
 | Problem | Controls |
 | --- | --- |
-| Over-broad access / impersonation | subject keys + model allowlist, tool-call governance in the MCP seam, per-consumer policy overrides |
+| Over-broad access / impersonation | model allowlist, per-consumer policy subjects and overrides |
 | Prompt injection & sensitive output | R2a L1–L4 inbound + output direction, R2b semantic questions, signature feed (R4) |
 | Runaway loops / resource blowup | budget windows + reservations (R3), optional token-bucket rate limit, per-stage latency telemetry (R5) |
 
 ## Risks / Trade-offs
 
-- [Jev is early-access; judges may lack a key] → The suite is hermetic (D8); the
-  `SemanticClassifier` interface keeps quality-degraded local fallback possible (D2);
+- [Jev is early-access; judges may lack a key] → The suite is credential-free (D8);
   docs state plainly which tier needs the key.
 - [Semantic misclassification / overconfidence] → Calibrated probabilities with per-action
   confidence floors (D5); deterministic tier is independent and final for its classes;
@@ -261,14 +319,15 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
   with questions in parallel; per-stage latency recorded in audit for the telemetry the
   challenge asks for. Budget a p95 target of ~100 ms deterministic / ~600 ms with semantic.
 - [Prompts leave the house when using hosted Jev] → Policy option to disable the semantic
-  tier per consumer or route sensitive traffic to the local fallback; state passed to Jev
-  is trimmed to the fields the decision needs.
+  tier per consumer (`off` egress mode, deterministic-only); state passed to Jev is
+  trimmed to the fields the decision needs.
 - [Policy hot-reload races] → Immutable snapshot per request with version stamping (D6).
-- [Fallback classifier answers are not calibrated or schema-native] → Strict validation
-  of fallback output into the wire shape (invalid → fail closed), derived confidence from
-  distribution concentration, and floors that treat derived confidence as suspect.
 - [Signature feed false positives] → Severity-keyed actions with policy overrides;
   provenance in audit (see spec) makes tuning observable.
+- [Signature evasion via character transforms or encoding] → Canonicalized + decoded
+  matching with raw-span mapping (R4); an evasion-variant fixture per transform proves
+  coverage, and the semantic tier remains behind signatures for anything obfuscated
+  enough to slip past deterministic matching.
 - [SQLite write contention under load] → WAL mode and single-process Nitro keep this
   within bounds for the expected demo scale; a real deployment would swap the audit sink
   interface to a remote store.
@@ -280,7 +339,8 @@ Additive, no breaking changes to existing routes. Steps:
 1. Dependencies and env: add `@tanstack/ai-typesafe`, `vitest`, `TYPESAFE_API_KEY`
    (optional), keep `DATABASE_URL`.
 2. Drizzle schema additions and migration (`bun run db:generate` / `db:migrate`).
-3. Ship `policy.json` + sample profiles + `signatures.json`; wire loader and hot reload.
+3. Ship seed `policy.json` + sample profiles + `signatures.json`; wire the loader and
+   hot reload.
 4. Land pipeline stages and seams behind a policy kill-switch (`controls.enabled: false`
    passes traffic through and audits only) so rollout can start in observe-only mode.
 5. Enable enforcement per seam; dashboard and export last.
