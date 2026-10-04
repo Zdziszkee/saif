@@ -1,6 +1,4 @@
-import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Link, Scripts } from "@tanstack/react-router";
-import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "#/components/theme-provider.tsx";
 import { ThemeSwitcher } from "#/components/theme-switcher.tsx";
@@ -105,17 +103,6 @@ function RootDocument({ children }: { children: ReactNode }) {
 						</header>
 						<div id="root-content">{children}</div>
 						<div id="portal-root" />
-						<TanStackDevtools
-							config={{
-								position: "bottom-right",
-							}}
-							plugins={[
-								{
-									name: "Tanstack Router",
-									render: <TanStackRouterDevtoolsPanel />,
-								},
-							]}
-						/>
 					</TooltipProvider>
 				</ThemeProvider>
 				<Scripts />
