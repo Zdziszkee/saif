@@ -12,15 +12,15 @@
     {
       "idx": 1,
       "version": "6",
-      "when": 1791079851935,
-      "tag": "0001_lethal_pyro",
+      "when": 1791087264708,
+      "tag": "0001_add-mcp-tool-calls",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "6",
-      "when": 1791084318606,
-      "tag": "0002_icy_lady_mastermind",
+      "when": 1791090670389,
+      "tag": "0002_light_scream",
       "breakpoints": true
     }
   ]

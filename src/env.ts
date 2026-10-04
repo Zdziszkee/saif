@@ -13,6 +13,19 @@ function serverProcessEnv(): Record<string, string | undefined> {
 	return holder.process?.env ?? {};
 }
 
+/**
+ * Live read of one server environment variable, bypassing the import-time
+ * snapshot parsed into `env`. The t3-env object is validated once at module
+ * load, so `withEnv` test helpers (and key rotation without a restart) cannot
+ * move it; callers that must observe the current value — the hub's
+ * key-absence path — read through here instead. Empty counts as absent, matching
+ * `emptyStringAsUndefined`.
+ */
+export function liveServerEnv(name: string): string | undefined {
+	const raw = serverProcessEnv()[name];
+	return raw === "" ? undefined : raw;
+}
+
 export const env = createEnv({
 	client: {
 		VITE_APP_TITLE: z.string().min(1).optional(),

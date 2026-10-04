@@ -261,7 +261,6 @@ function decisionTimestamp(deps: GatewayTurnDeps): string {
 }
 
 function writeDecisionLine(input: DecisionLogInput): void {
-	// biome-ignore lint/correctness/noProcessGlobal: gateway observability writes one decision line to stdout
 	process.stdout.write(`${formatDecisionLine(input)}\n`);
 }
 

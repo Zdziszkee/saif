@@ -11,7 +11,7 @@ import { Database } from "bun:sqlite";
 import { drizzle } from "drizzle-orm/bun-sqlite";
 import type { GatewayStoreWithSpendDetail } from "#/db/repositories.ts";
 import { createGatewayStore } from "#/db/repositories.ts";
-import { auditEvents, usageRecords } from "#/db/schema.ts";
+import { auditEvents, mcpToolCalls, usageRecords } from "#/db/schema.ts";
 
 export const GATEWAY_TABLES_DDL = `
 	CREATE TABLE audit_events (
@@ -51,5 +51,11 @@ const IN_MEMORY_SQLITE = ":memory:";
 export function setupIsolatedGatewayStore(): GatewayStoreWithSpendDetail {
 	const sqlite = new Database(IN_MEMORY_SQLITE);
 	sqlite.exec(GATEWAY_TABLES_DDL);
-	return createGatewayStore(drizzle(sqlite, { schema: { auditEvents, usageRecords } }));
+	// Full production schema shape: `createGatewayStore` takes `AppDatabase`
+	// (`typeof db`), so the table map must match exactly even though the
+	// gateway store never queries `mcpToolCalls`. No DDL needed for it —
+	// drizzle only touches tables a query references.
+	return createGatewayStore(
+		drizzle(sqlite, { schema: { auditEvents, mcpToolCalls, usageRecords } }),
+	);
 }
