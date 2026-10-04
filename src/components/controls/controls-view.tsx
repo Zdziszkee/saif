@@ -1,6 +1,7 @@
 import { AllowlistEditor } from "#/components/controls/allowlist-editor.tsx";
 import { DetectionEditor } from "#/components/controls/detection-editor.tsx";
 import { GeneralForm } from "#/components/controls/general-form.tsx";
+import { JevChecksEditor } from "#/components/controls/jev-checks-editor.tsx";
 import { ProfilesEditor } from "#/components/controls/profiles-editor.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import { Button } from "#/components/ui/button.tsx";
@@ -13,6 +14,7 @@ import {
 } from "#/components/ui/card.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs.tsx";
 import type { Policy } from "#/control/policy/schema.ts";
+import type { SemanticConfig } from "#/control/semantic/config.ts";
 
 export interface SaveIssue {
 	message: string;
@@ -25,9 +27,9 @@ export function PageHeader() {
 			<Badge className="w-fit">Policy editor</Badge>
 			<h1 className="text-3xl font-bold tracking-tight">Controls</h1>
 			<p className="text-muted-foreground text-sm">
-				Edit the safe policy subsets — general switches, detection rules, the model allowlist, and
-				strictness profiles. Saving sends the full document with its base version; stale writers are
-				rejected so concurrent edits never silently overwrite each other.
+				Edit the safe policy subsets — general switches, detection rules, JEV decision-model checks,
+				the model allowlist, and strictness profiles. Saving sends the full document with its base
+				version; stale writers are rejected so concurrent edits never silently overwrite each other.
 			</p>
 		</header>
 	);
@@ -117,16 +119,21 @@ export function IssuesCard({ issues }: { issues: readonly SaveIssue[] }) {
 
 export function EditorTabs({
 	draft,
+	jevDraft,
 	onDraftChange,
+	onJevChange,
 }: {
 	draft: Policy;
+	jevDraft?: SemanticConfig | undefined;
 	onDraftChange: (next: Policy) => void;
+	onJevChange?: ((next: SemanticConfig) => void) | undefined;
 }) {
 	return (
 		<Tabs defaultValue="general">
 			<TabsList>
 				<TabsTrigger value="allowlist">Allowlist</TabsTrigger>
 				<TabsTrigger value="detection">Detection</TabsTrigger>
+				<TabsTrigger value="jev">JEV checks</TabsTrigger>
 				<TabsTrigger value="general">General</TabsTrigger>
 				<TabsTrigger value="profiles">Profiles</TabsTrigger>
 			</TabsList>
@@ -135,6 +142,13 @@ export function EditorTabs({
 			</TabsContent>
 			<TabsContent value="detection">
 				<DetectionEditor draft={draft} onChange={onDraftChange} />
+			</TabsContent>
+			<TabsContent value="jev">
+				{jevDraft === undefined || onJevChange === undefined ? (
+					<div className="text-muted-foreground text-sm">JEV checks unavailable.</div>
+				) : (
+					<JevChecksEditor draft={jevDraft} onChange={onJevChange} />
+				)}
 			</TabsContent>
 			<TabsContent value="general">
 				<GeneralForm draft={draft} onChange={onDraftChange} />

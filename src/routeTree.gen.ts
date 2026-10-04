@@ -18,6 +18,7 @@ import { Route as ApiAuditRouteImport } from './routes/api.audit'
 import { Route as ApiChatCompletionsRouteImport } from './routes/api.chat-completions'
 import { Route as ApiDecisionsRouteImport } from './routes/api.decisions'
 import { Route as ApiGuardRouteImport } from './routes/api.guard'
+import { Route as ApiJevRouteImport } from './routes/api.jev'
 import { Route as ApiPolicyRouteImport } from './routes/api.policy'
 import { Route as ApiStatusRouteImport } from './routes/api.status'
 import { Route as ApiAuditExportRouteImport } from './routes/api.audit.export'
@@ -68,6 +69,11 @@ const ApiGuardRoute = ApiGuardRouteImport.update({
   path: '/api/guard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiJevRoute = ApiJevRouteImport.update({
+  id: '/api/jev',
+  path: '/api/jev',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPolicyRoute = ApiPolicyRouteImport.update({
   id: '/api/policy',
   path: '/api/policy',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/api/chat-completions': typeof ApiChatCompletionsRoute
   '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/jev': typeof ApiJevRoute
   '/api/policy': typeof ApiPolicyRoute
   '/api/status': typeof ApiStatusRoute
   '/api/audit/export': typeof ApiAuditExportRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/api/chat-completions': typeof ApiChatCompletionsRoute
   '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/jev': typeof ApiJevRoute
   '/api/policy': typeof ApiPolicyRoute
   '/api/status': typeof ApiStatusRoute
   '/api/audit/export': typeof ApiAuditExportRoute
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/api/chat-completions': typeof ApiChatCompletionsRoute
   '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/jev': typeof ApiJevRoute
   '/api/policy': typeof ApiPolicyRoute
   '/api/status': typeof ApiStatusRoute
   '/api/audit/export': typeof ApiAuditExportRoute
@@ -147,6 +156,7 @@ export interface FileRouteTypes {
     | '/api/chat-completions'
     | '/api/decisions'
     | '/api/guard'
+    | '/api/jev'
     | '/api/policy'
     | '/api/status'
     | '/api/audit/export'
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/api/chat-completions'
     | '/api/decisions'
     | '/api/guard'
+    | '/api/jev'
     | '/api/policy'
     | '/api/status'
     | '/api/audit/export'
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/api/chat-completions'
     | '/api/decisions'
     | '/api/guard'
+    | '/api/jev'
     | '/api/policy'
     | '/api/status'
     | '/api/audit/export'
@@ -193,6 +205,7 @@ export interface RootRouteChildren {
   ApiChatCompletionsRoute: typeof ApiChatCompletionsRoute
   ApiDecisionsRoute: typeof ApiDecisionsRoute
   ApiGuardRoute: typeof ApiGuardRoute
+  ApiJevRoute: typeof ApiJevRoute
   ApiPolicyRoute: typeof ApiPolicyRoute
   ApiStatusRoute: typeof ApiStatusRoute
   V1ChatCompletionsRoute: typeof V1ChatCompletionsRoute
@@ -263,6 +276,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGuardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/jev': {
+      id: '/api/jev'
+      path: '/api/jev'
+      fullPath: '/api/jev'
+      preLoaderRoute: typeof ApiJevRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/policy': {
       id: '/api/policy'
       path: '/api/policy'
@@ -316,6 +336,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatCompletionsRoute: ApiChatCompletionsRoute,
   ApiDecisionsRoute: ApiDecisionsRoute,
   ApiGuardRoute: ApiGuardRoute,
+  ApiJevRoute: ApiJevRoute,
   ApiPolicyRoute: ApiPolicyRoute,
   ApiStatusRoute: ApiStatusRoute,
   V1ChatCompletionsRoute: V1ChatCompletionsRoute,
