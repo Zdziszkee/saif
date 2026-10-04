@@ -1,0 +1,20 @@
+PLUGGING IT INTO REAL AGENT SETUPS
+=====================================
+
+The model gateway speaks the standard chat-completions protocol, so
+any agent tool that lets you override the provider address works with
+zero code changes — we proved it with opencode:
+
+  provider address → http://your-server:3000/v1
+  two headers per caller → who you are, which team you're on
+
+That's the whole integration. Blocked prompts come back as normal
+API errors before any upstream call; scrubbed ones arrive cleaned.
+Tool-using agents go through the governed tool hub instead: same
+pipeline, same verdicts, plus per-team tool allowlists and a human
+confirm step for dangerous tools.
+
+Running it: install, start, set three optional keys (judge key, model
+address, model key). With no keys it still guards with patterns and
+threat intel and tells you the judge is off. Usage is metered per
+user, and the audit trail exports for whatever SIEM you already have.

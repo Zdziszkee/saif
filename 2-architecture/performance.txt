@@ -1,0 +1,18 @@
+HOW FAST IT IS (REAL MEASUREMENTS)
+===================================
+
+We timed the real pipeline on a laptop (Bun, 60 runs each):
+
+- Known secret, blocked by patterns: ~0.4 ms average. The AI judge
+  was never called.
+- Known jailbreak, blocked by threat intel: ~0.3 ms. Judge skipped.
+- Harmless message, full pipeline: ~0.2 ms of pipeline work, plus one
+  AI-judge call: ~51 ms over local network (a real hosted judge takes
+  hundreds of milliseconds to low seconds).
+
+The takeaway: everything except the AI call takes less than a
+millisecond. So the design avoids that call whenever the cheap passes
+already have an answer — blocked junk costs ~0.3 ms and never touches
+the network, and normal traffic pays exactly one judge round trip.
+
+Reproduce it yourself: `bun run test:integration:mock`.
