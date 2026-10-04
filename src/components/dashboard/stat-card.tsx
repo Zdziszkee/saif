@@ -23,9 +23,7 @@ export function StatCard({
 			</CardHeader>
 			<CardContent>
 				<div className="font-semibold tabular-nums text-2xl">{value}</div>
-				{hint === undefined ? null : (
-					<p className="text-muted-foreground text-xs">{hint}</p>
-				)}
+				{hint === undefined ? null : <p className="text-muted-foreground text-xs">{hint}</p>}
 			</CardContent>
 		</Card>
 	);

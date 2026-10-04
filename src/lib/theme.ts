@@ -61,10 +61,10 @@ export function parseStoredTheme(raw: string | null): ThemeChoice {
 		if (typeof parsed !== "object" || parsed === null) {
 			return DEFAULT_THEME;
 		}
-		const record = parsed as Record<string, unknown>;
+		const { mode, palette } = parsed as Record<string, unknown>;
 		return {
-			mode: isThemeMode(record["mode"]) ? record["mode"] : DEFAULT_THEME.mode,
-			palette: isPaletteId(record["palette"]) ? record["palette"] : DEFAULT_THEME.palette,
+			mode: isThemeMode(mode) ? mode : DEFAULT_THEME.mode,
+			palette: isPaletteId(palette) ? palette : DEFAULT_THEME.palette,
 		};
 	} catch {
 		return DEFAULT_THEME;
@@ -72,22 +72,25 @@ export function parseStoredTheme(raw: string | null): ThemeChoice {
 }
 
 /** Resolve `system` against the OS preference. */
-export function resolveMode(mode: ThemeMode, systemPrefersDark: boolean): "dark" | "light" {
+export function resolveMode(mode: ThemeMode, prefersDark: boolean): "dark" | "light" {
 	if (mode === "system") {
-		return systemPrefersDark ? "dark" : "light";
+		return prefersDark ? "dark" : "light";
 	}
 	return mode;
 }
 
 export function readStoredTheme(): ThemeChoice {
-	if (typeof window === "undefined") {
+	if (typeof globalThis.localStorage === "undefined") {
 		return DEFAULT_THEME;
 	}
-	return parseStoredTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
+	return parseStoredTheme(globalThis.localStorage.getItem(THEME_STORAGE_KEY));
 }
 
-function systemPrefersDark(): boolean {
-	return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+function osPrefersDark(): boolean {
+	return (
+		typeof globalThis.matchMedia === "function" &&
+		globalThis.matchMedia("(prefers-color-scheme: dark)").matches
+	);
 }
 
 /** Apply a theme choice to the document root (class + palette data attribute). */
@@ -96,17 +99,17 @@ export function applyTheme(choice: ThemeChoice): void {
 		return;
 	}
 	const root = document.documentElement;
-	const resolved = resolveMode(choice.mode, systemPrefersDark());
+	const resolved = resolveMode(choice.mode, osPrefersDark());
 	root.classList.remove("dark", "light");
 	root.classList.add(resolved);
-	root.dataset["palette"] = choice.palette;
+	root.setAttribute("data-palette", choice.palette);
 }
 
 export function storeTheme(choice: ThemeChoice): void {
-	if (typeof window === "undefined") {
+	if (typeof globalThis.localStorage === "undefined") {
 		return;
 	}
-	window.localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(choice));
+	globalThis.localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(choice));
 }
 
 export interface ThemeContextValue {

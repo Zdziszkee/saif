@@ -1,11 +1,27 @@
 /**
- * Dashboard data assembly: merges the live policy projection with the seeded
- * metrics and computes the pooled aggregate plus per-consumer selection.
- * Pure so both the server function and the render tests share one path.
+ * Dashboard data assembly: merges the live policy projection, the real audit
+ * seam, and the seeded metrics, then computes the pooled aggregate plus
+ * per-consumer selection. Pure so both the server function and the render
+ * tests share one path.
+ *
+ * Real vs fixture at this seam:
+ * - Verdict counts, redaction counts, and the escalation queue come from the
+ *   audit sink (`#/control/audit.ts`) for every consumer with recorded
+ *   decisions, and fall back to the seeded fixture values otherwise (the
+ *   spec's verify line is "renders with seeded data").
+ * - Threat breakdown (by control/category), budget usage vs limits, and
+ *   latency percentiles stay fixture-fed until their queries land (tasks
+ *   10.2/7.x) — see `fixture.ts`.
  */
 
+import { type AuditEvent, filterAuditEvents, isAuditDecision } from "#/control/audit.ts";
 import type { PolicySnapshot } from "#/control/policy/loader.ts";
-import { FIXTURE_ESCALATIONS, FIXTURE_FEED_VERSION, fixtureConsumerMetrics } from "#/dashboard/fixture.ts";
+import type { Direction, Verdict } from "#/control/types.ts";
+import {
+	FIXTURE_ESCALATIONS,
+	FIXTURE_FEED_VERSION,
+	fixtureConsumerMetrics,
+} from "#/dashboard/fixture.ts";
 import { summarizePolicy } from "#/dashboard/policy-view.ts";
 import {
 	ALL_CONSUMERS,
@@ -13,15 +29,25 @@ import {
 	type BudgetSeriesPoint,
 	type ConsumerMetrics,
 	type DashboardData,
+	type EscalationRow,
 	type LatencyPercentiles,
 	type ThreatBreakdownRow,
 } from "#/dashboard/types.ts";
-import type { Verdict } from "#/control/types.ts";
 
 const VERDICTS: readonly Verdict[] = ["allow", "redact", "block", "escalate"];
 
+const ESCALATE_VERDICT: Verdict = "escalate";
+const ESCALATION_ID_PREFIX = "esc";
+const DEFAULT_ESCALATION_DIRECTION: Direction = "inbound";
+const DEFAULT_ESCALATION_REASON = "escalate verdict recorded";
+const DEFAULT_ESCALATION_SEAM = "unknown";
+
+function emptyVerdicts(): Record<Verdict, number> {
+	return { allow: 0, block: 0, escalate: 0, redact: 0 };
+}
+
 function sumVerdicts(parts: readonly ConsumerMetrics[]): Record<Verdict, number> {
-	const totals = { allow: 0, block: 0, escalate: 0, redact: 0 } as Record<Verdict, number>;
+	const totals = emptyVerdicts();
 	for (const part of parts) {
 		for (const verdict of VERDICTS) {
 			totals[verdict] += part.verdicts[verdict];
@@ -78,6 +104,61 @@ function worstLatency(parts: readonly ConsumerMetrics[]): LatencyPercentiles {
 	return latency;
 }
 
+/** Decisions recorded for one consumer key (`subject === consumerKey`). */
+function consumerDecisions(
+	events: readonly AuditEvent[],
+	consumerKey: string,
+): readonly AuditEvent[] {
+	return filterAuditEvents(events, { subject: consumerKey }).filter(isAuditDecision);
+}
+
+function verdictsFromAudit(decisions: readonly AuditEvent[]): Record<Verdict, number> {
+	const counts = emptyVerdicts();
+	for (const event of decisions) {
+		if (event.verdict !== undefined) {
+			counts[event.verdict] += 1;
+		}
+	}
+	return counts;
+}
+
+function redactionsFromAudit(decisions: readonly AuditEvent[]): number {
+	let total = 0;
+	for (const event of decisions) {
+		total += event.redactionCount ?? 0;
+	}
+	return total;
+}
+
+/** Map one escalate decision onto the escalation queue row shape. */
+function escalationFromDecision(consumerKey: string, event: AuditEvent): EscalationRow {
+	return {
+		consumerKey,
+		direction: DEFAULT_ESCALATION_DIRECTION,
+		id: event.interactionId ?? `${ESCALATION_ID_PREFIX}-${consumerKey}-${event.timestamp}`,
+		reason: event.detail ?? DEFAULT_ESCALATION_REASON,
+		seam: event.seam ?? DEFAULT_ESCALATION_SEAM,
+		subject: event.subject ?? consumerKey,
+		timestamp: event.timestamp,
+	};
+}
+
+function escalationsFromAudit(
+	decisions: ReadonlyMap<string, readonly AuditEvent[]>,
+): EscalationRow[] {
+	const rows: EscalationRow[] = [];
+	for (const [consumerKey, events] of decisions) {
+		for (const event of filterAuditEvents(events, { verdict: ESCALATE_VERDICT })) {
+			rows.push(escalationFromDecision(consumerKey, event));
+		}
+	}
+	return rows;
+}
+
+function newestFirst(left: EscalationRow, right: EscalationRow): number {
+	return right.timestamp.localeCompare(left.timestamp);
+}
+
 /** Pool per-consumer metrics into the aggregate view. */
 export function aggregateMetrics(parts: readonly ConsumerMetrics[]): ConsumerMetrics {
 	return {
@@ -90,17 +171,43 @@ export function aggregateMetrics(parts: readonly ConsumerMetrics[]): ConsumerMet
 	};
 }
 
-/** Build the complete dashboard payload from a policy snapshot. */
-export function buildDashboardData(snapshot: PolicySnapshot, generatedAt: string): DashboardData {
+/**
+ * Build the complete dashboard payload from a policy snapshot. Audit events
+ * supply the real verdict counts, redaction counts, and escalation queue for
+ * consumers with recorded decisions; every other consumer (and seam) falls
+ * back to the seeded fixture so the dashboard always renders.
+ */
+export function buildDashboardData(
+	snapshot: PolicySnapshot,
+	generatedAt: string,
+	auditEvents: readonly AuditEvent[] = [],
+): DashboardData {
 	const policyView = summarizePolicy(snapshot, FIXTURE_FEED_VERSION);
 	const consumerKeys = Object.keys(policyView.policy.consumers).sort();
 	const byConsumer = fixtureConsumerMetrics(consumerKeys);
+	const decisions = new Map<string, readonly AuditEvent[]>();
+	for (const key of consumerKeys) {
+		const derived = consumerDecisions(auditEvents, key);
+		if (derived.length === 0) {
+			continue;
+		}
+		decisions.set(key, derived);
+		const metrics = byConsumer[key];
+		if (metrics !== undefined) {
+			metrics.verdicts = verdictsFromAudit(derived);
+			metrics.redactions = redactionsFromAudit(derived);
+		}
+	}
 	const parts = consumerKeys.map((key) => byConsumer[key]).filter((part) => part !== undefined);
+	const escalations = [
+		...escalationsFromAudit(decisions),
+		...FIXTURE_ESCALATIONS.filter((row) => !decisions.has(row.consumerKey)),
+	].sort(newestFirst);
 	return {
 		aggregate: aggregateMetrics(parts),
 		byConsumer,
 		consumerKeys,
-		escalations: FIXTURE_ESCALATIONS,
+		escalations,
 		feedVersion: policyView.feedVersion,
 		generatedAt,
 		policy: policyView.policy,

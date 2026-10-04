@@ -1,9 +1,13 @@
 /**
  * Seeded dashboard metrics (task 11.1: "renders with seeded data").
  *
- * These stand in for the metrics/audit queries (tasks 10.2-10.3) until they
- * land; `data.ts` merges them with the live policy projection. Values are
- * deterministic so dashboard render tests can assert against them.
+ * Verdict counts, redaction counts, and the escalation queue below are
+ * fallbacks only: `data.ts` overrides them from the real audit sink whenever
+ * a consumer has recorded decisions. The rest stays fixture-fed until its
+ * queries land (tasks 10.2/7.x): threat breakdown and latency percentiles
+ * wait on the metrics queries (10.2), budget rules and the cost/token series
+ * wait on the budget instrumentation queries (7.x). Values are deterministic
+ * so dashboard render tests can assert against them.
  */
 
 import type {
@@ -17,18 +21,22 @@ import type {
 export const FIXTURE_FEED_VERSION = "signatures.fixture.2026.10.03-3";
 
 const HOURS = 12;
-const SERIES_START_MS = Date.UTC(2026, 9, 3, 12, 0, 0);
+const SERIES_START_MS = Date.parse("2026-10-03T12:00:00.000Z");
 const HOUR_MS = 3_600_000;
+const WAVE_SPAN = 5;
+const COST_PER_WAVE = 0.35;
+const CENTS_DIGITS = 2;
+const TOKENS_PER_WAVE = 1800;
 
 /** Deterministic hourly cost/token series for one consumer. */
 function budgetSeries(consumerIndex: number): BudgetSeriesPoint[] {
 	return Array.from({ length: HOURS }, (_, hour) => {
 		const at = new Date(SERIES_START_MS + hour * HOUR_MS).toISOString();
-		const wave = ((hour + consumerIndex) % 5) + 1;
+		const wave = ((hour + consumerIndex) % WAVE_SPAN) + 1;
 		return {
 			at,
-			costUsd: Number((wave * (consumerIndex + 1) * 0.35).toFixed(2)),
-			tokens: wave * (consumerIndex + 1) * 1800,
+			costUsd: Number((wave * (consumerIndex + 1) * COST_PER_WAVE).toFixed(CENTS_DIGITS)),
+			tokens: wave * (consumerIndex + 1) * TOKENS_PER_WAVE,
 		};
 	});
 }
@@ -45,12 +53,14 @@ const FIXTURE_REDACTIONS: Readonly<Record<string, number>> = {
 	"deploy-bot": 88,
 };
 
+/** Fixture-backed seam (task 10.2): latency queries pending. */
 const FIXTURE_LATENCY: Readonly<Record<string, ConsumerMetrics["latency"]>> = {
 	alice: { p50: 38, p95: 121, p99: 260 },
 	analyst: { p50: 44, p95: 140, p99: 305 },
 	"deploy-bot": { p50: 31, p95: 96, p99: 210 },
 };
 
+/** Fixture-backed seam (task 10.2): threat breakdown queries pending. */
 const FIXTURE_THREATS: Readonly<Record<string, ThreatBreakdownRow[]>> = {
 	alice: [
 		{ blocked: 3, category: "pii.email", controlId: "detection", flagged: 1, redacted: 19 },
@@ -96,10 +106,25 @@ const FIXTURE_THREATS: Readonly<Record<string, ThreatBreakdownRow[]>> = {
 	],
 };
 
+/** Fixture-backed seam (task 7.x): budget usage queries pending. */
 const FIXTURE_BUDGET: Readonly<Record<string, BudgetRuleView[]>> = {
 	alice: [
-		{ consumerKey: "alice", limit: 250000, metric: "tokens", modelScope: "*", period: "day", used: 148200 },
-		{ consumerKey: "alice", limit: 20, metric: "costUsd", modelScope: "*", period: "month", used: 11.4 },
+		{
+			consumerKey: "alice",
+			limit: 250_000,
+			metric: "tokens",
+			modelScope: "*",
+			period: "day",
+			used: 148_200,
+		},
+		{
+			consumerKey: "alice",
+			limit: 20,
+			metric: "costUsd",
+			modelScope: "*",
+			period: "month",
+			used: 11.4,
+		},
 	],
 	analyst: [
 		{
@@ -114,11 +139,11 @@ const FIXTURE_BUDGET: Readonly<Record<string, BudgetRuleView[]>> = {
 	"deploy-bot": [
 		{
 			consumerKey: "deploy-bot",
-			limit: 600000,
+			limit: 600_000,
 			metric: "computeTimeMs",
 			modelScope: "*",
 			period: "day",
-			used: 412000,
+			used: 412_000,
 		},
 	],
 };
@@ -163,7 +188,9 @@ export const FIXTURE_ESCALATIONS: readonly EscalationRow[] = [
 ];
 
 /** Seeded per-consumer metrics, keyed exactly like the policy consumers. */
-export function fixtureConsumerMetrics(consumerKeys: readonly string[]): Record<string, ConsumerMetrics> {
+export function fixtureConsumerMetrics(
+	consumerKeys: readonly string[],
+): Record<string, ConsumerMetrics> {
 	const result: Record<string, ConsumerMetrics> = {};
 	consumerKeys.forEach((key, index) => {
 		result[key] = {

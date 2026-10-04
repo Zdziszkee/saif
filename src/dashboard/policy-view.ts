@@ -4,6 +4,7 @@
  * Pure so the mapping is unit-testable against the sample policy documents.
  */
 
+import type { PolicySnapshot } from "#/control/policy/loader.ts";
 import type { Policy } from "#/control/policy/schema.ts";
 import { SEMANTIC_DEFAULTS } from "#/control/semantic/config.ts";
 import type {
@@ -12,7 +13,6 @@ import type {
 	ProfileSummary,
 	ThresholdControl,
 } from "#/dashboard/types.ts";
-import type { PolicySnapshot } from "#/control/policy/loader.ts";
 
 const PROFILE_NAMES = ["permissive", "standard", "strict"] as const;
 
@@ -73,10 +73,13 @@ function profileRows(policy: Policy): ProfileSummary[] {
 	return PROFILE_NAMES.map((name) => {
 		const profile = policy.profiles[name];
 		const blockThresholds = Object.fromEntries(
-			THRESHOLD_CONTROLS.map((control) => [control, {
-				inbound: profile.thresholds[control].inbound.block,
-				outbound: profile.thresholds[control].outbound.block,
-			}]),
+			THRESHOLD_CONTROLS.map((control) => [
+				control,
+				{
+					inbound: profile.thresholds[control].inbound.block,
+					outbound: profile.thresholds[control].outbound.block,
+				},
+			]),
 		) as ProfileSummary["blockThresholds"];
 		return {
 			blockThresholds,
@@ -87,7 +90,10 @@ function profileRows(policy: Policy): ProfileSummary[] {
 }
 
 /** Project a validated policy snapshot into the dashboard's policy view. */
-export function summarizePolicy(snapshot: PolicySnapshot, feedVersion: string): {
+export function summarizePolicy(
+	snapshot: PolicySnapshot,
+	feedVersion: string,
+): {
 	feedVersion: string;
 	policy: import("#/dashboard/types.ts").PolicyView;
 	policyVersion: string;

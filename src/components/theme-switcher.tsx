@@ -1,4 +1,11 @@
-import { CheckIcon, ChevronDownIcon, MonitorIcon, MoonIcon, PaletteIcon, SunIcon } from "lucide-react";
+import {
+	CheckIcon,
+	ChevronDownIcon,
+	MonitorIcon,
+	MoonIcon,
+	PaletteIcon,
+	SunIcon,
+} from "lucide-react";
 import { Button } from "#/components/ui/button.tsx";
 import {
 	DropdownMenu,
@@ -8,13 +15,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu.tsx";
-import {
-	MODE_LABELS,
-	PALETTES,
-	type PaletteId,
-	useTheme,
-	type ThemeMode,
-} from "#/lib/theme.ts";
+import { MODE_LABELS, PALETTES, type PaletteId, type ThemeMode, useTheme } from "#/lib/theme.ts";
 
 const MODE_ICONS: Readonly<Record<ThemeMode, typeof SunIcon>> = {
 	dark: MoonIcon,
@@ -23,8 +24,7 @@ const MODE_ICONS: Readonly<Record<ThemeMode, typeof SunIcon>> = {
 };
 
 const MODE_ORDER: readonly ThemeMode[] = ["light", "dark", "system"];
-const PALETTE_SWATCH_CLASS =
-	"size-2.5 shrink-0 rounded-full ring-1 ring-border";
+const PALETTE_SWATCH_CLASS = "size-2.5 shrink-0 rounded-full ring-1 ring-border";
 
 /**
  * Theme switcher over the shadcn tokens: light/dark/system mode plus the
@@ -36,7 +36,7 @@ export function ThemeSwitcher() {
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild={true}>
-				<Button variant="outline" size="sm">
+				<Button size="sm" variant="outline">
 					<PaletteIcon />
 					<span className="hidden sm:inline">{MODE_LABELS[choice.mode]}</span>
 					<ChevronDownIcon />
@@ -62,9 +62,9 @@ export function ThemeSwitcher() {
 						onSelect={() => setChoice({ ...choice, palette: palette.id as PaletteId })}
 					>
 						<span
+							aria-hidden={true}
 							className={PALETTE_SWATCH_CLASS}
 							style={{ backgroundColor: palette.swatch }}
-							aria-hidden={true}
 						/>
 						<span className="flex-1">{palette.label}</span>
 						{choice.palette === palette.id ? <CheckIcon /> : null}

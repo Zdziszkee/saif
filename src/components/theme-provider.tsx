@@ -3,9 +3,9 @@ import {
 	applyTheme,
 	DEFAULT_THEME,
 	readStoredTheme,
-	ThemeContext,
 	storeTheme,
 	type ThemeChoice,
+	ThemeContext,
 } from "#/lib/theme.ts";
 
 /**
@@ -24,7 +24,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 	}, []);
 
 	useEffect(() => {
-		const media = window.matchMedia("(prefers-color-scheme: dark)");
+		const media = globalThis.matchMedia("(prefers-color-scheme: dark)");
 		const onChange = () => {
 			setChoiceState((current) => {
 				applyTheme(current);
