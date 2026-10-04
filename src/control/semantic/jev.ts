@@ -1,5 +1,5 @@
 import { createTypesafeDecider, getTypesafeApiKeyFromEnv } from "@tanstack/ai-typesafe";
-import { env } from "#/env.ts";
+import { liveServerEnv } from "#/env.ts";
 import type { SemanticClassifierOptions } from "./classifier.ts";
 import { createSemanticClassifier } from "./classifier.ts";
 import { SEMANTIC_DEFAULTS } from "./config.ts";
@@ -18,9 +18,9 @@ const TRANSPORT_TIMEOUT_GRACE_MS = 500;
 
 export interface JevClassifierOptions extends Omit<SemanticClassifierOptions, "name"> {
 	/**
-	 * TypeSafe API key. When omitted it is read from `TYPESAFE_API_KEY` via
-	 * the validated `env` snapshot, with the live process-environment reader
-	 * as fallback.
+	 * TypeSafe API key. When omitted it is read live from `TYPESAFE_API_KEY`
+	 * (empty counts as absent), so test helpers and key rotation take effect
+	 * without a restart.
 	 */
 	apiKey?: string;
 	/**
@@ -89,11 +89,11 @@ export function createJevClassifier(options: JevClassifierOptions): SemanticClas
 
 function readApiKeyFromEnv(): string {
 	try {
-		// The validated `env` snapshot is the canonical read: one typed home
-		// for every server variable. It is fixed at import, so a key injected
-		// into `process.env` afterwards (tests, late dotenv) still resolves
-		// via the live reader instead of failing closed on a stale snapshot.
-		return env.TYPESAFE_API_KEY ?? getTypesafeApiKeyFromEnv();
+		// Live read first: the validated `env` snapshot is fixed at import,
+		// so a key cleared from `process.env` afterwards (`withEnv`
+		// key-absence tests, key rotation) would otherwise resolve stale and
+		// wrongly enable the tier. Empty counts as absent.
+		return liveServerEnv("TYPESAFE_API_KEY") ?? getTypesafeApiKeyFromEnv();
 	} catch (error) {
 		throw new SemanticConfigurationError(
 			"semantic: no TypeSafe API key. Set TYPESAFE_API_KEY or pass apiKey to createJevClassifier(); the semantic tier cannot run without a real decision model.",

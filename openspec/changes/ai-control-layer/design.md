@@ -171,6 +171,17 @@ consumes decision-model calls. Cost is computed at runtime from the LiteLLM
 model price table (cached at startup, cost fields only) — prices are never
 hard-coded, and an unpriced model is recorded as unknown cost rather than zero.
 
+Only the newest user-role message is evaluated; earlier user turns and
+assistant history are out of scope and forward unchanged, and a `redact`
+verdict replaces only the newest-turn text. Complete harness scaffolding
+blocks (such as `system-reminder` elements) are retained verbatim for
+enforcement and forwarding — presence is recorded as metadata only, never as
+silent removal. Every completed terminal outcome emits one redaction-safe
+stdout decision line (identity, outcome, blocking control, hit counts with
+truncated evidence, tokens/cost, upstream status; never raw prompts). Audit
+rows and UI-facing audit responses carry the fired check identifier, its
+numeric probability when available, and the combined scored evidence detail.
+
 
 ## Detailed Solution Design (per requirement)
 
@@ -340,12 +351,16 @@ surface, not just message content.
 
 ### R5. Security reporting and auditing
 
-- **Audit**: append-only `audit_events` (WAL) — timestamp, interaction id, seam, direction,
-  user id, user group id, policy version hash, verdict, decisive check and score,
-  redaction counts, usage, per-stage latency. Raw outbound state is never logged.
-- **Metrics**: aggregation queries over audit/usage (verdicts by control and category,
-  redactions, budget consumption, latency p50/p95/p99) served to the dashboard via polling;
-  incrementally maintained counters if query cost matters.
+- **Audit**: append-only `audit_events` (WAL) — timestamp, user id, user group id,
+  policy version hash, verdict, decisive check identifier with its numeric
+  probability when available and the combined scored evidence detail. Raw
+  outbound state and forwarded prompt content are never logged. Every completed
+  terminal outcome additionally emits one redaction-safe stdout decision line
+  (never raw prompts).
+- **Metrics**: aggregation queries over audit/usage (verdicts by check and group,
+  unpriced-call counts, spend by user and group against configured limits) served
+  to the dashboard via polling; incrementally maintained counters if query cost
+  matters.
 - **Export**: `/api/audit/export` as JSONL and CSV with filters (time range, verdict,
   control, user id, user group id) — parseable output for security teams.
 - **Dashboard surfaces**: posture overview and policy/feed versions in force.

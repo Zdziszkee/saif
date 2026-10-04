@@ -97,9 +97,12 @@ interface SemanticAnswer {
 }
 ```
 
-`probability` is P(the check fired) in [0, 1]; `value` is `true` when
-`probability >= 0.5`. There is **no `confidence` field** — `@tanstack/ai`'s
+`probability` is the exact P(the check fired) in [0, 1]; `value` is `true`
+when `probability >= 0.5`. There is **no `confidence` field** — `@tanstack/ai`'s
 `BooleanAnswer` has none to give, so uncertainty is not inferred from one.
+A `score` recorded downstream is that exact P(true) when present; an absent
+score (`undefined` on `ControlHit`, `null` in the audit row) means the check
+reported no score, not a zero.
 
 Uncertainty is measured as **decisiveness** = `max(p, 1 - p)`, compared against
 `floors.decisiveness`. `max(p, 1 - p)` is at least 0.5 for any answer (hence
@@ -108,6 +111,33 @@ An answer below the floor is flagged in `evidence.uncertain[id]`, the policy
 applies its uncertainty verdict (default `escalate`) instead of guessing, and
 the values are recorded in the audit log. A near-certain negative is decisive:
 `p = 0.02` gives `max(0.02, 0.98) = 0.98`.
+
+## Gateway evaluation scope
+
+At the `POST /v1/chat/completions` seam only the newest user turn is
+evaluated (`userSlices()` in `src/gateway/request.ts`). Earlier user turns and
+assistant history are explicitly out of scope: they are never inspected, and a
+blocked history turn never blocks the clean active turn.
+
+```ts
+import { userSlices } from "#/gateway/request.ts";
+
+const [active] = userSlices(body); // newest user message only
+console.log(active?.index, active?.text);
+```
+
+The evaluated text is the verbatim newest-turn string, including any complete
+harness markup (below). Budget reservation, policy inspection, the rejected-turn
+`prompt_text` stored on `block`/`escalate` rows, and redaction offsets all use
+that same newest-turn text.
+
+## Harness markup
+
+Complete `<system-reminder>...</system-reminder>` blocks are retained verbatim
+for enforcement and forwarding. Detection (`hasHarnessScaffolding` on the
+slice) is observability metadata only: it never strips, rewrites, or bypasses
+anything. Malformed, spoofed (`-evil` suffixed), or unterminated tags leave the
+flag `false` and likewise pass through unchanged.
 
 ## Using it from code
 

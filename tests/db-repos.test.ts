@@ -19,12 +19,15 @@ import { insertUsage, spendInWindow } from "#/db/usage-repo.ts";
 /** Export names that would break the append-only contract. */
 const MUTATING_EXPORT = /update|delete|remove|drop|truncate/i;
 
-// Mirror of drizzle/0000_natural_peter_parker.sql — kept inline for hermetic tests.
+// Mirror of the audit_events chain through drizzle/0002 (base 0000 plus the
+// model/detail columns) — kept inline for hermetic tests.
 const REPOS_DDL = `CREATE TABLE \`audit_events\` (
 	\`cause\` text,
 	\`control_id\` text,
+	\`detail\` text,
 	\`user_group_id\` text NOT NULL,
 	\`id\` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	\`model\` text,
 	\`policy_version\` text NOT NULL,
 	\`prompt_text\` text,
 	\`score\` real,

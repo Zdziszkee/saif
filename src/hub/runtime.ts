@@ -37,7 +37,7 @@ import { createSignatureControl } from "#/control/signatures/control.ts";
 import { createSignatureFeedStore, type SignatureFeedStore } from "#/control/signatures/feed.ts";
 import { type IdentityPolicy, identityPolicyFromDocument } from "#/control/subjects.ts";
 import type { Control, Verdict } from "#/control/types.ts";
-import { env } from "#/env.ts";
+import { env, liveServerEnv } from "#/env.ts";
 import type { GatewayDeps, UpstreamConfig } from "#/gateway/gateway.ts";
 import { fetchPriceTable, type ModelPriceTable } from "#/gateway/prices.ts";
 import { type BudgetRule, UsageLedger } from "#/gateway/usage.ts";
@@ -102,10 +102,15 @@ export function buildSemanticControl(): Control | null {
 	// `#/control/semantic/config.ts`); a UI policy refresh does not re-read
 	// it — Jev config reload is out of scope for the policy hot path.
 	const { checks, floors, maxChars, model, timeoutMs } = SEMANTIC_DEFAULTS;
+	// Live reads (not the import-time `env` snapshot) so `withEnv` key-absence
+	// tests stay hermetic with a real key in the ambient `.env`, and key
+	// rotation takes effect on the next hub build without a restart.
+	const apiKey = liveServerEnv("TYPESAFE_API_KEY");
+	const baseUrl = liveServerEnv("TYPESAFE_BASE_URL");
 	try {
 		const classifier = createJevClassifier({
-			...(env.TYPESAFE_API_KEY === undefined ? {} : { apiKey: env.TYPESAFE_API_KEY }),
-			...(env.TYPESAFE_BASE_URL === undefined ? {} : { baseUrl: env.TYPESAFE_BASE_URL }),
+			...(apiKey === undefined ? {} : { apiKey }),
+			...(baseUrl === undefined ? {} : { baseUrl }),
 			checks,
 			floors,
 			maxChars,

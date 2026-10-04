@@ -47,6 +47,32 @@ For every request the system SHALL apply these stages in order: resolve identity
 - **WHEN** a caller with remaining budget sends a prompt that passes both tiers
 - **THEN** it is forwarded to the model provider
 
+#### Scenario: Redacted prompt forwarded without history changes
+- **WHEN** the newest user turn receives a `redact` verdict
+- **THEN** the provider receives the redacted newest-turn text while every other message is forwarded unchanged
+
+### Requirement: Newest-turn-only evaluation
+The gateway SHALL evaluate only the newest user-role message in the request. Earlier user turns and assistant history are explicitly out of scope: they are never inspected, they never affect the verdict, and a hostile history MUST NOT cause a clean newest turn to be rejected.
+
+#### Scenario: Clean newest turn with hostile history
+- **WHEN** a request carries an attack in an earlier turn and a benign newest user turn
+- **THEN** validation considers only the newest turn and the hostile history does not change the verdict
+
+#### Scenario: Assistant history never inspected
+- **WHEN** a request includes assistant messages alongside user turns
+- **THEN** no assistant content is inspected and only the newest user turn determines the outcome
+
+### Requirement: Harness markup retained verbatim
+Complete harness scaffolding blocks (such as `system-reminder` elements) SHALL be retained verbatim in the evaluated and forwarded text. Their presence is detected as metadata only and MUST NOT create a silent removal bypass: enforcement sees exactly what the provider will see.
+
+#### Scenario: Scaffolding reaches enforcement intact
+- **WHEN** the newest user turn contains a complete scaffolding block
+- **THEN** the evaluated text keeps the block verbatim and records its presence as metadata
+
+#### Scenario: Malformed markup is not scaffolding
+- **WHEN** the newest user turn contains malformed, spoofed, or unterminated markup
+- **THEN** it is not flagged as harness scaffolding and the text is still evaluated verbatim
+
 ### Requirement: Inbound-only gating
 Only inbound prompts SHALL be gated. Model output streams back to the harness unchanged, and the interaction is metered on completion. Answer content MUST NOT be inspected, stored, or delayed by the control layer.
 
@@ -55,11 +81,15 @@ Only inbound prompts SHALL be gated. Model output streams back to the harness un
 - **THEN** the tokens reach the harness as they are generated and no control tier observes the answer
 
 ### Requirement: Rejection taxonomy and evidence
-Every interaction that does not proceed normally SHALL produce an audit record naming the cause (`missing-identity`, `unknown-group`, `budget-exhausted`, `blocked-by-check`, `classifier-failure`, `upstream-failure`), the user and group responsible, and — when a check rejected the content — the decisive check identifier and its score. For `block` and `escalate` outcomes the record SHALL also carry the exact prompt that was rejected, so it is available as evidence. Allowed traffic MUST NOT be stored with its content.
+Every interaction that does not proceed normally SHALL produce an audit record naming the cause (`missing-identity`, `unknown-group`, `malformed-request`, `budget-exhausted`, `blocked-by-check`, `classifier-failure`, `upstream-failure`), the user and group responsible, and — when a check rejected the content — the decisive check identifier, its numeric probability when available, and the combined scored evidence detail. For `block` and `escalate` outcomes the record SHALL also carry the exact prompt that was rejected, so it is available as evidence. Allowed traffic MUST NOT be stored with its content.
 
 #### Scenario: Blocked prompt logged as evidence
 - **WHEN** a prompt is rejected by a semantic check
 - **THEN** the audit record names that check, its probability, the user and group, and the exact prompt text
+
+#### Scenario: Blocked prompt carries scored evidence
+- **WHEN** a prompt is rejected by one or more checks
+- **THEN** the audit record carries the fired check identifier, its numeric probability when available, and the combined scored evidence detail
 
 #### Scenario: Allowed prompt stored without content
 - **WHEN** a prompt passes validation and is forwarded

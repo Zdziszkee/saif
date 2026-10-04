@@ -18,19 +18,23 @@ is `groupId`.
 
 One row per governed interaction. `ts` is unix epoch seconds as an integer (the schema
 default is `unixepoch()`), so "last 24 hours" is `ts >= unixepoch() - 86400`.
+Only the newest user turn is ever evaluated, so `prompt_text` on a blocked row
+is the verbatim rejected-turn text, never history.
 
 | Column | SQLite type | Nullable | Dashboard query it serves |
 | ------ | ----------- | -------- | ------------------------- |
 | `id` | integer PRIMARY KEY AUTOINCREMENT | no | Row identity; join key for `usage_records.audit_event_id`; deep links from dashboard rows. |
 | `ts` | integer (unix seconds, default `unixepoch()`) | no | Every time-range filter and time-series chart. |
 | `verdict` | text (`VERDICTS`) | no | Verdict distribution and block-rate charts. |
-| `cause` | text (`AUDIT_CAUSES`) | yes | "Why are we blocking things?" grouping; null exactly when the interaction was allowed through. |
-| `control_id` | text | yes | Top failing checks table — the decisive check id (e.g. `prompt_injection` or a detection rule id). |
-| `score` | real | yes | Confidence column on the evidence table (a Jev probability or detection confidence); null when the cause was not a check or the check reports no score. |
+| `cause` | text (`AUDIT_CAUSES`) | yes | "Why are we blocking things?" grouping; null exactly when the interaction was forwarded without an upstream failure. |
+| `control_id` | text | yes | Top failing checks table — the fired check id (e.g. `prompt_injection` or a detection rule id). |
+| `score` | real | yes | The decisive check's exact P(true), or a detection confidence; null when the cause was not a check or the check reports no score. |
+| `detail` | text | yes | Full scored evidence, e.g. `prompt_injection=0.91, jailbreak=0.87` (combined with `"; "` across hits); null when there is no check-level evidence. |
+| `model` | text | yes | Requested model; null on rejections that never resolved one (identity/shape rejections). |
 | `user_id` | text | yes | Per-user drill-down and attribution (see Attribution caveat). |
 | `user_group_id` | text | no | Per-group reporting; the policy subject dimension that drives check selection. |
 | `policy_version` | text | no | Correlate outcome shifts with policy edits (hash of the policy document in force). |
-| `prompt_text` | text | yes | Attack-evidence viewer for `block`/`escalate` rows; null for allowed traffic, which is recorded without content. |
+| `prompt_text` | text | yes | Attack-evidence viewer for `block`/`escalate` rows: the rejected newest-turn text; null for forwarded (`allow`/`redact`) traffic, which is recorded without content. |
 
 ## usage_records
 
@@ -91,7 +95,8 @@ matching `Verdict` and `AuditCause` types; these are the values other modules re
 
 ### cause (`AUDIT_CAUSES`)
 
-Null exactly when the interaction was allowed through; every rejection maps to one of these.
+Null exactly when the interaction was forwarded without an upstream failure
+(`allow`/`redact` settled cleanly); every rejection maps to one of these.
 
 | Value | Used when |
 | ----- | --------- |
@@ -99,8 +104,9 @@ Null exactly when the interaction was allowed through; every rejection maps to o
 | `unknown-group` | `x-user-group-id` named a group the configuration does not define. |
 | `budget-exhausted` | The user's token/cost budget for the current window is spent. |
 | `blocked-by-check` | A deterministic, signature or Jev check rejected the content. |
-| `classifier-failure` | The semantic tier timed out or errored; the failure verdict was applied. |
+| `classifier-failure` | The semantic tier timed out or errored; the failure verdict was applied (row keeps the failure text in `detail` with a null `score`). |
 | `upstream-failure` | The upstream provider failed after the prompt had passed validation. |
+| `malformed-request` | The request body did not match the chat-completions schema, or no model could be resolved. |
 
 ## Indexes and query dimensions
 
@@ -123,12 +129,35 @@ and ends with `ts`, so range scans serve the matching dashboard page.
 | `mcp_tool_calls_group_ts_idx` | (`user_group_id`, `ts`) | Tool calls per group in a range. |
 | `mcp_tool_calls_verdict_ts_idx` | (`verdict`, `ts`) | Tool calls per verdict in a range. |
 
+## Decision line (stdout)
+
+Every governed turn writes one compact single line to stdout via
+`formatDecisionLine()` (`src/gateway/decision-log.ts`). It never emits raw
+prompts — only identity, structured counts, and truncated evidence.
+
+| Segment | Content |
+| ------- | ------- |
+| `ts=` | Decision timestamp. |
+| `user=` / `group=` | Caller identity. |
+| `dir=` / `model=` | Direction (`inbound`) and requested model, when known. |
+| `outcome=` | Terminal verdict, with `+flagged` when a flag-style hit fired. |
+| `blocking=` | Blocking control id. |
+| `hits=` | Hit count and per-hit `control/kind:verdict` entries with score and truncated detail (capped at 12 hits). |
+| `semantic=` | Truncated scored detail, when present. |
+| `budget=` / `tokens=` / `cost=` | Budget outcome, observed `prompt+completion=total` tokens, and USD cost (`unpriced` when the model has no price). |
+| `upstream=` / `status=` | Upstream outcome and HTTP status; `upstream-detail=` carries a truncated failure message when the provider failed. |
+
+Filter it with `grep`, e.g. `outcome=block`, `flagged`, or `upstream-failure`.
+`detail` is nullable end to end: inserts, reads, and `poll()` preserve it
+verbatim, and null means there was no check-level evidence (no hits, or hits
+with blank details), never a zero.
+
 ## Deliberate omissions
 
 | Not stored | Why not |
 | ---------- | ------- |
 | Latency | Not a dashboard need; no reporting query justified a timing column. |
-| Prompt content for allowed traffic | Not a dashboard need: `prompt_text` exists as attack evidence for `block`/`escalate` only; allowed traffic is recorded without content. |
+| Prompt content for forwarded traffic | Not a dashboard need: `prompt_text` exists as attack evidence for `block`/`escalate` only; forwarded (`allow`/`redact`) traffic is recorded without content. |
 | `total_tokens` | Derivable from other columns: `prompt_tokens + completion_tokens` at query time. |
 | Priced flag | Derivable from other columns: `cost_usd IS NULL` already means "model not in the price table" (unpriced). |
 | Raw upstream status | Not a dashboard need; provider failures surface as `cause = 'upstream-failure'` on the audit row. |

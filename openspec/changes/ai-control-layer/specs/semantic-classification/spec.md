@@ -87,6 +87,17 @@ Semantic answers MUST NOT directly authorize or reject an action: only the polic
 - **WHEN** identical semantic answers are evaluated under the `permissive` and `strict` profiles with different thresholds
 - **THEN** each profile produces its own verdict from the same answers
 
+### Requirement: Combined scored evidence detail
+Each semantic evaluation that fires SHALL report the fired (worst) check identifier, its numeric probability P(true) when available, and a combined scored evidence detail listing every scored check with its probability. The audit row and the UI-facing audit response SHALL carry all three, so reviewers see not only what fired but what else was measured.
+
+#### Scenario: Fired check reported with probability and detail
+- **WHEN** a semantic check rejects an interaction
+- **THEN** the audit record names the fired check identifier, its probability, and the combined per-check detail
+
+#### Scenario: UI response carries the same evidence
+- **WHEN** a reviewer polls recent audit rows for a blocked interaction
+- **THEN** the returned event carries the same check identifier, probability, and combined detail as the stored row
+
 ### Requirement: Real decision model in the product path
 The semantic tier SHALL run on a real decision model (Jev) in the product path. Test doubles MUST NOT be selectable as a semantic classifier through policy or runtime configuration; they are injected only by the test harness.
 
