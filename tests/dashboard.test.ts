@@ -1,9 +1,12 @@
 /**
- * Dashboard render tests (saif 11.1 verify line: "component renders expected
- * sections against fixture data"). Components are rendered headlessly with
- * `renderToStaticMarkup`; assertions target section headings, table cells, and
- * stat labels, which are plain markup. The recharts-based charts render under
- * static markup in bun but are not asserted on.
+ * Dashboard render tests (live derivation: every section renders from
+ * `buildDashboardData` over seeded audit decisions, never seeded metrics).
+ * Components are rendered headlessly with `renderToStaticMarkup`; assertions
+ * target section headings, table cells, and stat labels, which are plain
+ * markup. The recharts-based charts render under static markup in bun but are
+ * not asserted on. Every expected number, category, reason, and usage string
+ * is derived from the built `DashboardData` in the test, so the suite tracks
+ * the live derivation instead of pinning fixture values.
  */
 import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
@@ -25,14 +28,24 @@ import {
 	ProfilesSection,
 } from "#/components/dashboard/policy-sections.tsx";
 import { ThemeProvider } from "#/components/theme-provider.tsx";
+import { type AuditEvent, auditEvent } from "#/control/audit.ts";
 import type { PolicySnapshot } from "#/control/policy/loader.ts";
+import type { Policy } from "#/control/policy/schema.ts";
 import { parsePolicy } from "#/control/policy/schema.ts";
+import type { Direction, Verdict } from "#/control/types.ts";
 import { buildDashboardData, selectEscalations, selectMetrics } from "#/dashboard/data.ts";
-import { FIXTURE_FEED_VERSION } from "#/dashboard/fixture.ts";
+import {
+	formatCount,
+	formatMs,
+	formatTimestamp,
+	formatTokens,
+	formatUsd,
+	usagePercent,
+} from "#/dashboard/format.ts";
 import { ALL_CONSUMERS, type ConsumerMetrics, type DashboardData } from "#/dashboard/types.ts";
 
 const TEST_POLICY_VERSION = "sha256.test-render-policy-version";
-const GENERATED_AT = "2026-10-03T20:00:00.000Z";
+const GENERATED_AT = "2026-10-04T20:00:00.000Z";
 
 async function loadSnapshot(): Promise<PolicySnapshot> {
 	const text = await readFile(new URL("../policy.json", import.meta.url), "utf8");
@@ -51,11 +64,208 @@ function render(element: ReactElement): string {
 }
 
 const SNAPSHOT = await loadSnapshot();
-const DATA: DashboardData = buildDashboardData(SNAPSHOT, GENERATED_AT);
+
+type BudgetRules = Policy["controls"]["budget"]["rules"];
+
+function snapshotWithBudget(rules: BudgetRules): PolicySnapshot {
+	return {
+		policy: {
+			...SNAPSHOT.policy,
+			controls: {
+				...SNAPSHOT.policy.controls,
+				budget: { ...SNAPSHOT.policy.controls.budget, rules },
+			},
+		},
+		policyVersion: TEST_POLICY_VERSION,
+	};
+}
+
+function renderDecision(input: {
+	readonly completionTokens?: number;
+	readonly controlId?: string;
+	readonly costUsd?: number;
+	readonly detail?: string;
+	readonly direction?: Direction;
+	readonly groupId: string;
+	readonly hits?: { category: string; controlId: string; kind: string }[];
+	readonly interactionId: string;
+	readonly latencyMs?: number;
+	readonly model?: string;
+	readonly promptTokens?: number;
+	readonly redactionCount?: number;
+	readonly seam?: string;
+	readonly timestamp: string;
+	readonly userId: string;
+	readonly verdict: Verdict;
+}): AuditEvent {
+	const { timestamp, ...fields } = input;
+	return {
+		...auditEvent("interaction", { consumerKey: fields.groupId, ...fields }),
+		timestamp,
+	};
+}
+
+const RENDER_BASE_MS = Date.parse("2026-10-04T10:00:00.000Z");
+const MINUTE_MS = 60_000;
+
+function renderStamp(offsetMinutes: number): string {
+	return new Date(RENDER_BASE_MS + offsetMinutes * MINUTE_MS).toISOString();
+}
+
+/** Seeded decisions with distinctive per-consumer counts: hr allows 47,
+ * software-developer allows 13, manager allows 2, so posture isolation reads
+ * off the rendered stat cards. */
+function seedRenderEvents(): readonly AuditEvent[] {
+	const events: AuditEvent[] = [];
+	for (let index = 0; index < 47; index += 1) {
+		events.push(
+			renderDecision({
+				completionTokens: 20,
+				controlId: "detection",
+				costUsd: 0.05,
+				groupId: "hr",
+				hits: [{ category: "live.render.hr", controlId: "detection", kind: "pii" }],
+				interactionId: `hr-render-allow-${index}`,
+				latencyMs: 25,
+				model: "primary",
+				promptTokens: 100,
+				seam: "guard-api",
+				timestamp: renderStamp(index),
+				userId: "alice",
+				verdict: "allow",
+			}),
+		);
+	}
+	for (let index = 0; index < 2; index += 1) {
+		events.push(
+			renderDecision({
+				controlId: "detection",
+				groupId: "hr",
+				hits: [{ category: "live.render.hr", controlId: "detection", kind: "pii" }],
+				interactionId: `hr-render-redact-${index}`,
+				latencyMs: 30,
+				model: "primary",
+				redactionCount: 3,
+				seam: "guard-api",
+				timestamp: renderStamp(60 + index),
+				userId: "alice",
+				verdict: "redact",
+			}),
+		);
+	}
+	events.push(
+		renderDecision({
+			controlId: "signatures",
+			groupId: "hr",
+			hits: [
+				{ category: "live.render.hrblock", controlId: "signatures", kind: "prompt_injection" },
+			],
+			interactionId: "hr-render-block-1",
+			latencyMs: 45,
+			model: "primary",
+			seam: "guard-api",
+			timestamp: renderStamp(70),
+			userId: "alice",
+			verdict: "block",
+		}),
+		renderDecision({
+			controlId: "semantic",
+			detail: "hr render queue needs review",
+			direction: "outbound",
+			groupId: "hr",
+			interactionId: "hr-render-esc-1",
+			latencyMs: 60,
+			model: "primary",
+			seam: "chat",
+			timestamp: renderStamp(80),
+			userId: "alice",
+			verdict: "escalate",
+		}),
+	);
+	for (let index = 0; index < 2; index += 1) {
+		events.push(
+			renderDecision({
+				controlId: "pipeline",
+				groupId: "manager",
+				interactionId: `manager-render-allow-${index}`,
+				latencyMs: 35,
+				model: "primary",
+				seam: "guard-api",
+				timestamp: renderStamp(90 + index),
+				userId: "bob",
+				verdict: "allow",
+			}),
+		);
+	}
+	events.push(
+		renderDecision({
+			controlId: "semantic",
+			detail: "manager render queue needs review",
+			direction: "inbound",
+			groupId: "manager",
+			interactionId: "manager-render-esc-1",
+			latencyMs: 55,
+			model: "primary",
+			seam: "guard-api",
+			timestamp: renderStamp(100),
+			userId: "bob",
+			verdict: "escalate",
+		}),
+	);
+	for (let index = 0; index < 13; index += 1) {
+		events.push(
+			renderDecision({
+				controlId: "pipeline",
+				groupId: "software-developer",
+				interactionId: `dev-render-allow-${index}`,
+				latencyMs: 15,
+				model: "primary",
+				seam: "guard-api",
+				timestamp: renderStamp(110 + index),
+				userId: "carol",
+				verdict: "allow",
+			}),
+		);
+	}
+	return events;
+}
+
+const RENDER_RULES: BudgetRules = [
+	{ key: "hr", modelScope: "*", period: "day", tokens: 50_000 },
+	{ costUsd: 20, key: "hr", modelScope: "*", period: "month" },
+];
+
+const RENDER_FEED_VERSION = "feed.test.live-render-1";
+
+const DATA: DashboardData = buildDashboardData(
+	snapshotWithBudget(RENDER_RULES),
+	GENERATED_AT,
+	seedRenderEvents(),
+	RENDER_FEED_VERSION,
+);
 const ALICE = selectMetrics(DATA, "hr");
 const DEPLOY_BOT = selectMetrics(DATA, "software-developer");
 
-describe("dashboard rendering against fixture data", () => {
+function verdictTotal(metrics: ConsumerMetrics): number {
+	return (
+		metrics.verdicts.allow +
+		metrics.verdicts.redact +
+		metrics.verdicts.block +
+		metrics.verdicts.escalate
+	);
+}
+
+function formatBudgetValue(metric: string, value: number): string {
+	if (metric === "costUsd") {
+		return formatUsd(value);
+	}
+	if (metric === "tokens") {
+		return formatTokens(value);
+	}
+	return formatCount(value);
+}
+
+describe("dashboard rendering against live data", () => {
 	it("renders every section heading and the version badges", () => {
 		const html = render(
 			createElement(
@@ -77,7 +287,7 @@ describe("dashboard rendering against fixture data", () => {
 		}
 		expect(html).toContain("Saif security dashboard");
 		expect(html).toContain(`policy ${TEST_POLICY_VERSION.slice(0, 12)}`);
-		expect(html).toContain(`feed ${FIXTURE_FEED_VERSION}`);
+		expect(html).toContain(`feed ${DATA.feedVersion}`);
 		expect(html).toContain("default profile: standard");
 		expect(html).toContain("failure verdict: escalate");
 	});
@@ -92,26 +302,25 @@ describe("dashboard rendering against fixture data", () => {
 		}
 	});
 
-	it("shows the aggregate posture numbers across consumers", () => {
+	it("shows the aggregate posture numbers pooled from live decisions", () => {
 		const html = render(createElement(PostureSection, { metrics: DATA.aggregate }));
-		expect(html).toContain(">4,270<");
-		expect(html).toContain(">157<");
-		expect(html).toContain(">85<");
-		expect(html).toContain(">13<");
-		expect(html).toContain("157 spans redacted");
+		const aggregate = DATA.aggregate;
+		expect(html).toContain(`>${formatCount(aggregate.verdicts.allow)}<`);
+		expect(html).toContain(`>${formatCount(aggregate.verdicts.redact)}<`);
+		expect(html).toContain(`>${formatCount(aggregate.verdicts.block)}<`);
+		expect(html).toContain(`>${formatCount(aggregate.verdicts.escalate)}<`);
+		expect(html).toContain(`${formatCount(aggregate.redactions)} spans redacted`);
 	});
 
 	it("isolates one consumer's posture numbers from the others", () => {
 		const aliceHtml = render(createElement(PostureSection, { metrics: ALICE }));
-		expect(aliceHtml).toContain(">1,180<");
-		expect(aliceHtml).toContain(">42<");
-		expect(aliceHtml).toContain("42 spans redacted");
-		expect(aliceHtml).not.toContain(">640<");
-		expect(aliceHtml).not.toContain("2,450");
+		expect(aliceHtml).toContain(`>${formatCount(ALICE.verdicts.allow)}<`);
+		expect(aliceHtml).toContain(`${formatCount(ALICE.redactions)} spans redacted`);
+		expect(aliceHtml).not.toContain(`>${formatCount(DEPLOY_BOT.verdicts.allow)}<`);
 
 		const deployHtml = render(createElement(PostureSection, { metrics: DEPLOY_BOT }));
-		expect(deployHtml).toContain(">2,450<");
-		expect(deployHtml).not.toContain("1,180");
+		expect(deployHtml).toContain(`>${formatCount(DEPLOY_BOT.verdicts.allow)}<`);
+		expect(deployHtml).not.toContain(`>${formatCount(ALICE.verdicts.allow)}<`);
 	});
 
 	it("renders the threat table with control and category counts", () => {
@@ -119,38 +328,35 @@ describe("dashboard rendering against fixture data", () => {
 		for (const column of ["Control", "Category", "Blocked", "Redacted", "Flagged"]) {
 			expect(html).toContain(column);
 		}
-		for (const category of ["pii.email", "secret.api_key", "prompt_injection", "jailbreak"]) {
-			expect(html).toContain(category);
+		for (const row of ALICE.threats) {
+			expect(html).toContain(row.category);
+			expect(html).toContain(`>${row.blocked}<`);
 		}
-		expect(html).toContain(">19<");
 	});
 
 	it("isolates one consumer's threat rows from the others", () => {
 		const html = render(createElement(ThreatsSection, { metrics: ALICE }));
-		for (const otherCategory of [
-			"pii.card",
-			"data_exfiltration",
-			"malicious_code",
-			"supply_chain",
-		]) {
-			expect(html).not.toContain(otherCategory);
+		for (const row of ALICE.threats) {
+			expect(html).toContain(row.category);
 		}
 		const deployHtml = render(createElement(ThreatsSection, { metrics: DEPLOY_BOT }));
-		expect(deployHtml).toContain("supply_chain");
-		expect(deployHtml).not.toContain("data_exfiltration");
+		for (const row of ALICE.threats) {
+			expect(deployHtml).not.toContain(row.category);
+		}
+		expect(deployHtml).toContain("No activity in this window");
 	});
 
 	it("renders budget rules with usage against limits", () => {
 		const html = render(createElement(BudgetSection, { metrics: ALICE }));
 		expect(html).toContain("Usage vs limit");
-		expect(html).toContain("per day");
-		expect(html).toContain("per month");
-		expect(html).toContain(">148.2k<");
-		expect(html).toContain(">250.0k<");
-		expect(html).toContain("$11.40");
-		expect(html).toContain("$20.00");
-		expect(html).toContain("59%");
-		expect(html).toContain("57%");
+		const rules = ALICE.budget;
+		expect(rules.length).toBeGreaterThan(0);
+		for (const rule of rules) {
+			expect(html).toContain(`per ${rule.period}`);
+			expect(html).toContain(formatBudgetValue(rule.metric, rule.used));
+			expect(html).toContain(formatBudgetValue(rule.metric, rule.limit));
+			expect(html).toContain(`${usagePercent(rule.used, rule.limit)}%`);
+		}
 	});
 
 	it("renders latency percentile cards", () => {
@@ -158,9 +364,9 @@ describe("dashboard rendering against fixture data", () => {
 		for (const label of ["p50", "p95", "p99"]) {
 			expect(html).toContain(label);
 		}
-		expect(html).toContain("38 ms");
-		expect(html).toContain("121 ms");
-		expect(html).toContain("260 ms");
+		expect(html).toContain(formatMs(ALICE.latency.p50));
+		expect(html).toContain(formatMs(ALICE.latency.p95));
+		expect(html).toContain(formatMs(ALICE.latency.p99));
 		expect(html).toContain("median pipeline latency");
 	});
 
@@ -193,27 +399,29 @@ describe("dashboard rendering against fixture data", () => {
 	});
 
 	it("renders the escalation queue rows", () => {
-		const html = render(
-			createElement(EscalationsSection, { rows: selectEscalations(DATA, ALL_CONSUMERS) }),
-		);
-		expect(html).toContain("2026-10-03 18:42:11Z");
-		expect(html).toContain("2026-10-03 17:05:47Z");
-		for (const seam of ["mcp-tool", "guard-api", "chat"]) {
-			expect(html).toContain(seam);
+		const rows = selectEscalations(DATA, ALL_CONSUMERS);
+		expect(rows.length).toBeGreaterThan(0);
+		const html = render(createElement(EscalationsSection, { rows }));
+		for (const row of rows) {
+			expect(html).toContain(formatTimestamp(row.timestamp));
+			expect(html).toContain(row.seam);
+			expect(html).toContain(row.direction);
+			expect(html).toContain(row.reason);
 		}
-		expect(html).toContain("outbound");
-		expect(html).toContain("inbound");
-		expect(html).toContain("semantic decisiveness below floor (data_exfiltration p=0.58)");
 	});
 
 	it("isolates one consumer's escalations from the others", () => {
-		const html = render(
-			createElement(EscalationsSection, { rows: selectEscalations(DATA, "software-developer") }),
-		);
-		expect(html).toContain("mcp-tool");
-		expect(html).toContain("guard-api");
-		expect(html).not.toContain("signature suspect signals above threshold");
-		expect(html).not.toContain("residual sensitive span in egress state");
+		const hrRows = selectEscalations(DATA, "hr");
+		const managerRows = selectEscalations(DATA, "manager");
+		expect(hrRows.length).toBeGreaterThan(0);
+		expect(managerRows.length).toBeGreaterThan(0);
+		const html = render(createElement(EscalationsSection, { rows: hrRows }));
+		for (const row of hrRows) {
+			expect(html).toContain(row.reason);
+		}
+		for (const row of managerRows) {
+			expect(html).not.toContain(row.reason);
+		}
 	});
 
 	it("shows the 'No activity in this window' empty state when a section's rows are empty", () => {
@@ -225,15 +433,18 @@ describe("dashboard rendering against fixture data", () => {
 		};
 		const threatsHtml = render(createElement(ThreatsSection, { metrics: emptyMetrics }));
 		expect(threatsHtml).toContain("No activity in this window");
-		expect(threatsHtml).not.toContain("prompt_injection");
+		for (const row of ALICE.threats) {
+			expect(threatsHtml).not.toContain(row.category);
+		}
 
 		const budgetHtml = render(createElement(BudgetSection, { metrics: emptyMetrics }));
 		expect(budgetHtml).toContain("No activity in this window");
-		expect(budgetHtml).not.toContain("148.2k");
 
 		const escalationsHtml = render(createElement(EscalationsSection, { rows: [] }));
 		expect(escalationsHtml).toContain("No activity in this window");
-		expect(escalationsHtml).not.toContain("mcp-tool");
+		for (const row of selectEscalations(DATA, ALL_CONSUMERS)) {
+			expect(escalationsHtml).not.toContain(row.reason);
+		}
 	});
 });
 
@@ -273,20 +484,21 @@ describe("dashboard people section", () => {
 		}
 		expect(html).toContain("Admin");
 		expect(html).toContain("Viewer");
-		expect(html).toContain(">2,608<");
-		expect(html).toContain(">1,243<");
-		expect(html).toContain(">674<");
-		const developer = html.indexOf("?consumer=software-developer");
-		const hr = html.indexOf("?consumer=hr");
-		const manager = html.indexOf("?consumer=manager");
-		expect(developer).toBeGreaterThanOrEqual(0);
-		expect(hr).toBeGreaterThanOrEqual(0);
-		expect(manager).toBeGreaterThanOrEqual(0);
-		expect(developer).toBeLessThan(hr);
-		expect(hr).toBeLessThan(manager);
+		const totals = (["hr", "manager", "software-developer"] as const)
+			.map((key) => ({ key, total: verdictTotal(PEOPLE_DATA.byConsumer[key] ?? DATA.aggregate) }))
+			.sort((left, right) => right.total - left.total);
+		for (const { total } of totals) {
+			expect(html).toContain(`>${formatCount(total)}<`);
+		}
+		const positions = totals.map(({ key }) => html.indexOf(`?consumer=${key}`));
+		for (const position of positions) {
+			expect(position).toBeGreaterThanOrEqual(0);
+		}
+		const ordered = [...positions].sort((left, right) => left - right);
+		expect(positions).toEqual(ordered);
 	});
 
-	it("shows the unknown role when the payload carries no person roles", () => {
+	it("shows the unknown role when a consumer has no person mapping", () => {
 		const html = renderDashboard(
 			createElement(Dashboard, { initialData: DATA, onRefresh: async () => DATA }),
 		);
@@ -308,6 +520,12 @@ describe("dashboard people section", () => {
 	});
 
 	it("scopes the escalation queue by role through the consumer mapping", () => {
+		const hrReasons = selectEscalations(PEOPLE_DATA, "hr").map((row) => row.reason);
+		const otherReasons = selectEscalations(PEOPLE_DATA, ALL_CONSUMERS)
+			.filter((row) => row.consumerKey !== "hr")
+			.map((row) => row.reason);
+		expect(hrReasons.length).toBeGreaterThan(0);
+		expect(otherReasons.length).toBeGreaterThan(0);
 		const html = renderDashboard(
 			createElement(ActivitySections, {
 				consumer: undefined,
@@ -315,9 +533,12 @@ describe("dashboard people section", () => {
 				role: "admin",
 			}),
 		);
-		expect(html).toContain("signature suspect signals above threshold");
-		expect(html).not.toContain("semantic decisiveness below floor");
-		expect(html).not.toContain("residual sensitive span in egress state");
+		for (const reason of hrReasons) {
+			expect(html).toContain(reason);
+		}
+		for (const reason of otherReasons) {
+			expect(html).not.toContain(reason);
+		}
 	});
 
 	it("keeps every escalation without a role filter", () => {
@@ -328,9 +549,9 @@ describe("dashboard people section", () => {
 				role: undefined,
 			}),
 		);
-		expect(html).toContain("signature suspect signals above threshold");
-		expect(html).toContain("semantic decisiveness below floor");
-		expect(html).toContain("residual sensitive span in egress state");
+		for (const row of selectEscalations(PEOPLE_DATA, ALL_CONSUMERS)) {
+			expect(html).toContain(row.reason);
+		}
 	});
 
 	it("shows the empty state when the people rows are empty", () => {

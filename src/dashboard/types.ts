@@ -1,11 +1,12 @@
 /**
  * Dashboard data model (security-observability spec, "Dashboard" requirement).
  *
- * The shape mirrors what the metrics and audit queries (tasks 10.2-10.3) will
- * return: per-consumer verdict counts, threat breakdown by control and
- * category, budget usage against configured limits, latency percentiles, and
- * the escalation queue. Until those queries land, `fixture.ts` supplies seeded
- * metrics and `data.ts` merges them with the live policy document.
+ * The shape mirrors the live dashboard queries: per-consumer verdict counts,
+ * threat breakdown by control and category, budget usage against configured
+ * limits, latency percentiles, and the escalation queue. Every metric is live:
+ * `data.ts` derives verdicts, threats, latency, budget usage, series, and
+ * escalations from the audit sink and the policy snapshot, reporting zeros
+ * and empty rows when a consumer has no recorded activity.
  */
 
 import type { Direction, Verdict } from "#/control/types.ts";
