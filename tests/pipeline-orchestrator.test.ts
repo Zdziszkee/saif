@@ -87,10 +87,19 @@ describe("pipeline orchestrator", () => {
 			permissive.inspect(interaction("hello")),
 			strict.inspect(interaction("hello")),
 		]);
-		expect(permissiveOutcome.verdict).toBe("redact");
+		expect(permissiveOutcome.verdict).toBe("escalate");
 		expect(permissiveOutcome.blockingControl).toBe("semantic");
 		expect(strictOutcome.verdict).toBe("block");
 		expect(strictOutcome.blockingControl).toBe("semantic");
+	});
+
+	it("escalates a span-less redact on the legacy path instead of forwarding it", async () => {
+		const pipeline = createControlPipeline({
+			controls: [recordingSemantic([], { verdict: "redact" })],
+		});
+		const outcome = await pipeline.inspect(interaction("hello"));
+		expect(outcome.verdict).toBe("escalate");
+		expect(outcome.blockingControl).toBe("semantic");
 	});
 
 	it("falls back to the semantic control verdict when it answers nothing", async () => {

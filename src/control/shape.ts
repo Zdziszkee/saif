@@ -22,7 +22,7 @@ export const interactionRequestSchema = z.strictObject({
 	direction: z.enum(["inbound", "outbound"]),
 	id: z.string().min(1).max(MAX_SHORT_FIELD_LENGTH).optional(),
 	model: z.string().min(1).max(MAX_MODEL_FIELD_LENGTH).optional(),
-	seam: z.enum(["chat", "mcp-tool", "guard-api"]),
+	seam: z.enum(["chat", "guard-api", "llm-gateway", "mcp-tool"]),
 	tool: z
 		.strictObject({
 			arguments: z.unknown().optional(),

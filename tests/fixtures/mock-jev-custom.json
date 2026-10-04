@@ -1,0 +1,8 @@
+{
+	"base": 0.1,
+	"checks": {
+		"vault_check": ["vault", "code"]
+	},
+	"hit": 0.5,
+	"max": 1
+}
