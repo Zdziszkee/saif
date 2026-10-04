@@ -44,6 +44,12 @@ export interface ControlPipelineOptions {
 	 * Resolved policy profile. Enables `applyPolicy()` mapping (profile
 	 * strictness over raw semantic answers); absent, control verdicts merge
 	 * directly exactly as before.
+	 *
+	 * Resolved once per hub build, not per request: policy edits (thresholds,
+	 * enabled controls, allowlist, signature config) take effect when the hub
+	 * rebuilds via `refreshHubAfterPolicyWrite()` in `#/hub/runtime.ts`.
+	 * Detection config is the exception — it stays live-bound within a build
+	 * through the loader snapshot (see `#/control/policy/live-control.ts`).
 	 */
 	profile?: ResolvedProfile | undefined;
 	/** Per-control budget. A control exceeding it is failed, not awaited. */

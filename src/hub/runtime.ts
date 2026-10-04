@@ -5,7 +5,12 @@
  * gateway. The control pipeline runs the stages enabled by the default policy
  * profile in cheap-first order — allowlist, signature feed, deterministic
  * (bound live to the policy loader's active snapshot, so detection reloads
- * reach enforcement without a restart), semantic last. The semantic stage
+ * reach enforcement without a restart), semantic last. Only detection is
+ * live-bound: every other policy surface (allowlist, signature config,
+ * thresholds, profiles, identity, verdicts) is snapshotted at build and
+ * takes effect via `refreshHubAfterPolicyWrite()`, which drops the cached
+ * hub so the next request rebuilds from disk. In-flight requests keep their
+ * hub reference and finish on the old pipeline. The semantic stage
  * additionally requires TYPESAFE_API_KEY: without it the tier is skipped
  * (and the skip audited) instead of failing every request closed.
  */
@@ -89,6 +94,9 @@ function getSignatureFeedStore(): SignatureFeedStore {
  * throwing control) when the key is absent.
  */
 export function buildSemanticControl(): Control | null {
+	// policy.jev.json loads once at import into SEMANTIC_DEFAULTS (see
+	// `#/control/semantic/config.ts`); a UI policy refresh does not re-read
+	// it — Jev config reload is out of scope for the policy hot path.
 	const { checks, floors, maxChars, model, timeoutMs } = SEMANTIC_DEFAULTS;
 	try {
 		const classifier = createJevClassifier({ checks, floors, maxChars, model, timeoutMs });
@@ -103,6 +111,7 @@ interface BuiltControls {
 	controls: readonly Control[];
 	failureVerdict: Verdict;
 	identity: IdentityPolicy;
+	loader: PolicyLoader;
 	policyProfile: string;
 	policyVersion: string;
 	profile: ResolvedProfile | null;
@@ -181,6 +190,7 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 			controls: [policyUnavailableControl()],
 			failureVerdict: "block",
 			identity: { knownGroups: [] },
+			loader,
 			policyProfile: "unavailable",
 			policyVersion: "unavailable",
 			profile: null,
@@ -196,6 +206,7 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 		controls: assembly.controls,
 		failureVerdict: policy.defaults.failureVerdict,
 		identity: identityPolicyFromDocument(policy.groups),
+		loader,
 		policyProfile: policy.defaults.profile,
 		policyVersion: policy.version,
 		profile: resolveProfile(policy, policy.defaults.profile),
@@ -209,18 +220,50 @@ export function getHub(): Promise<Hub> {
 	return hubPromise;
 }
 
+/**
+ * The loader behind the live hub: its file watcher keeps detection bound to
+ * the active snapshot within a build. Replaced (and stopped) on every hub
+ * rebuild so repeated policy edits do not accumulate watchers.
+ */
+let activeLoader: PolicyLoader | undefined;
+
+/**
+ * Makes UI policy edits take effect without a restart. Drops the cached hub
+ * so the next `getHub()` rebuilds the pipeline from the policy file on
+ * disk — which is also what carries the per-build snapshots (`resolveProfile`
+ * thresholds, allowlist, signature config, identity, verdicts). Detection
+ * needs no refresh (it re-reads the loader snapshot per inspection), but the
+ * rebuild keeps its binding pointed at a live loader.
+ *
+ * Call this once after a policy write (e.g. at the end of `POST /api/policy`)
+ * — never in the request path itself, and never via a file watcher there:
+ * the rebuild re-reads the file on demand. In-flight requests already hold
+ * their hub reference and finish on the old pipeline. If the rewritten file
+ * is invalid the rebuild fails closed to `policyUnavailableControl()`, as a
+ * fresh boot would.
+ */
+export function refreshHubAfterPolicyWrite(): void {
+	hubPromise = undefined;
+}
+
 async function createHubAsync(): Promise<Hub> {
 	const {
 		budgetVerdict,
 		identity,
 		controls,
 		failureVerdict,
+		loader,
 		policyProfile,
 		policyVersion,
 		profile,
 		semanticEnabled,
 		semanticReason,
 	} = await buildControls(getAuditSink());
+	// Swap watchers only once the replacement is fully built, so the hub being
+	// replaced keeps live detection until handover. In-flight requests finish
+	// on the old hub; the old loader stops only here.
+	activeLoader?.stop();
+	activeLoader = loader;
 	hubStatus = {
 		policy: { profile: policyProfile, version: policyVersion },
 		semantic:
