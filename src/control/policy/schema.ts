@@ -83,7 +83,6 @@ export const detectionConfigSchema = z.strictObject({
 });
 
 export type DetectionConfig = z.infer<typeof detectionConfigSchema>;
-
 /** Structural-suspicion configuration for the signature engine. */
 export const suspectConfigSchema = z.strictObject({
 	action: verdictSchema,
@@ -98,7 +97,7 @@ export const signatureConfigSchema = z.strictObject({
 	suspect: suspectConfigSchema,
 });
 
-/** One budget rule: per consumer key and model scope, at least one limit, within a time window. */
+/** One budget rule: per user and model scope, at least one limit, within a time window. */
 export const budgetRuleSchema = z
 	.strictObject({
 		computeTimeMs: z.number().int().positive().optional(),
@@ -189,8 +188,8 @@ export const profileSchema = z.strictObject({
 
 export type Profile = z.infer<typeof profileSchema>;
 
-/** Per-policy-subject assignment and optional deep-merge overrides. */
-export const consumerSchema = z.strictObject({
+/** Per-user-group assignment and optional deep-merge overrides. */
+export const groupSchema = z.strictObject({
 	overrides: profileSchema.partial().optional(),
 	profile: profileNameSchema,
 });
@@ -198,7 +197,6 @@ export const consumerSchema = z.strictObject({
 /** The complete policy document: the single source of truth for all controls. */
 export const policySchema = z
 	.strictObject({
-		consumers: z.record(z.string(), consumerSchema),
 		controls: z.strictObject({
 			allowlist: modelAllowlistSchema,
 			budget: budgetConfigSchema,
@@ -210,8 +208,14 @@ export const policySchema = z
 		}),
 		defaults: z.strictObject({
 			failureVerdict: verdictSchema,
+			/**
+			 * Baseline profile whose enabled-control set assembles the shared
+			 * control stages. Per-group profiles select thresholds at verdict
+			 * mapping; a group's own profile always wins for its traffic.
+			 */
 			profile: profileNameSchema,
 		}),
+		groups: z.record(z.string(), groupSchema),
 		profiles: z.strictObject({
 			permissive: profileSchema,
 			standard: profileSchema,

@@ -34,7 +34,7 @@ function probeRule(pattern: string): DetectionConfig["rules"][number] {
 }
 
 function markerInteraction(content: string): Interaction {
-	return { content, direction: "inbound", id: "test-1", seam: "guard-api", subject: "alice" };
+	return { content, direction: "inbound", groupId: "alice", id: "test-1", seam: "guard-api" };
 }
 
 describe("createLiveDetectionControl", () => {

@@ -1,58 +1,78 @@
 /**
- * Consumer-key policy derivation from the policy document's `consumers` map:
- * policy-defined keys are known subjects of their own name; unknown and
- * missing keys follow the configured default-subject or rejection behavior.
+ * User/group identity resolution (superseding the consumer-key model).
  */
-import { describe, expect, test } from "bun:test";
+import { describe, expect, it } from "bun:test";
 
-import { consumerPolicyFromDocument, createConsumerResolver } from "#/control/subjects.ts";
+import {
+	createIdentityResolver,
+	identityFromRequest,
+	identityPolicyFromDocument,
+} from "#/control/subjects.ts";
 
-describe("consumerPolicyFromDocument", () => {
-	test("policy-defined consumer keys become known subjects of the same name", () => {
-		const policy = consumerPolicyFromDocument({
-			alice: { profile: "standard" },
-			analyst: { profile: "permissive" },
-			"deploy-bot": { profile: "strict" },
-		});
+const resolver = createIdentityResolver({ knownGroups: ["hr", "manager"] });
 
-		expect(policy.knownKeys).toEqual(["alice", "analyst", "deploy-bot"]);
-		const resolver = createConsumerResolver(policy);
-		expect(resolver.resolve("alice")).toEqual({
-			key: "alice",
-			kind: "known",
-			ok: true,
-			subject: "alice",
-		});
-	});
-
-	test("an unknown key falls back to the default subject, never a known one", () => {
-		const resolver = createConsumerResolver(consumerPolicyFromDocument({ alice: {} }));
-
-		const resolution = resolver.resolve("mallory");
-		expect(resolution.ok).toBe(true);
-		if (resolution.ok) {
-			expect(resolution.kind).toBe("default-subject");
-			expect(resolution.subject).toBe("default");
+describe("identity resolution", () => {
+	it("accepts a known user in a known group", () => {
+		const result = resolver.resolve("alice", "hr");
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.identity).toEqual({ groupId: "hr", userId: "alice" });
 		}
 	});
 
-	test("unknownKey: reject refuses unknown and missing keys", () => {
-		const resolver = createConsumerResolver(
-			consumerPolicyFromDocument(
-				{ alice: {} },
-				{
-					defaultSubject: "default",
-					unknownKey: "reject",
-				},
-			),
-		);
-
-		expect(resolver.resolve("mallory").ok).toBe(false);
-		expect(resolver.resolve(undefined).ok).toBe(false);
-		expect(resolver.resolve("alice").ok).toBe(true);
+	it("rejects an unknown group and names it", () => {
+		const result = resolver.resolve("alice", "ghost-group");
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.kind).toBe("unknown-group");
+			expect(result.reason).toContain("ghost-group");
+		}
 	});
 
-	test("an empty policy document defines no known keys", () => {
-		expect(consumerPolicyFromDocument({}).knownKeys).toEqual([]);
+	it("rejects a missing user id", () => {
+		const result = resolver.resolve(undefined, "hr");
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.kind).toBe("missing-identity");
+		}
+	});
+
+	it("rejects a missing group id", () => {
+		const result = resolver.resolve("alice", undefined);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.reason).toContain("x-user-group-id");
+		}
+	});
+
+	it("never falls back to a known group's configuration", () => {
+		const result = resolver.resolve("alice", "manager-not-really");
+		expect(result.ok).toBe(false);
+	});
+});
+
+describe("identityPolicyFromDocument", () => {
+	it("maps every policy group to a known group", () => {
+		const policy = identityPolicyFromDocument({
+			hr: { profile: "strict" },
+			manager: { profile: "standard" },
+		});
+		expect(policy.knownGroups).toEqual(["hr", "manager"]);
+	});
+});
+
+describe("identityFromRequest", () => {
+	it("reads both identity headers", () => {
+		const request = new Request("http://test.local/", {
+			headers: { "x-user-group-id": "hr", "x-user-id": "alice" },
+		});
+		expect(identityFromRequest(request)).toEqual({ groupId: "hr", userId: "alice" });
+	});
+
+	it("treats an empty header as absent", () => {
+		const request = new Request("http://test.local/", {
+			headers: { "x-user-id": "" },
+		});
+		expect(identityFromRequest(request).userId).toBeUndefined();
 	});
 });

@@ -7,7 +7,7 @@ import {
 	filterAuditEvents,
 	readAuditEvents,
 } from "#/control/audit.ts";
-import { requireKnownConsumer } from "#/control/subjects.ts";
+import { requireKnownGroup } from "#/control/subjects.ts";
 import { getAuditSink, getHub } from "#/hub/runtime.ts";
 
 export const Route = createFileRoute("/api/audit/export")({
@@ -15,13 +15,13 @@ export const Route = createFileRoute("/api/audit/export")({
 		handlers: {
 			GET: async ({ request }) => {
 				const hub = await getHub();
-				const access = requireKnownConsumer(request, hub.consumers);
+				const access = requireKnownGroup(request, hub.identity);
 				if (!access.ok) {
 					hub.audit.record(
 						auditEvent("interaction", {
 							controlId: "consumer-key",
 							detail: `audit export denied: ${access.reason}`,
-							subject: "export",
+							groupId: "export",
 						}),
 					);
 					return Response.json({ error: "rejected", reason: access.reason }, { status: 403 });
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/audit/export")({
 				const events = readAuditEvents(sink);
 				const filtered = filterAuditEvents(events, {
 					control: url.searchParams.get("control") ?? undefined,
-					subject: url.searchParams.get("subject") ?? undefined,
+					groupId: url.searchParams.get("groupId") ?? undefined,
 					verdict: url.searchParams.get("verdict") ?? undefined,
 				});
 				const body = format === "csv" ? auditEventsToCsv(filtered) : auditEventsToJsonl(filtered);

@@ -28,16 +28,16 @@ strictness levels and different budget rules; the tests in
 | --- | --- | --- |
 | `version` | string (min 1) | Document label. The loader additionally stamps every load with a `sha256` content-hash version for audit records. |
 | `defaults.failureVerdict` | verdict | Verdict applied when the pipeline cannot decide (classifier timeout, internal error). Use `escalate` or `block` for fail-closed behavior. |
-| `defaults.profile` | `permissive` \| `standard` \| `strict` | Profile used for consumers without an explicit assignment. |
-| `consumers` | map consumer key to consumer | Per-subject profile assignment and overrides. |
+| `defaults.failureVerdict` | `allow` \| `block` \| `escalate` \| `redact` | Verdict applied when a control fails. |
+| `groups` | map user group id to group | Per-group profile assignment and overrides. |
 | `controls` | object | All control configuration (below). |
 | `profiles` | object with exactly `permissive`, `standard`, `strict` | Named strictness profiles (below). |
 
-### `consumers.<key>`
+### `groups.<user-group-id>`
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `profile` | profile name | The strictness profile this consumer's interactions run under. |
+| `profile` | profile name | The strictness profile this group's interactions run under. |
 | `overrides` | partial profile (optional) | Deep-merged over the assigned profile. Both `enabledControls` and `thresholds` are all-or-nothing when present. |
 
 ### `controls`
@@ -95,13 +95,13 @@ Each `controls.semantic.checks[]` entry:
 | Field | Type | Description |
 | --- | --- | --- |
 | `overBudgetVerdict` | verdict | Verdict applied when a projected interaction would exceed an exhausted or insufficient budget (default intent: `block`). |
-| `rules` | array of rule | Budget rules per consumer key and model scope. |
+| `rules` | array of rule | Budget rules per user and model scope. |
 
 Each `controls.budget.rules[]` entry:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `key` | string (min 1) | Consumer key the budget is attributed to. |
+| `key` | string (min 1) | User id the budget is attributed to. |
 | `modelScope` | string (min 1) | Model name the rule applies to, or `*` for all models. |
 | `period` | `hour` \| `day` \| `month` | Time window the limits reset by. |
 | `tokens` | positive integer (optional) | Token budget for the window. |

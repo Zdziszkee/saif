@@ -32,6 +32,21 @@ The question catalog — which binary checks exist, their wording, and their per
 - **WHEN** `policy.jev.json` contains a check with an empty identifier, a duplicate identifier, a reserved identifier, non-binary type, or an out-of-range threshold
 - **THEN** the load fails with a configuration error naming the offending check and the previous valid catalog stays in effect
 
+### Requirement: Group-selected checks
+`policy.jev.json` SHALL map each user group to the set of check identifiers that apply to it, so different groups are asked different questions. Checks not listed for a group MUST NOT be evaluated for that group's traffic, and a group the mapping does not name MUST be rejected rather than silently evaluated with another group's set.
+
+#### Scenario: Group selects its checks
+- **WHEN** a request arrives from a user whose group lists `insider_trading` and `privacy_violation`
+- **THEN** exactly those checks, plus any others the group lists, are evaluated and no unlisted check is asked
+
+#### Scenario: Different groups asked different questions
+- **WHEN** a request from group `hr` and a request from group `software-developer` are evaluated against the same content
+- **THEN** each is evaluated against its own group's check set
+
+#### Scenario: Unknown group never evaluated
+- **WHEN** a request names a group absent from the mapping
+- **THEN** no semantic evaluation happens and the interaction is rejected with cause `unknown-group`
+
 ### Requirement: Schema-constrained answers
 Semantic answers MUST be schema-constrained to the declared check definitions (no free-form output). Every binary check answer SHALL carry its probability P(true) in the closed interval [0, 1] and the derived boolean value. Binary answers carry no confidence value, so uncertainty SHALL NOT be inferred from one.
 

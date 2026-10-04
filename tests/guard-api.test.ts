@@ -1,22 +1,34 @@
 import { describe, expect, it } from "bun:test";
 import { engineOfControlId, handleGuardRequest } from "#/control/guard-api.ts";
-import { CONSUMER_KEY_HEADER, requireKnownConsumer } from "#/control/subjects.ts";
+import {
+	type CallerIdentity,
+	requireKnownGroup,
+	USER_GROUP_ID_HEADER,
+	USER_ID_HEADER,
+} from "#/control/subjects.ts";
 import type { ControlPipeline, Interaction } from "#/control/types.ts";
 import {
 	auditSink,
 	blockOn,
 	blockSubject,
-	consumerResolver,
 	escalateOn,
 	failingControl,
+	identityResolver,
 	pipelineWith,
 	redactOn,
 } from "./helpers/fixtures.ts";
 
-function guardRequest(body: unknown, consumerKey?: string): Request {
+const alice: CallerIdentity = { groupId: "hr", userId: "alice" };
+const bob: CallerIdentity = { groupId: "manager", userId: "bob" };
+const ghost: CallerIdentity = { groupId: "ghost-group", userId: "ghost" };
+
+function guardRequest(body: unknown, identity?: Partial<CallerIdentity>): Request {
 	const headers = new Headers({ "content-type": "application/json" });
-	if (consumerKey !== undefined) {
-		headers.set(CONSUMER_KEY_HEADER, consumerKey);
+	if (identity?.userId !== undefined) {
+		headers.set(USER_ID_HEADER, identity.userId);
+	}
+	if (identity?.groupId !== undefined) {
+		headers.set(USER_GROUP_ID_HEADER, identity.groupId);
 	}
 	return new Request("http://test.local/api/guard", {
 		body: JSON.stringify(body),
@@ -43,8 +55,8 @@ async function jsonOf(response: Response): Promise<GuardBody> {
 
 describe("guard API", () => {
 	it("forwards allowed interactions (positive case)", async () => {
-		const response = await handleGuardRequest(guardRequest(envelope, "alice"), {
-			consumers: consumerResolver(),
+		const response = await handleGuardRequest(guardRequest(envelope, alice), {
+			identity: identityResolver(),
 			pipeline: pipelineWith([]),
 		});
 		expect(response.status).toBe(200);
@@ -55,9 +67,9 @@ describe("guard API", () => {
 
 	it("redacts flagged spans and preserves surrounding content (negative case)", async () => {
 		const response = await handleGuardRequest(
-			guardRequest({ ...envelope, content: "token SECRET-1 stays" }, "alice"),
+			guardRequest({ ...envelope, content: "token SECRET-1 stays" }, alice),
 			{
-				consumers: consumerResolver(),
+				identity: identityResolver(),
 				pipeline: pipelineWith([redactOn("SECRET-1", "[TOKEN]")]),
 			},
 		);
@@ -69,9 +81,9 @@ describe("guard API", () => {
 
 	it("blocks with the defined rejection shape and forwards no content", async () => {
 		const response = await handleGuardRequest(
-			guardRequest({ ...envelope, content: "EVIL payload" }, "alice"),
+			guardRequest({ ...envelope, content: "EVIL payload" }, alice),
 			{
-				consumers: consumerResolver(),
+				identity: identityResolver(),
 				pipeline: pipelineWith([blockOn("EVIL")]),
 			},
 		);
@@ -85,9 +97,9 @@ describe("guard API", () => {
 
 	it("escalates without forwarding the content", async () => {
 		const response = await handleGuardRequest(
-			guardRequest({ ...envelope, content: "HOLD for review" }, "alice"),
+			guardRequest({ ...envelope, content: "HOLD for review" }, alice),
 			{
-				consumers: consumerResolver(),
+				identity: identityResolver(),
 				pipeline: pipelineWith([escalateOn("HOLD")]),
 			},
 		);
@@ -112,8 +124,8 @@ describe("guard API", () => {
 				});
 			},
 		};
-		const response = await handleGuardRequest(guardRequest({ direction: "inbound" }, "alice"), {
-			consumers: consumerResolver(),
+		const response = await handleGuardRequest(guardRequest({ direction: "inbound" }, alice), {
+			identity: identityResolver(),
 			pipeline: spyPipeline,
 		});
 		expect(response.status).toBe(400);
@@ -124,9 +136,9 @@ describe("guard API", () => {
 
 	it("fails closed when a control errors", async () => {
 		const audit = auditSink();
-		const response = await handleGuardRequest(guardRequest(envelope, "alice"), {
+		const response = await handleGuardRequest(guardRequest(envelope, alice), {
 			audit,
-			consumers: consumerResolver(),
+			identity: identityResolver(),
 			pipeline: pipelineWith([failingControl("boom")], { audit }),
 		});
 		expect(response.status).toBe(403);
@@ -139,10 +151,10 @@ describe("guard API", () => {
 	it("keeps an earlier block when a later control fails", async () => {
 		const audit = auditSink();
 		const response = await handleGuardRequest(
-			guardRequest({ ...envelope, content: "MARKER please block" }, "alice"),
+			guardRequest({ ...envelope, content: "MARKER please block" }, alice),
 			{
 				audit,
-				consumers: consumerResolver(),
+				identity: identityResolver(),
 				pipeline: pipelineWith(
 					[
 						{
@@ -175,90 +187,106 @@ describe("guard API", () => {
 		const audit = auditSink();
 		const deps = {
 			audit,
-			consumers: consumerResolver(),
-			pipeline: pipelineWith([blockSubject("bob", "MARKER")]),
+			identity: identityResolver(),
+			pipeline: pipelineWith([blockSubject("manager", "MARKER")]),
 		};
 		const [aliceResponse, bobResponse] = await Promise.all([
-			handleGuardRequest(guardRequest({ ...envelope, content: "MARKER for me" }, "alice"), deps),
-			handleGuardRequest(guardRequest({ ...envelope, content: "MARKER for me" }, "bob"), deps),
+			handleGuardRequest(guardRequest({ ...envelope, content: "MARKER for me" }, alice), deps),
+			handleGuardRequest(guardRequest({ ...envelope, content: "MARKER for me" }, bob), deps),
 		]);
 		expect((await jsonOf(aliceResponse)).verdict).toBe("allow");
 		expect((await jsonOf(bobResponse)).verdict).toBe("block");
 
-		const subjects = audit.events
+		const groups = audit.events
 			.filter((event) => event.kind === "interaction" && event.verdict !== undefined)
-			.map((event) => event.subject)
+			.map((event) => event.groupId)
 			.sort();
-		expect(subjects).toEqual(["alice", "bob"]);
+		expect(groups).toEqual(["hr", "manager"]);
 	});
 
-	it("routes unknown consumer keys to the configured default subject and records it", async () => {
+	it("rejects an unknown user group and records the reason", async () => {
 		const audit = auditSink();
-		const response = await handleGuardRequest(guardRequest(envelope, "ghost"), {
+		const response = await handleGuardRequest(guardRequest(envelope, ghost), {
 			audit,
-			consumers: consumerResolver(),
-			pipeline: pipelineWith([]),
-		});
-		expect(response.status).toBe(200);
-		expect(
-			audit.events.some((event) => event.detail?.includes("resolved to default subject")),
-		).toBe(true);
-		expect(
-			audit.events.some((event) => event.detail?.includes("ghost") && event.subject === "default"),
-		).toBe(true);
-	});
-
-	it("rejects unknown consumer keys when the policy configures rejection", async () => {
-		const audit = auditSink();
-		const response = await handleGuardRequest(guardRequest(envelope, "ghost"), {
-			audit,
-			consumers: consumerResolver({ unknownKey: "reject" }),
+			identity: identityResolver(),
 			pipeline: pipelineWith([]),
 		});
 		expect(response.status).toBe(403);
 		const body = await jsonOf(response);
-		expect(body.control).toBe("consumer-key");
+		expect(body.control).toBe("caller-identity");
 		expect(body.error).toBe("rejected");
-		expect(audit.events.some((event) => event.detail?.includes("consumer key rejected"))).toBe(
+		expect(body.reason).toContain("ghost-group");
+		expect(
+			audit.events.some(
+				(event) =>
+					event.controlId === "caller-identity" &&
+					event.detail?.includes("user group not defined by policy"),
+			),
+		).toBe(true);
+	});
+
+	it("rejects requests with no identity headers at all", async () => {
+		const audit = auditSink();
+		const response = await handleGuardRequest(guardRequest(envelope), {
+			audit,
+			identity: identityResolver(),
+			pipeline: pipelineWith([]),
+		});
+		expect(response.status).toBe(403);
+		const body = await jsonOf(response);
+		expect(body.control).toBe("caller-identity");
+		expect(audit.events.some((event) => event.detail?.includes("no x-user-id presented"))).toBe(
 			true,
 		);
 	});
 
-	it("applies default-subject behavior to requests with no consumer key", async () => {
+	it("rejects when the user id is present but the group is missing", async () => {
 		const audit = auditSink();
-		const response = await handleGuardRequest(guardRequest(envelope), {
+		const response = await handleGuardRequest(guardRequest(envelope, { userId: "alice" }), {
 			audit,
-			consumers: consumerResolver(),
+			identity: identityResolver(),
 			pipeline: pipelineWith([]),
 		});
-		expect(response.status).toBe(200);
-		expect(
-			audit.events.some((event) => event.detail?.includes("resolved to default subject")),
-		).toBe(true);
+		expect(response.status).toBe(403);
+		const body = await jsonOf(response);
+		expect(body.reason).toContain("x-user-group-id");
+	});
+
+	it("records the calling user and group on allowed traffic", async () => {
+		const audit = auditSink();
+		await handleGuardRequest(guardRequest(envelope, alice), {
+			audit,
+			identity: identityResolver(),
+			pipeline: pipelineWith([]),
+		});
+		const event = audit.events.find((entry) => entry.kind === "interaction");
+		expect(event?.userId).toBe("alice");
+		expect(event?.groupId).toBe("hr");
 	});
 });
 
 describe("known-consumer gate", () => {
-	function keyedRequest(consumerKey?: string): Request {
+	function keyedRequest(groupId?: string): Request {
 		const headers = new Headers();
-		if (consumerKey !== undefined) {
-			headers.set(CONSUMER_KEY_HEADER, consumerKey);
+		if (groupId !== undefined) {
+			headers.set(USER_GROUP_ID_HEADER, groupId);
+			headers.set(USER_ID_HEADER, `user-${groupId}`);
 		}
 		return new Request("http://test.local/api/audit/export?format=jsonl", { headers });
 	}
 
-	it("passes a key the policy defines", () => {
-		const access = requireKnownConsumer(keyedRequest("alice"), consumerResolver());
-		expect(access).toEqual({ ok: true, subject: "alice" });
+	it("passes a user in a known group", () => {
+		const access = requireKnownGroup(keyedRequest("hr"), identityResolver());
+		expect(access.ok).toBe(true);
 	});
 
 	it("rejects a missing key", () => {
-		const access = requireKnownConsumer(keyedRequest(), consumerResolver());
+		const access = requireKnownGroup(keyedRequest(), identityResolver());
 		expect(access.ok).toBe(false);
 	});
 
-	it("rejects an unknown key even under default-subject policy", () => {
-		const access = requireKnownConsumer(keyedRequest("ghost"), consumerResolver());
+	it("rejects an unknown group", () => {
+		const access = requireKnownGroup(keyedRequest("ghost"), identityResolver());
 		expect(access.ok).toBe(false);
 	});
 });
@@ -272,8 +300,8 @@ describe("decision logging", () => {
 			return true;
 		}) as typeof process.stdout.write;
 		try {
-			const response = await handleGuardRequest(guardRequest(envelope, "alice"), {
-				consumers: consumerResolver(),
+			const response = await handleGuardRequest(guardRequest(envelope, alice), {
+				identity: identityResolver(),
 				pipeline: pipelineWith([]),
 			});
 			expect(response.status).toBe(200);
@@ -290,16 +318,16 @@ describe("engine attribution", () => {
 		expect(engineOfControlId("semantic")).toBe("jev");
 		expect(engineOfControlId("signatures")).toBe("feed");
 		expect(engineOfControlId("pipeline")).toBe("pipeline");
-		expect(engineOfControlId("consumer-key")).toBe("policy");
+		expect(engineOfControlId("caller-identity")).toBe("policy");
 	});
 
 	it("records the blocking control for redact, not just rejections", async () => {
 		const audit = auditSink();
 		const response = await handleGuardRequest(
-			guardRequest({ ...envelope, content: "token SECRET-1 stays" }, "alice"),
+			guardRequest({ ...envelope, content: "token SECRET-1 stays" }, alice),
 			{
 				audit,
-				consumers: consumerResolver(),
+				identity: identityResolver(),
 				pipeline: pipelineWith([redactOn("SECRET-1", "[TOKEN]")]),
 			},
 		);
@@ -310,9 +338,9 @@ describe("engine attribution", () => {
 
 	it("attributes clean allows to the pipeline instead of none", async () => {
 		const audit = auditSink();
-		await handleGuardRequest(guardRequest(envelope, "alice"), {
+		await handleGuardRequest(guardRequest(envelope, alice), {
 			audit,
-			consumers: consumerResolver(),
+			identity: identityResolver(),
 			pipeline: pipelineWith([]),
 		});
 		const decision = audit.events.find(

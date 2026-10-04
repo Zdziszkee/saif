@@ -139,7 +139,7 @@ function Dashboard() {
 									<li key={`${event.timestamp}-${event.interactionId ?? ""}`}>
 										{event.timestamp} [{event.verdict ?? "?"}] [
 										{engineOfControlId(event.controlId ?? "pipeline")}] {event.controlId ?? ""}{" "}
-										{event.subject ?? ""} ({event.seam ?? "?"})
+										{event.groupId ?? ""} ({event.seam ?? "?"})
 									</li>
 								))}
 							</ul>

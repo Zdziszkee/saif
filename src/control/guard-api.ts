@@ -1,7 +1,7 @@
 /**
  * Generic guard API handler (interaction-gateway requirement).
  *
- * Resolves the consumer key from the defined request header (multi-consumer
+ * Resolves caller identity from `x-user-id` / `x-user-group-id` (multi-caller
  * connections), validates the request shape — malformed requests are rejected
  * with a client error before any control evaluation — then routes the
  * interaction through the shared pipeline via `guardInteraction()` and answers
@@ -11,11 +11,7 @@
 import { type AuditSink, auditEvent, noopAuditSink } from "./audit.ts";
 import { guardInteraction } from "./guard.ts";
 import { parseInteractionRequest } from "./shape.ts";
-import {
-	type ConsumerResolver,
-	consumerKeyFromRequest,
-	type SubjectResolution,
-} from "./subjects.ts";
+import { type IdentityResolution, type IdentityResolver, identityFromRequest } from "./subjects.ts";
 import type {
 	ControlHit,
 	ControlPipeline,
@@ -26,26 +22,19 @@ import type {
 
 export interface GuardApiDeps {
 	audit?: AuditSink | undefined;
-	consumers: ConsumerResolver;
+	identity: IdentityResolver;
 	pipeline: ControlPipeline;
 }
 
 export async function handleGuardRequest(request: Request, deps: GuardApiDeps): Promise<Response> {
 	const audit = deps.audit ?? noopAuditSink;
 
-	const resolution = deps.consumers.resolve(consumerKeyFromRequest(request));
-	const subject = resolvedSubject(resolution, audit);
-	if (subject === undefined) {
-		return Response.json(
-			{
-				control: "consumer-key",
-				error: "rejected",
-				reason: resolution.ok ? "rejected" : resolution.reason,
-				verdict: "block",
-			},
-			{ status: 403 },
-		);
+	const presented = identityFromRequest(request);
+	const resolution = deps.identity.resolve(presented.userId, presented.groupId);
+	if (!resolution.ok) {
+		return identityRejection(resolution, audit);
 	}
+	const identity = resolution.identity;
 
 	let body: unknown = null;
 	try {
@@ -54,12 +43,13 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 		body = null;
 	}
 
-	const validation = parseInteractionRequest(body, subject);
+	const validation = parseInteractionRequest(body, identity);
 	if (!validation.ok) {
 		audit.record(
 			auditEvent("interaction", {
 				detail: `malformed request rejected: ${validation.errors.join("; ")}`,
-				subject,
+				groupId: identity.groupId,
+				userId: identity.userId,
 			}),
 		);
 		return Response.json(
@@ -91,6 +81,34 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 		reasons,
 		verdict: outcome.verdict,
 	});
+}
+
+/**
+ * The defined rejection for an unusable caller identity. A missing identity or
+ * an unknown group is never a fallback to another caller's configuration.
+ */
+function identityRejection(
+	resolution: Extract<IdentityResolution, { ok: false }>,
+	audit: AuditSink,
+): Response {
+	audit.record(
+		auditEvent("interaction", {
+			controlId: "caller-identity",
+			detail: `caller identity rejected: ${resolution.reason}`,
+			groupId: resolution.groupId,
+			userId: resolution.userId,
+			verdict: "block",
+		}),
+	);
+	return Response.json(
+		{
+			control: "caller-identity",
+			error: "rejected",
+			reason: resolution.reason,
+			verdict: "block",
+		},
+		{ status: 403 },
+	);
 }
 
 export interface GuardHitView {
@@ -171,35 +189,10 @@ function logDecision(
 	control: string | undefined,
 ): void {
 	process.stdout.write(
-		`[guard] ${interaction.seam}/${interaction.direction} subject=${interaction.subject} -> ${verdict} (${control ?? "none"})\n`,
+		`[guard] ${interaction.seam}/${interaction.direction} group=${interaction.groupId} -> ${verdict} (${control ?? "none"})\n`,
 	);
 }
 
 /**
- * Resolve the policy subject for the request, recording the outcome for
- * missing/unknown consumer keys. Returns `undefined` when the configured
- * default-subject behavior is rejection.
+
  */
-function resolvedSubject(resolution: SubjectResolution, audit: AuditSink): string | undefined {
-	let subject: string | undefined;
-	if (!resolution.ok) {
-		audit.record(
-			auditEvent("interaction", {
-				controlId: "consumer-key",
-				detail: `consumer key rejected: ${resolution.reason}`,
-				verdict: "block",
-			}),
-		);
-	} else if (resolution.kind === "known") {
-		subject = resolution.subject;
-	} else {
-		audit.record(
-			auditEvent("interaction", {
-				detail: `consumer key resolved to default subject: ${resolution.key ?? "(none)"}`,
-				subject: resolution.subject,
-			}),
-		);
-		subject = resolution.subject;
-	}
-	return subject;
-}

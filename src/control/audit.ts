@@ -14,12 +14,15 @@ export interface AuditEvent {
 	/** Control responsible for the verdict, when one is attributable. */
 	controlId?: string | undefined;
 	detail?: string | undefined;
+	/** Policy subject: the user group the caller presented. */
+	groupId?: string | undefined;
 	interactionId?: string | undefined;
 	kind: AuditEventKind;
 	redactionCount?: number | undefined;
 	seam?: string | undefined;
-	subject?: string | undefined;
 	timestamp: string;
+	/** The individual caller, when attributable. */
+	userId?: string | undefined;
 	verdict?: Verdict | undefined;
 }
 
@@ -61,7 +64,8 @@ export function auditEvent(
 
 export interface AuditFilter {
 	control?: string | undefined;
-	subject?: string | undefined;
+	groupId?: string | undefined;
+	userId?: string | undefined;
 	verdict?: string | undefined;
 }
 
@@ -74,7 +78,7 @@ export function filterAuditEvents(
 		(event) =>
 			(filter.verdict === undefined || event.verdict === filter.verdict) &&
 			(filter.control === undefined || event.controlId === filter.control) &&
-			(filter.subject === undefined || event.subject === filter.subject),
+			(filter.groupId === undefined || event.groupId === filter.groupId),
 	);
 }
 
@@ -141,7 +145,7 @@ const CSV_COLUMNS = [
 	"kind",
 	"verdict",
 	"controlId",
-	"subject",
+	"groupId",
 	"seam",
 	"interactionId",
 	"detail",

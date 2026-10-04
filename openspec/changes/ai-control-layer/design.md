@@ -30,7 +30,7 @@ installed. Constraints that shape this design:
 **Non-Goals:**
 
 - Training or fine-tuning any classifier; Jev is consumed as a hosted decision model.
-- Identity/authn provider integration; consumer keys are presented via header and mapped
+- Identity/authn provider integration; user and group ids are presented via header and mapped
   to policy subjects, not authenticated against an IdP.
 - A full human-review workflow; escalations are recorded and surfaced in the dashboard,
   resolution is out of scope.
@@ -104,12 +104,19 @@ snapshot atomically; each request reads one snapshot and stamps its version hash
 canonical JSON) into the audit record. Invalid reloads keep the last valid policy and log
 the error. JSON over YAML: zod-native, no parser dependency, diff-friendly for judges.
 
-### D7. SQLite (Drizzle) for audit, usage, and budget state
-Core tables: `audit_events` (append-only, one row per governed interaction with
-evidence JSON), `usage_records` (tokens, cost, latency per call, incl. Jev's own usage),
-and `budget_windows` (key, window, counters; windows are computed by time bucket, so
-rollover needs no cron). Alternatives: Postgres (operational overhead), in-memory (loses
-audit durability), files (no queryability for dashboards/exports).
+### D7. SQLite (Drizzle) with two tables sized for the dashboard
+`audit_events` (one row per governed interaction) and `usage_records` (one row
+per forwarded model call). Both are indexed on `ts`, `user_id + ts` and
+`user_group_id + ts` so every dashboard dimension is a covered query rather than
+a scan.
+
+Deliberately not stored: pipeline latency, per-hit detail rows, raw upstream
+status, and a separate budget table. Budget limits are enforced by aggregating
+`usage_records` over a time window, so recorded spend is the single source of
+truth and there is no reservation state to reconcile. `prompt_text` is kept only
+for `block`/`escalate`, where it is evidence; allowed traffic is stored without
+content. Rationale: the reporting surfaces are the only consumer of this data,
+so each column has to earn its place against a dashboard query.
 
 ### D8. Hermetic test suite by default, live smoke opt-in
 `bun test` drives the suite (the repo standardised on bun alone) with fixed-evidence
@@ -143,6 +150,28 @@ inference through tool semantics, hides prompt traffic from the prompt-plane con
 couples the tool catalog to model routing), or an external LLM gateway product (extra
 deployable; the TanStack AI stack already provides the gateway).
 
+### D11. LLM gateway seam: OpenAI-compatible endpoint with user/group identity
+The control layer is exposed as `POST /v1/chat/completions` in the OpenAI wire
+format with SSE token streaming, so a developer agent harness (Claude Code and
+similar) can point its `baseURL` at us and work unchanged. Only inbound prompts
+are gated; answers stream through untouched and the call is metered on
+completion. This is the outermost seam; D10's chat plane and tools-only hub sit
+behind it.
+
+Identity is `x-user-id` + `x-user-group-id` rather than an opaque consumer key:
+the user is the unit of usage limiting and per-user reporting, the group selects
+the policy profile and the semantic check set and is the unit of group
+reporting. A missing identity or an unknown group is rejected and audited, never
+silently defaulted. This supersedes the consumer-key model the interaction
+gateway originally assumed.
+
+Lifecycle order is identity -> usage limit -> deterministic -> semantic ->
+forward. Limits run before content validation so an over-limit caller never
+consumes decision-model calls. Cost is computed at runtime from the LiteLLM
+model price table (cached at startup, cost fields only) — prices are never
+hard-coded, and an unpriced model is recorded as unknown cost rather than zero.
+
+
 ## Detailed Solution Design (per requirement)
 
 Concrete solution for each challenge requirement, layered cheap-first. Pipeline stage order
@@ -151,16 +180,16 @@ itself is D4; this section specifies what each stage actually does.
 ### R1. Centralized policy engine
 
 - **Document shape**: `policy.json` = `{ version, defaults { profile, failureVerdict },
-  consumers { <id>: { profile, overrides } }, controls { shape, allowlist, signatures,
-  detection, redaction, budget, semantic }, observability }` where `consumers` identifies
-  policy subjects.
+  groups { <id>: { profile, overrides } }, controls { shape, allowlist, signatures,
+  detection, redaction, budget }, observability }` where `groups` identifies the policy
+  subjects (the user groups callers present via `x-user-group-id`).
   `controls.detection` carries custom regex rules (`rules[]` with id, kind, pattern,
   target directions, mapped action) plus built-in detector-family toggles and per-kind
   default actions. Jev question definitions are NOT here: they live in
   `policy.jev.json` at the project root (D3). Zod schema is the single definition,
   shared by runtime loader and tests; unknown keys rejected (`z.strictObject`).
 - **Resolution order**: base document → profile overlay (permissive/standard/strict,
-  deep-merge) → per-consumer / per-route override. Precedence is deterministic and
+  deep-merge) → per-group / per-route override. Precedence is deterministic and
   documented in `docs/policy.md`; every merge result is itself schema-valid.
 - **Versioned activation**: dashboard save or JSON import → validate → new version row
   (`policyVersion = sha256(canonical JSON)`) → atomic snapshot swap (each request pins one
@@ -242,7 +271,7 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **Windows**: tumbling time buckets (hour/day) keyed `(subject, model, window)`; bucket is
   computed from timestamp, so rollover is free (D7). Over-budget → policy's over-budget
   verdict (default `block`).
-- **Burst control (optional refinement)**: token-bucket rate limit per consumer for runaway
+- **Burst control (optional refinement)**: token-bucket rate limit per user for runaway
   agent loops, complementing the windowed spend cap.
 
 ### R4. Historical attack mitigation (signature engine)
@@ -312,13 +341,13 @@ surface, not just message content.
 ### R5. Security reporting and auditing
 
 - **Audit**: append-only `audit_events` (WAL) — timestamp, interaction id, seam, direction,
-  consumer key hash, policy version hash, verdict + control hits, semantic answer summary,
+  user id, user group id, policy version hash, verdict, decisive check and score,
   redaction counts, usage, per-stage latency. Raw outbound state is never logged.
 - **Metrics**: aggregation queries over audit/usage (verdicts by control and category,
   redactions, budget consumption, latency p50/p95/p99) served to the dashboard via polling;
   incrementally maintained counters if query cost matters.
 - **Export**: `/api/audit/export` as JSONL and CSV with filters (time range, verdict,
-  control, consumer key) — parseable output for security teams.
+  control, user id, user group id) — parseable output for security teams.
 - **Dashboard surfaces**: posture overview and policy/feed versions in force.
 
 ### R6. Self-testing suite
@@ -335,7 +364,7 @@ surface, not just message content.
 
 | Problem | Controls |
 | --- | --- |
-| Over-broad access / impersonation | model allowlist, per-consumer policy subjects and overrides |
+| Over-broad access / impersonation | model allowlist, per-group policy subjects and overrides |
 | Prompt injection & sensitive output | R2a L1–L4 inbound + output direction, R2b semantic questions, signature feed (R4) |
 | Runaway loops / resource blowup | budget windows + reservations (R3), optional token-bucket rate limit, per-stage latency telemetry (R5) |
 
@@ -350,7 +379,7 @@ surface, not just message content.
   with questions in parallel; per-stage latency recorded in audit for the telemetry the
   challenge asks for. Budget a p95 target of ~100 ms deterministic / ~600 ms with semantic.
 - [Prompts leave the house when using hosted Jev] → Policy option to disable the semantic
-  tier per consumer (`off` egress mode, deterministic-only); state passed to Jev is
+  tier per group (`off` egress mode, deterministic-only); state passed to Jev is
   trimmed to the fields the decision needs.
 - [Policy hot-reload races] → Immutable snapshot per request with version stamping (D6).
 - [Signature feed false positives] → Severity-keyed actions with policy overrides;

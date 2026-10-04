@@ -21,19 +21,19 @@ All controls MUST be configured from one policy document. The document covers co
 The policy SHALL define, per control and per direction (inbound prompt, outbound output), the sensitivity thresholds that map evidence to `allow`, `redact`, `block`, or `escalate`, and SHALL define named strictness profiles (at least permissive, standard, strict) that select sets of thresholds and enabled controls.
 
 #### Scenario: Profile changes thresholds
-- **WHEN** a consumer is assigned the `strict` profile
-- **THEN** controls use that profile's thresholds and enabled-control set for that consumer's interactions
+- **WHEN** a user group is assigned the `strict` profile
+- **THEN** controls use that profile's thresholds and enabled-control set for that group's interactions
 
-### Requirement: Consumer definitions
-The policy SHALL define named consumers — the agents, applications, and teams that connect to the control layer as policy subjects — mapping each consumer key to a strictness profile and optional per-consumer control overrides. Policy resolution SHALL be deterministic: base document, then profile overlay, then per-consumer override, with the consumer override taking precedence and every merge result remaining schema-valid. The policy MAY define a default subject for unidentified consumers.
+### Requirement: Group definitions
+The policy SHALL define the named user groups that connect to the control layer as policy subjects, mapping each group identifier to a strictness profile and optional per-group control overrides. Policy resolution SHALL be deterministic: base document, then profile overlay, then per-group override, with the group override taking precedence and every merge result remaining schema-valid. A group the policy does not define MUST be rejected, never defaulted to another group's configuration.
 
-#### Scenario: Consumer assigned to a profile
-- **WHEN** the policy defines a consumer with the `strict` profile and that consumer sends traffic
-- **THEN** the consumer's interactions are evaluated with the strict profile's thresholds and enabled-control set
+#### Scenario: Group assigned to a profile
+- **WHEN** the policy defines a group with the `strict` profile and a user in that group sends traffic
+- **THEN** that group's interactions are evaluated with the strict profile's thresholds and enabled-control set
 
-#### Scenario: Per-consumer override wins
-- **WHEN** a consumer override conflicts with its profile overlay
-- **THEN** the consumer override is applied and other consumers continue to resolve without the override
+#### Scenario: Per-group override wins
+- **WHEN** a group override conflicts with its profile overlay
+- **THEN** the group override is applied and other groups continue to resolve without the override
 
 ### Requirement: Model allowlist
 The policy SHALL define the set of permitted LLM models and endpoints. The system MUST reject interactions targeting a model outside the allowlist regardless of other control outcomes.

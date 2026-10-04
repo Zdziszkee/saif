@@ -44,10 +44,13 @@ function generateInteractionId(): string {
 }
 
 /**
- * Validate the request envelope. The policy subject comes from the resolved
- * consumer key (multi-consumer connections), never from the request body.
+ * Validate the request envelope. Caller identity comes from the resolved
+ * `x-user-id` / `x-user-group-id` headers, never from the request body.
  */
-export function parseInteractionRequest(input: unknown, subject: string): ShapeValidation {
+export function parseInteractionRequest(
+	input: unknown,
+	identity: { groupId: string; userId: string },
+): ShapeValidation {
 	const parsed = interactionRequestSchema.safeParse(input);
 	if (!parsed.success) {
 		return {
@@ -64,13 +67,14 @@ export function parseInteractionRequest(input: unknown, subject: string): ShapeV
 		interaction: {
 			content: request.content,
 			direction: request.direction,
+			groupId: identity.groupId,
 			id: request.id ?? generateInteractionId(),
 			model: request.model,
 			seam,
-			subject,
 			tool: request.tool
 				? { arguments: request.tool.arguments, name: request.tool.name }
 				: undefined,
+			userId: identity.userId,
 		},
 		ok: true,
 	};

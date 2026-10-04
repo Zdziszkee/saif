@@ -6,24 +6,24 @@
  */
 
 export interface GrantRegistry {
-	grant(subject: string, toolName: string): void;
-	isGranted(subject: string, toolName: string): boolean;
+	grant(groupId: string, toolName: string): void;
+	isGranted(groupId: string, toolName: string): boolean;
 	registerTool(toolName: string, grantedByDefault: boolean): void;
-	revoke(subject: string, toolName: string): void;
+	revoke(groupId: string, toolName: string): void;
 }
 
 export function createGrantRegistry(): GrantRegistry {
 	const defaults = new Map<string, boolean>();
 	const overrides = new Map<string, boolean>();
 
-	const key = (subject: string, toolName: string) => `${subject}:${toolName}`;
+	const key = (groupId: string, toolName: string) => `${groupId}:${toolName}`;
 
 	return {
-		grant(subject, toolName) {
-			overrides.set(key(subject, toolName), true);
+		grant(groupId, toolName) {
+			overrides.set(key(groupId, toolName), true);
 		},
-		isGranted(subject, toolName) {
-			const override = overrides.get(key(subject, toolName));
+		isGranted(groupId, toolName) {
+			const override = overrides.get(key(groupId, toolName));
 			if (override !== undefined) {
 				return override;
 			}
@@ -32,8 +32,8 @@ export function createGrantRegistry(): GrantRegistry {
 		registerTool(toolName, grantedByDefault) {
 			defaults.set(toolName, grantedByDefault);
 		},
-		revoke(subject, toolName) {
-			overrides.set(key(subject, toolName), false);
+		revoke(groupId, toolName) {
+			overrides.set(key(groupId, toolName), false);
 		},
 	};
 }

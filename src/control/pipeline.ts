@@ -119,8 +119,9 @@ function failClosed(
 		auditEvent("failure", {
 			controlId: failure.controlId,
 			detail: failure.error,
+			groupId: interaction.groupId,
 			interactionId: interaction.id,
-			subject: interaction.subject,
+			userId: interaction.userId,
 			verdict: failure.failureVerdict,
 		}),
 	);

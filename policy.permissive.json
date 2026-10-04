@@ -1,19 +1,4 @@
 {
-  "consumers": {
-    "alice": {
-      "profile": "permissive"
-    },
-    "analyst": {
-      "overrides": {
-        "enabledControls": {
-          "detection": false,
-          "semantic": true,
-          "signatures": true
-        }
-      },
-      "profile": "permissive"
-    }
-  },
   "controls": {
     "allowlist": {
       "models": [
@@ -30,19 +15,19 @@
       "overBudgetVerdict": "block",
       "rules": [
         {
-          "key": "alice",
+          "key": "user-1",
           "modelScope": "*",
           "period": "day",
           "tokens": 500000
         },
         {
           "costUsd": 50,
-          "key": "alice",
+          "key": "user-1",
           "modelScope": "*",
           "period": "month"
         },
         {
-          "key": "analyst",
+          "key": "user-1",
           "modelScope": "*",
           "period": "day",
           "requests": 1000
@@ -238,5 +223,16 @@
       }
     }
   },
-  "version": "1-permissive"
+  "version": "1-permissive",
+  "groups": {
+    "hr": {
+      "profile": "permissive"
+    },
+    "manager": {
+      "profile": "permissive"
+    },
+    "software-developer": {
+      "profile": "permissive"
+    }
+  }
 }

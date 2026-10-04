@@ -75,10 +75,11 @@ export async function guardInteraction(
 			// a clean allow belongs to the pipeline as a whole, never "none".
 			controlId: inspection.blockingControl ?? "pipeline",
 			detail: inspection.failure,
+			groupId: interaction.groupId,
 			interactionId: interaction.id,
 			redactionCount: inspection.redactions.length,
 			seam: interaction.seam,
-			subject: interaction.subject,
+			userId: interaction.userId,
 			verdict: outcome.verdict,
 		}),
 	);

@@ -5,11 +5,11 @@ import { createControlPipeline } from "#/control/pipeline.ts";
 import { detectionConfigSchema } from "#/control/policy/schema.ts";
 import { createSignatureControl } from "#/control/signatures/control.ts";
 import { loadSignatureFeed } from "#/control/signatures/feed.ts";
-import { CONSUMER_KEY_HEADER } from "#/control/subjects.ts";
+import { USER_GROUP_ID_HEADER, USER_ID_HEADER } from "#/control/subjects.ts";
 import type { ControlPipeline } from "#/control/types.ts";
 import policyDocument from "../policy.json" with { type: "json" };
 import feedDocument from "../signatures.json" with { type: "json" };
-import { consumerResolver } from "./helpers/fixtures.ts";
+import { identityResolver } from "./helpers/fixtures.ts";
 import { ApiKeyFixture } from "./secret-fixtures.ts";
 
 interface GuardHitView {
@@ -67,7 +67,8 @@ function guardRequest(
 	options: { direction?: string; seam?: string } = {},
 ): Request {
 	const headers = new Headers({ "content-type": "application/json" });
-	headers.set(CONSUMER_KEY_HEADER, "alice");
+	headers.set(USER_ID_HEADER, "alice");
+	headers.set(USER_GROUP_ID_HEADER, "hr");
 	return new Request("http://test.local/api/guard", {
 		body: JSON.stringify({
 			content,
@@ -84,7 +85,7 @@ async function check(
 	options: { direction?: string; seam?: string } = {},
 ): Promise<{ body: GuardBody; status: number }> {
 	const response = await handleGuardRequest(guardRequest(content, options), {
-		consumers: consumerResolver(),
+		identity: identityResolver(),
 		pipeline: shippedPipeline(),
 	});
 	return { body: (await response.json()) as GuardBody, status: response.status };
