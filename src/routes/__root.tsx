@@ -2,6 +2,8 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Link, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import type { ReactNode } from "react";
+import { ThemeProvider } from "#/components/theme-provider.tsx";
+import { ThemeSwitcher } from "#/components/theme-switcher.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import {
 	Card,
@@ -10,6 +12,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card.tsx";
+import { TooltipProvider } from "#/components/ui/tooltip.tsx";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -57,46 +60,57 @@ function NotFound() {
 
 function RootDocument({ children }: { children: ReactNode }) {
 	return (
-		<html lang="en">
+		<html lang="en" suppressHydrationWarning={true}>
 			<head>
 				<HeadContent />
+				<script src="/theme-init.js" />
 			</head>
 			<body>
-				<header className="border-b">
-					<nav aria-label="Primary" className="mx-auto flex max-w-5xl items-center gap-2 p-4">
-						<Button asChild={true} size="sm" variant="ghost">
-							<Link activeProps={{ className: "bg-accent text-accent-foreground" }} to="/">
-								Saif
-							</Link>
-						</Button>
-						<Button asChild={true} size="sm" variant="ghost">
-							<Link
-								activeProps={{ className: "bg-accent text-accent-foreground" }}
-								to="/playground"
-							>
-								Playground
-							</Link>
-						</Button>
-						<Button asChild={true} size="sm" variant="ghost">
-							<Link activeProps={{ className: "bg-accent text-accent-foreground" }} to="/dashboard">
-								Dashboard
-							</Link>
-						</Button>
-					</nav>
-				</header>
-				<div id="root-content">{children}</div>
-				<div id="portal-root" />
-				<TanStackDevtools
-					config={{
-						position: "bottom-right",
-					}}
-					plugins={[
-						{
-							name: "Tanstack Router",
-							render: <TanStackRouterDevtoolsPanel />,
-						},
-					]}
-				/>
+				<ThemeProvider>
+					<TooltipProvider>
+						<header className="border-b">
+							<nav aria-label="Primary" className="mx-auto flex max-w-5xl items-center gap-2 p-4">
+								<Button asChild={true} size="sm" variant="ghost">
+									<Link activeProps={{ className: "bg-accent text-accent-foreground" }} to="/">
+										Saif
+									</Link>
+								</Button>
+								<Button asChild={true} size="sm" variant="ghost">
+									<Link
+										activeProps={{ className: "bg-accent text-accent-foreground" }}
+										to="/playground"
+									>
+										Playground
+									</Link>
+								</Button>
+								<Button asChild={true} size="sm" variant="ghost">
+									<Link
+										activeProps={{ className: "bg-accent text-accent-foreground" }}
+										to="/dashboard"
+									>
+										Dashboard
+									</Link>
+								</Button>
+								<div className="ml-auto">
+									<ThemeSwitcher />
+								</div>
+							</nav>
+						</header>
+						<div id="root-content">{children}</div>
+						<div id="portal-root" />
+						<TanStackDevtools
+							config={{
+								position: "bottom-right",
+							}}
+							plugins={[
+								{
+									name: "Tanstack Router",
+									render: <TanStackRouterDevtoolsPanel />,
+								},
+							]}
+						/>
+					</TooltipProvider>
+				</ThemeProvider>
 				<Scripts />
 			</body>
 		</html>

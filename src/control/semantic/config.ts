@@ -18,7 +18,6 @@
  * override any of it.
  */
 
-import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import { describeError } from "#/lib/errors.ts";
 import rawConfig from "../../../policy.jev.json" with { type: "json" };
@@ -172,7 +171,7 @@ export async function loadSemanticConfig(
 ): Promise<SemanticConfig> {
 	let text: string;
 	try {
-		text = await readFile(path, "utf8");
+		text = await Bun.file(path).text();
 	} catch (error) {
 		throw new SemanticConfigurationError(`semantic: cannot read ${path}: ${describeError(error)}`, {
 			cause: error,

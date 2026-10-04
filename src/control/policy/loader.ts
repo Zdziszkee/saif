@@ -1,5 +1,4 @@
 import { watch } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { sha256Hex } from "#/control/hash.ts";
 import type { Policy } from "#/control/policy/schema.ts";
 import { parsePolicy } from "#/control/policy/schema.ts";
@@ -65,7 +64,7 @@ export class FilePolicySource implements PolicySource {
 	}
 
 	async load(): Promise<unknown> {
-		const text = await readFile(this.#path, "utf8");
+		const text = await Bun.file(this.#path).text();
 		const document: unknown = JSON.parse(text);
 		return document;
 	}

@@ -75,8 +75,8 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 ## 11. Dashboard
 
-- [ ] 11.1 Build the dashboard route (controls and profiles overview, verdict counts, top threat categories, budget vs limits, recent escalations, policy and signature feed versions in force) fed by the metrics and audit queries; verify it renders with seeded data (verify: component renders expected sections against fixture data)
-- [ ] 11.2 Add live refresh (polling); verify updates appear within one refresh interval (verify: manual check on `bun run dev`)
+- [x] 11.1 Build the dashboard route (controls and profiles overview, verdict counts, top threat categories, budget vs limits, recent escalations, policy and signature feed versions in force) fed by the metrics and audit queries; verify it renders with seeded data (verify: component renders expected sections against fixture data) (note: shipped at `/` with `/dashboard` kept working; every section renders against the seeded fixtures in `src/dashboard/fixture.ts`, with controls, profiles, and versions from the live `policy.json` projection (metrics/audit query-backed counts still pending tasks 10.2-10.3)
+- [x] 11.2 Add live refresh (polling); verify updates appear within one refresh interval (verify: manual check on `bun run dev`) (note: 15-second polling interval via `getDashboardData()` re-fetch in `src/components/dashboard/dashboard.tsx`; checked on `bun run dev`)
 
 ## 12. Demo, docs, and architecture
 
