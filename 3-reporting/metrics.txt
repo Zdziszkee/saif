@@ -1,0 +1,18 @@
+WHAT GETS MEASURED
+==================
+
+Every number on the dashboard comes from the audit log — one record
+per decision — so the screen can never disagree with what actually
+happened.
+
+- Verdict counts: allowed, scrubbed, blocked, sent-for-review —
+  overall and per user.
+- Who caught it: credit per guardrail (patterns, threat intel,
+  AI judge) and per attack kind.
+- Scrub volume: how many sensitive spans were replaced, and how long
+  each decision took.
+- Review queue: every flagged item with the evidence a human needs.
+- System health: feed version, active policy, judge on/off and why.
+- Spending: tokens per user and model, dollar cost where known
+  (unknown models show "unknown", never zero), plus budget caps.
+- Export: the whole trail downloadable for offline analysis.

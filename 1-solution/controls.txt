@@ -1,0 +1,28 @@
+THE GUARDRAILS, PLAINLY STATED
+==============================
+
+Three inspection passes run in order. The strictest result wins.
+
+- Pattern detectors find emails, secrets, credentials, and ID numbers,
+  and replace them with placeholders like [EMAIL]. They also catch
+  encoded or scrambled payloads trying to sneak past.
+- A threat-intel feed (built from MITRE ATLAS and OWASP snapshots plus
+  our own curated entries) recognizes known attacks: injections,
+  jailbreaks, fake system messages, credential-file grabs, shell pipes
+  hidden in tool calls. Each pattern carries its own severity and
+  action, overridable one by one.
+- An AI judge answers simple yes/no policy questions about the text
+  (is this an injection? insider trading? ...) with a probability each.
+  Anything it's unsure about gets marked uncertain instead of guessed.
+
+Who gets what:
+- Every caller identifies itself, and each team gets its own strictness
+  setting. The same evidence can warn one team and block another.
+- Only approved models and endpoints can be used; spending caps cut off
+  runaway usage; tool calls go through per-team allowlists, with a
+  human confirm step for the dangerous ones.
+
+Every door uses the same pipeline — the chat API, the playground, tool
+calls, and the model gateway — so there's no side entrance. Each
+decision is logged with who, what, why, and how sure, and anything
+flagged for review lands in a queue for a human.

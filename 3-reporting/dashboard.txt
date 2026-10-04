@@ -1,0 +1,18 @@
+THE DASHBOARD (FOR YOUR SCREENSHOT)
+=====================================
+
+Open http://localhost:3000/dashboard (run `bun run dev` first — no
+keys needed). For a lively page, first run in three terminals:
+`bun run mock`, `bun run dev`, then `bun run demo` to generate a mix
+of allows, scrubs, blocks, and reviews.
+
+What you'll see, top to bottom:
+- Totals: how many allowed, scrubbed, blocked, and sent for review,
+  plus how many sensitive spans got replaced.
+- Breakdowns: which guardrail caught what, and which attack kinds
+  showed up.
+- A per-user view, so you can isolate one person's traffic.
+- A review queue: everything flagged for a human, with the evidence
+  attached.
+- A status banner: which threat-intel version is loaded, which policy
+  is active, and whether the AI judge is on (or exactly why it isn't).

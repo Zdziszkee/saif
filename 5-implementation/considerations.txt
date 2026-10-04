@@ -1,0 +1,24 @@
+DECISIONS WE'D DEFEND, LIMITS WE ADMIT
+=========================================
+
+Why it's shaped this way:
+- The AI call is ~100x slower than everything else, so a cheap "no"
+  skips it. Measured, not assumed.
+- The model gives probabilities; only the policy turns them into
+  verdicts. Swap models freely — enforcement never changes meaning.
+- One pipeline behind every door (chat, API, tools, gateway), so no
+  side entrance can bypass it.
+- Rules are documents with versioned saves, not code deploys — the
+  running system picks them up live.
+
+What we'd say before you ask:
+- The judge only knows the questions it's given. A missing question
+  is a blind spot — but adding one takes 30 seconds in the browser,
+  and the demo proves new questions go live immediately.
+- The model gateway speaks one protocol today (Chat Completions).
+  Anthropic/Codex clients need thin translators; the verdict, audit,
+  and metering layers carry over untouched.
+- Spending memory resets on restart for now; the audit trail itself
+  is safely on disk.
+- Brand-new attack channels need new feed entries or questions, like
+  any signature-based system. That's maintenance, not a flaw.
