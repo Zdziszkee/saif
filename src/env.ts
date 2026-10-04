@@ -81,6 +81,8 @@ export const env = createEnv({
 			),
 		/** Price-table refresh interval in hours. */
 		PRICING_TTL_HOURS: z.coerce.number().int().positive().default(24),
+		/** Run the semantic tier against the mock-jev heuristic stub (no key needed). */
+		SEMANTIC_MOCK: z.string().optional(),
 		SERVER_URL: z.string().url().optional(),
 		/** Override path to the signature feed (`signatures.json`); defaults to the project root file. */
 		SIGNATURES_PATH: z.string().optional(),

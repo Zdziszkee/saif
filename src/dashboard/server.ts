@@ -8,9 +8,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { readAuditEvents } from "#/control/audit.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
+import { loadSemanticSnapshot } from "#/control/semantic/store.ts";
 import { buildDashboardData } from "#/dashboard/data.ts";
 import type { DashboardData } from "#/dashboard/types.ts";
-import { getAuditSink, getSignatureFeedStore } from "#/hub/runtime.ts";
+import {
+	getActiveSemanticConfig,
+	getAuditSink,
+	getHubStatus,
+	getSignatureFeedStore,
+} from "#/hub/runtime.ts";
 
 const POLICY_PATH = "policy.json";
 
@@ -31,11 +37,35 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(
 		} catch {
 			feedVersion = "unavailable";
 		}
+		let semanticVersion = "unavailable";
+		try {
+			const semantic = await loadSemanticSnapshot();
+			if (semantic.ok && semantic.snapshot.semanticVersion.length > 0) {
+				semanticVersion = semantic.snapshot.semanticVersion;
+			}
+		} catch {
+			semanticVersion = "unavailable";
+		}
+		// Live semantic row: the active check count plus the tier mode the hub
+		// actually built (live/mock/off), so the dashboard never pins the
+		// import-time defaults. A hub-status failure degrades to off rather
+		// than failing the dashboard read.
+		let semanticMode: "live" | "mock" | "off" = "off";
+		try {
+			const status = await getHubStatus();
+			semanticMode = status.semantic.mode ?? (status.semantic.enabled ? "live" : "off");
+		} catch {
+			semanticMode = "off";
+		}
 		return buildDashboardData(
 			result.snapshot,
 			new Date().toISOString(),
 			readAuditEvents(getAuditSink()),
-			feedVersion,
+			{
+				feedVersion,
+				semantic: { count: getActiveSemanticConfig().checks.length, mode: semanticMode },
+				semanticVersion,
+			},
 		);
 	},
 );

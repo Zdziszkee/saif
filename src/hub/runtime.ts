@@ -12,7 +12,11 @@
  * hub so the next request rebuilds from disk. In-flight requests keep their
  * hub reference and finish on the old pipeline. The semantic stage
  * additionally requires TYPESAFE_API_KEY: without it the tier is skipped
- * (and the skip audited) instead of failing every request closed.
+ * (and the skip audited) instead of failing every request closed — unless
+ * mock mode is requested (`SEMANTIC_MOCK=1` or a mock `TYPESAFE_BASE_URL`
+ * such as `http://localhost:4321`), in which case the real Jev path runs
+ * against the mock stub with a placeholder key so the UI stays live on
+ * heuristic verdicts.
  */
 
 import { createAllowlistControl } from "#/control/allowlist.ts";
@@ -89,13 +93,22 @@ export async function refreshSemanticAfterWrite(): Promise<void> {
 export interface HubStatus {
 	feed: { ok: boolean; version: string };
 	policy: { profile: string; version: string };
-	semantic: { enabled: boolean; reason?: string | undefined };
+	semantic: { enabled: boolean; mode?: SemanticMode | undefined; reason?: string | undefined };
 }
+
+/** Which decision backend backs an enabled semantic tier (or that it is off). */
+export type SemanticMode = "live" | "mock" | "off";
 
 let hubStatus: Omit<HubStatus, "feed"> | undefined;
 
-const SEMANTIC_DISABLED_REASON =
+export const SEMANTIC_DISABLED_REASON =
 	"semantic tier disabled: no usable TypeSafe API key (set TYPESAFE_API_KEY to enable JEV checks)";
+
+/** Hub-status reason for an enabled mock tier; the UI expands it into tier copy. */
+export const SEMANTIC_MOCK_REASON = "mock";
+
+const SEMANTIC_MOCK_API_KEY = "test-key";
+const SEMANTIC_MOCK_BASE_URL = "http://localhost:4321";
 
 const POLICY_PATH = "policy.json";
 const SIGNATURES_PATH = "signatures.json";
@@ -122,13 +135,36 @@ export function getSignatureFeedStore(): SignatureFeedStore {
 }
 
 /**
+ * Whether the semantic tier should run against the mock-jev stub: either the
+ * explicit `SEMANTIC_MOCK=1` flag or a `TYPESAFE_BASE_URL` pointing at a
+ * loopback mock (e.g. `http://localhost:4321`). Either one lets the tier run
+ * keyless; production without a key and without a mock signal stays
+ * fail-closed (skipped and audited).
+ */
+export function isSemanticMockRequested(): boolean {
+	if (liveServerEnv("SEMANTIC_MOCK") === "1") {
+		return true;
+	}
+	const baseUrl = liveServerEnv("TYPESAFE_BASE_URL");
+	return baseUrl !== undefined && isMockBaseUrl(baseUrl);
+}
+
+function isMockBaseUrl(baseUrl: string): boolean {
+	return baseUrl.includes("localhost") || baseUrl.includes("127.0.0.1");
+}
+
+/**
  * The semantic tier, or null when it cannot be configured (no TYPESAFE_API
- * key). An unconfigured tier is skipped — with the skip audited at build —
- * rather than installed as a control that fails every request closed.
- * Runtime failures of a configured tier still propagate and fail closed.
+ * key and no mock signal). An unconfigured tier is skipped — with the skip
+ * audited at build — rather than installed as a control that fails every
+ * request closed. In mock mode the real Jev classifier path runs against the
+ * mock stub with a placeholder key, so verdicts are heuristic, never silent
+ * fail-open: a downed stub fails each request closed like any transport
+ * failure. Runtime failures of a configured tier still propagate and fail
+ * closed.
  *
  * Exported for the regression suite: it must keep returning null (not a
- * throwing control) when the key is absent.
+ * throwing control) when the key is absent and no mock is requested.
  */
 export function buildSemanticControl(): Control | null {
 	// Live-bound to the active semantic config (see `getActiveSemanticConfig`):
@@ -140,10 +176,13 @@ export function buildSemanticControl(): Control | null {
 	// rotation takes effect on the next hub build without a restart.
 	const apiKey = liveServerEnv("TYPESAFE_API_KEY");
 	const baseUrl = liveServerEnv("TYPESAFE_BASE_URL");
+	const mock = isSemanticMockRequested();
+	const effectiveApiKey = apiKey ?? (mock ? SEMANTIC_MOCK_API_KEY : undefined);
+	const effectiveBaseUrl = baseUrl ?? (mock ? SEMANTIC_MOCK_BASE_URL : undefined);
 	try {
 		const classifier = createJevClassifier({
-			...(apiKey === undefined ? {} : { apiKey }),
-			...(baseUrl === undefined ? {} : { baseUrl }),
+			...(effectiveApiKey === undefined ? {} : { apiKey: effectiveApiKey }),
+			...(effectiveBaseUrl === undefined ? {} : { baseUrl: effectiveBaseUrl }),
 			checks,
 			floors,
 			maxChars,
@@ -167,11 +206,13 @@ interface BuiltControls {
 	policyVersion: string;
 	profile: ResolvedProfile | null;
 	semanticEnabled: boolean;
+	semanticMode: SemanticMode;
 	semanticReason?: string | undefined;
 }
 
 interface StageAssembly {
 	controls: Control[];
+	semanticMode?: SemanticMode | undefined;
 	semanticReason?: string | undefined;
 	semanticSkipped: boolean;
 }
@@ -218,6 +259,7 @@ function assembleStages(policy: Policy, audit: AuditSink, loader: PolicyLoader):
 		const semantic = buildSemanticControl();
 		if (semantic === null) {
 			assembly.semanticSkipped = true;
+			assembly.semanticMode = "off";
 			assembly.semanticReason = SEMANTIC_DISABLED_REASON;
 			audit.record(
 				auditEvent("failure", {
@@ -226,6 +268,10 @@ function assembleStages(policy: Policy, audit: AuditSink, loader: PolicyLoader):
 				}),
 			);
 		} else {
+			assembly.semanticMode = isSemanticMockRequested() ? "mock" : "live";
+			if (assembly.semanticMode === "mock") {
+				assembly.semanticReason = SEMANTIC_MOCK_REASON;
+			}
 			controls.push(semantic);
 		}
 	}
@@ -247,6 +293,7 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 			policyVersion: "unavailable",
 			profile: null,
 			semanticEnabled: false,
+			semanticMode: "off",
 			semanticReason: "no valid policy loaded",
 		};
 	}
@@ -264,6 +311,7 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 		policyVersion: policy.version,
 		profile: resolveProfile(policy, policy.defaults.profile),
 		semanticEnabled: enabled.semantic && !assembly.semanticSkipped,
+		semanticMode: assembly.semanticMode ?? "off",
 		...(assembly.semanticReason === undefined ? {} : { semanticReason: assembly.semanticReason }),
 	};
 }
@@ -315,6 +363,7 @@ async function createHubAsync(): Promise<Hub> {
 		policyVersion,
 		profile,
 		semanticEnabled,
+		semanticMode,
 		semanticReason,
 	} = await buildControls(getAuditSink());
 	// Swap watchers only once the replacement is fully built, so the hub being
@@ -325,10 +374,11 @@ async function createHubAsync(): Promise<Hub> {
 	gatewayBudgetRules = budgetRules;
 	hubStatus = {
 		policy: { profile: policyProfile, version: policyVersion },
-		semantic:
-			semanticReason === undefined
-				? { enabled: semanticEnabled }
-				: { enabled: semanticEnabled, reason: semanticReason },
+		semantic: {
+			enabled: semanticEnabled,
+			mode: semanticMode,
+			...(semanticReason === undefined ? {} : { reason: semanticReason }),
+		},
 	};
 	await startToolPolicy(getAuditSink());
 	return createHub({
@@ -387,7 +437,7 @@ export async function getHubStatus(): Promise<HubStatus> {
 	const feed = getSignatureFeedStore().snapshot();
 	const built = hubStatus ?? {
 		policy: { profile: "unavailable", version: "unavailable" },
-		semantic: { enabled: false },
+		semantic: { enabled: false, mode: "off" as SemanticMode },
 	};
 	return {
 		feed: { ok: feed.ok, version: feed.feed.version },

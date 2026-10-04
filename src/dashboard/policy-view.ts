@@ -1,6 +1,7 @@
 /**
  * Policy-to-dashboard projection: the "controls and strictness profiles in
- * force" plus the version stamps the spec requires on every dashboard view.
+ * force" plus the version stamps the spec requires on every dashboard view
+ * (policy content hash, signature feed version, semantic/JEV config version).
  * Pure so the mapping is unit-testable against the sample policy documents.
  */
 
@@ -13,15 +14,23 @@ import type {
 	ProfileSummary,
 	ThresholdControl,
 } from "#/dashboard/types.ts";
+import type { SemanticMode } from "#/hub/runtime.ts";
 
 const PROFILE_NAMES = ["permissive", "standard", "strict"] as const;
 
 const THRESHOLD_CONTROLS: readonly ThresholdControl[] = ["detection", "semantic", "signatures"];
 
-function controlRows(policy: Policy): ControlSummary[] {
+/** Live semantic state for the dashboard row: check count plus tier mode. */
+export interface SemanticSummary {
+	count?: number | undefined;
+	mode?: SemanticMode | undefined;
+}
+
+function controlRows(policy: Policy, semantic?: SemanticSummary | undefined): ControlSummary[] {
 	const { controls } = policy;
 	const builtinCount = Object.values(controls.detection.builtins).filter(Boolean).length;
-	const semanticCount = SEMANTIC_DEFAULTS.checks.length;
+	const semanticCount = semantic?.count ?? SEMANTIC_DEFAULTS.checks.length;
+	const semanticSuffix = semantic?.mode === undefined ? "" : ` — ${semantic.mode}`;
 	const rows: Array<{ detail: string; enabled: boolean; id: string; tier: ControlTier }> = [
 		{
 			detail: `payloads up to ${controls.shape.maxContentBytes} bytes`,
@@ -48,7 +57,7 @@ function controlRows(policy: Policy): ControlSummary[] {
 			tier: "redaction",
 		},
 		{
-			detail: `${semanticCount} semantic checks (policy.jev.json)`,
+			detail: `${semanticCount} semantic checks (policy.jev.json)${semanticSuffix}`,
 			enabled: semanticCount > 0,
 			id: "semantic",
 			tier: "semantic",
@@ -93,10 +102,13 @@ function profileRows(policy: Policy): ProfileSummary[] {
 export function summarizePolicy(
 	snapshot: PolicySnapshot,
 	feedVersion: string,
+	semanticVersion = "unavailable",
+	semantic?: SemanticSummary | undefined,
 ): {
 	feedVersion: string;
 	policy: import("#/dashboard/types.ts").PolicyView;
 	policyVersion: string;
+	semanticVersion: string;
 } {
 	const { policy, policyVersion } = snapshot;
 	const consumers = Object.fromEntries(
@@ -106,11 +118,12 @@ export function summarizePolicy(
 		feedVersion,
 		policy: {
 			consumers,
-			controls: controlRows(policy),
+			controls: controlRows(policy, semantic),
 			defaultProfile: policy.defaults.profile,
 			failureVerdict: policy.defaults.failureVerdict,
 			profiles: profileRows(policy),
 		},
 		policyVersion,
+		semanticVersion,
 	};
 }

@@ -222,9 +222,11 @@ function Playground() {
 				<p className="text-muted-foreground text-sm">
 					Sends an interaction through POST /api/guard and the shared control pipeline —
 					deterministic (regex) tier, signature feed, and JEV semantic tier when TYPESAFE_API_KEY is
-					configured. Each hit carries an engine badge: <span className="font-mono">regex</span> for
-					the deterministic tier, <span className="font-mono">feed</span> for signatures,{" "}
-					<span className="font-mono">JEV</span> for the semantic tier.
+					configured (or in mock mode via SEMANTIC_MOCK=1 or a mock TYPESAFE_BASE_URL). Each hit
+					carries an engine badge: <span className="font-mono">regex</span> for the deterministic
+					tier, <span className="font-mono">feed</span> for signatures,{" "}
+					<span className="font-mono">JEV</span> for the semantic tier (
+					<span className="font-mono">JEV (mock)</span> when the mock heuristic is active).
 				</p>
 			</header>
 			<TierStatusBanner />

@@ -466,7 +466,19 @@ describe("buildDashboardData with an empty sink", () => {
 	});
 
 	it("carries the caller-supplied feed version", () => {
-		const data = buildDashboardData(SNAPSHOT, GENERATED_AT, [], TEST_FEED_VERSION);
+		const data = buildDashboardData(SNAPSHOT, GENERATED_AT, [], {
+			feedVersion: TEST_FEED_VERSION,
+		});
+		expect(data.feedVersion).toBe(TEST_FEED_VERSION);
+	});
+
+	it("defaults the semantic version to unavailable and passes it through", () => {
+		expect(EMPTY.semanticVersion).toBe("unavailable");
+		const data = buildDashboardData(SNAPSHOT, GENERATED_AT, [], {
+			feedVersion: TEST_FEED_VERSION,
+			semanticVersion: "sem.test.live-1",
+		});
+		expect(data.semanticVersion).toBe("sem.test.live-1");
 		expect(data.feedVersion).toBe(TEST_FEED_VERSION);
 	});
 
