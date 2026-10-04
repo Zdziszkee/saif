@@ -140,7 +140,7 @@ const CSV_COLUMNS = [
 const CSV_NEEDS_QUOTES = /[",\n]/;
 
 function csvCell(value: unknown): string {
-	const text = value === undefined || value === null ? "" : String(value);
+	const text = String(value ?? "");
 	return CSV_NEEDS_QUOTES.test(text) ? `"${text.replace(/"/gu, '""')}"` : text;
 }
 

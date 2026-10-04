@@ -14,7 +14,13 @@ import type {
 	Verdict,
 } from "../types.ts";
 import { OUTCOME_SEVERITY } from "../types.ts";
-import { type BuiltinFamily, type Detection, detectSensitive, type Span } from "./detectors.ts";
+import {
+	type BuiltinFamily,
+	builtinFamilies,
+	type Detection,
+	detectSensitive,
+	type Span,
+} from "./detectors.ts";
 import { customPlaceholder, placeholderFor } from "./placeholders.ts";
 
 type DetectionConfig = z.infer<typeof detectionConfigSchema>;
@@ -37,17 +43,7 @@ interface Finding {
 }
 
 function enabledFamilies(builtins: DetectionConfig["builtins"]): BuiltinFamily[] {
-	const families: BuiltinFamily[] = [];
-	if (builtins.providerSecrets) {
-		families.push("providerSecrets");
-	}
-	if (builtins.genericCredentials) {
-		families.push("genericCredentials");
-	}
-	if (builtins.pii) {
-		families.push("pii");
-	}
-	return families;
+	return builtinFamilies.filter((family) => builtins[family]);
 }
 
 function compileRules(rules: readonly DetectionRule[]): CompiledRule[] {

@@ -66,7 +66,8 @@ export function isEgressAllowed(endpoint: string, allowlist: readonly string[]):
 	return allowlist.some((entry) => {
 		if (entry.includes("*")) {
 			const pattern = entry.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
-			return new RegExp(`^${pattern}$`).test(href) || new RegExp(`^${pattern}$`).test(origin);
+			const matcher = new RegExp(`^${pattern}$`);
+			return matcher.test(href) || matcher.test(origin);
 		}
 		if (entry === href || entry === origin) {
 			return true;
