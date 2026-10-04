@@ -102,6 +102,7 @@ interface BuiltControls {
 	consumers: ConsumerPolicy;
 	controls: readonly Control[];
 	failureVerdict: Verdict;
+	knownGroups: readonly string[];
 	policyProfile: string;
 	policyVersion: string;
 	semanticEnabled: boolean;
@@ -176,6 +177,7 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 			consumers: { defaultSubject: "default", knownKeys: [], unknownKey: "default-subject" },
 			controls: [policyUnavailableControl()],
 			failureVerdict: "block",
+			knownGroups: [],
 			policyProfile: "unavailable",
 			policyVersion: "unavailable",
 			semanticEnabled: false,
@@ -189,6 +191,7 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 		consumers: consumerPolicyFromDocument(policy.consumers),
 		controls: assembly.controls,
 		failureVerdict: policy.defaults.failureVerdict,
+		knownGroups: Object.keys(policy.groups),
 		policyProfile: policy.defaults.profile,
 		policyVersion: policy.version,
 		semanticEnabled: enabled.semantic && !assembly.semanticSkipped,
@@ -206,6 +209,7 @@ async function createHubAsync(): Promise<Hub> {
 		consumers,
 		controls,
 		failureVerdict,
+		knownGroups,
 		policyProfile,
 		policyVersion,
 		semanticEnabled,
@@ -223,6 +227,7 @@ async function createHubAsync(): Promise<Hub> {
 		config: createHubConfig({
 			consumers,
 			egressAllowlist: parseAllowlist(env.MCP_EGRESS_ALLOWLIST),
+			identity: { knownGroups: [...knownGroups] },
 		}),
 		pipeline: createControlPipeline({ controls, failureVerdict }),
 	});

@@ -185,7 +185,13 @@ function Playground() {
 		setBusy(true);
 		fetch("/api/guard", {
 			body: JSON.stringify({ content: text, direction, seam }),
-			headers: { "content-type": "application/json" },
+			headers: {
+				"content-type": "application/json",
+				// The guard seam rejects callers without identity headers, so the
+				// playground identifies as a fixed demo user in the default group.
+				"x-user-group-id": "software-developer",
+				"x-user-id": "playground-user",
+			},
 			method: "POST",
 		})
 			.then((response) => response.json() as Promise<unknown>)
