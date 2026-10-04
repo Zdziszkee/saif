@@ -144,7 +144,14 @@
 			}
 		},
 		{
-			"includes": ["**/src/hub/model.ts"],
+			"includes": [
+				"**/src/hub/model.ts",
+				"**/src/gateway/openai.ts",
+				"**/src/gateway/prices.ts",
+				"**/scripts/mock-upstream.ts",
+				"**/tests/gateway.test.ts",
+				"**/tests/gateway-mocks.test.ts"
+			],
 			"linter": {
 				"rules": {
 					"style": {
@@ -198,6 +205,8 @@
 				"**/mcp-handler.ts",
 				"**/control/**",
 				"**/db/**",
+				"**/gateway/**",
+				"**/hub/runtime.ts",
 				"**/tests/policy-loader.test.ts",
 				"**/tests/policy-samples.test.ts",
 				"**/routes/mcp.ts",

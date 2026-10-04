@@ -37,6 +37,9 @@ import { createSignatureFeedStore, type SignatureFeedStore } from "#/control/sig
 import { type IdentityPolicy, identityPolicyFromDocument } from "#/control/subjects.ts";
 import type { Control, Verdict } from "#/control/types.ts";
 import { env } from "#/env.ts";
+import type { GatewayDeps, UpstreamConfig } from "#/gateway/gateway.ts";
+import { fetchPriceTable, type ModelPriceTable } from "#/gateway/prices.ts";
+import { type BudgetRule, UsageLedger } from "#/gateway/usage.ts";
 import { createHubConfig } from "./config.ts";
 import { createHub, type Hub } from "./mcp-server.ts";
 
@@ -94,6 +97,7 @@ export function buildSemanticControl(): Control | null {
 }
 
 interface BuiltControls {
+	budgetRules: readonly BudgetRule[];
 	budgetVerdict: Verdict;
 	controls: readonly Control[];
 	failureVerdict: Verdict;
@@ -173,6 +177,7 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 	const status = await loader.start();
 	if (!status.ok) {
 		return {
+			budgetRules: [],
 			budgetVerdict: "block",
 			controls: [policyUnavailableControl()],
 			failureVerdict: "block",
@@ -189,6 +194,7 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 	const enabled = policy.profiles[policy.defaults.profile].enabledControls;
 	const assembly = assembleStages(policy, audit, loader);
 	return {
+		budgetRules: policy.controls.budget.rules,
 		budgetVerdict: policy.controls.budget.overBudgetVerdict,
 		controls: assembly.controls,
 		failureVerdict: policy.defaults.failureVerdict,
@@ -235,6 +241,7 @@ export function refreshHubAfterPolicyWrite(): void {
 
 async function createHubAsync(): Promise<Hub> {
 	const {
+		budgetRules,
 		budgetVerdict,
 		identity,
 		controls,
@@ -251,6 +258,7 @@ async function createHubAsync(): Promise<Hub> {
 	// on the old hub; the old loader stops only here.
 	activeLoader?.stop();
 	activeLoader = loader;
+	gatewayBudgetRules = budgetRules;
 	hubStatus = {
 		policy: { profile: policyProfile, version: policyVersion },
 		semantic:
@@ -318,6 +326,63 @@ function createProductAuditSink(): AuditSink & { events: AuditEvent[] } {
 	} catch {
 		return memory;
 	}
+}
+
+let usageLedger: UsageLedger | undefined;
+let gatewayBudgetRules: readonly BudgetRule[] = [];
+let priceTable: ModelPriceTable | null = null;
+let priceTableLoaded = false;
+
+/** Process-wide usage ledger: spend attribution backing budget enforcement. */
+export function getUsageLedger(): UsageLedger {
+	usageLedger ??= new UsageLedger();
+	return usageLedger;
+}
+
+/**
+ * LiteLLM price table, fetched once and cached. A failed fetch resolves to
+ * null (cost recorded as unknown) so gating continues; the failure is
+ * reported on stderr and retried on the next request.
+ */
+export async function getModelPrices(): Promise<ModelPriceTable | null> {
+	if (priceTableLoaded) {
+		return priceTable;
+	}
+	try {
+		priceTable = await fetchPriceTable(fetch);
+	} catch (error) {
+		process.stderr.write(
+			`model price table unavailable: ${error instanceof Error ? error.message : String(error)}; recording cost as unknown\n`,
+		);
+		return null;
+	}
+	priceTableLoaded = true;
+	return priceTable;
+}
+
+function upstreamFromEnv(): UpstreamConfig | null {
+	if (env.MODEL_BASE_URL === undefined) {
+		return null;
+	}
+	const upstream: UpstreamConfig = { baseUrl: env.MODEL_BASE_URL };
+	if (env.MODEL_API_KEY !== undefined) {
+		return { ...upstream, apiKey: env.MODEL_API_KEY };
+	}
+	return upstream;
+}
+
+/** Fully-wired gateway dependencies: hub pipeline and identity, ledger, prices, upstream. */
+export async function getGatewayDeps(): Promise<GatewayDeps> {
+	const hub = await getHub();
+	return {
+		audit: getAuditSink(),
+		identity: hub.identity,
+		ledger: getUsageLedger(),
+		pipeline: hub.pipeline,
+		policyBudgetRules: gatewayBudgetRules,
+		prices: getModelPrices,
+		upstream: upstreamFromEnv(),
+	};
 }
 
 function parseAllowlist(value: string | undefined): string[] {

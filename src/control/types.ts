@@ -12,7 +12,7 @@ export type Direction = "inbound" | "outbound";
 
 export type Verdict = "allow" | "redact" | "block" | "escalate";
 
-export type InteractionSeam = "chat" | "mcp-tool" | "guard-api";
+export type InteractionSeam = "chat" | "guard-api" | "llm-gateway" | "mcp-tool";
 
 export interface ToolCallRef {
 	arguments: unknown;
@@ -55,6 +55,12 @@ export interface ControlHit {
 	controlId: string;
 	detail?: string | undefined;
 	kind: string;
+	/**
+	 * Decisive model score when one exists (e.g. the JEV probability behind
+	 * a semantic hit). Deterministic hits carry no score. The gateway audit
+	 * records it as rejection evidence.
+	 */
+	score?: number | undefined;
 	/** The control's mapped action. `flag` forwards the content but marks it for review. */
 	verdict: Verdict | "flag";
 }

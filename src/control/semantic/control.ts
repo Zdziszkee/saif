@@ -45,6 +45,8 @@ interface ScoredChecks {
 	detail: string;
 	kind: string;
 	outcome: "allow" | "block" | "flag" | "redact";
+	/** Probability behind the winning check, for rejection evidence. */
+	score: number | undefined;
 }
 
 function scoreChecks(
@@ -54,6 +56,7 @@ function scoreChecks(
 ): ScoredChecks {
 	let worst: "allow" | "block" | "flag" | "redact" = "allow";
 	let worstCheck = "";
+	let worstScore: number | undefined;
 	const scored: string[] = [];
 	for (const check of checks) {
 		const answer = evidence.answers[check.id];
@@ -73,9 +76,10 @@ function scoreChecks(
 		if (isMoreSevere(outcome, worst)) {
 			worst = outcome;
 			worstCheck = check.id;
+			worstScore = answer.probability;
 		}
 	}
-	return { detail: scored.join(", "), kind: worstCheck, outcome: worst };
+	return { detail: scored.join(", "), kind: worstCheck, outcome: worst, score: worstScore };
 }
 
 function resultForScore(scored: ScoredChecks, uncertain: boolean): ControlResult {
@@ -99,6 +103,7 @@ function resultForScore(scored: ScoredChecks, uncertain: boolean): ControlResult
 			controlId: "semantic",
 			detail: `${scored.kind}: ${scored.detail}`,
 			kind: scored.kind,
+			...(scored.score === undefined ? {} : { score: scored.score }),
 			verdict: hitVerdict,
 		},
 		verdict,

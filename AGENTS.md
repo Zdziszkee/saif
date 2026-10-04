@@ -46,7 +46,7 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `noSolidDestructuredProps` (Solid-only reactivity rule; its destructure warnings
   are false positives on plain React function components).
 - Scoped overrides relax rules only where the stack demands it: node/process usage in
-  server files (mcp, db, control, drizzle.config, scripts), `noDefaultExport` in config files,
+  server files (mcp, db, control, gateway, hub runtime, drizzle.config, scripts), `noDefaultExport` in config files,
   `noHeadElement` and `useUniqueElementIds` in `src/routes/__root.tsx` (stable
   `#root-content`/`#portal-root` anchors per the TanStack shadcn integration guide),
   and CONSTANT_CASE object keys for env
@@ -58,8 +58,11 @@ TypeScript and Biome are configured for maximum strictness. Keep it that way.
   `noExcessiveLinesPerFunction` (one `describe` per scenario set is idiomatic), and
   `security/noSecrets` (entropy-shaped fake fixtures in `tests/secret-fixtures.ts`
   and detector/redaction cases are deliberately secret-shaped, never real credentials);
-  `src/hub/model.ts` turns off `useNamingConvention` because OpenAI-compatible
-<  wire-format keys are snake_case by specification. `scripts/build-signature-feed.ts`,
+  `src/hub/model.ts` and `src/gateway/openai.ts` turn off `useNamingConvention`
+  because OpenAI-compatible wire-format keys are snake_case by specification (the
+  LiteLLM price table in `src/gateway/prices.ts`, wire fixtures in
+  `tests/gateway.test.ts` and `tests/gateway-mocks.test.ts`, and the mock provider in `scripts/mock-upstream.ts`
+  are covered for the same reason). `scripts/build-signature-feed.ts`,
   `tests/signature-feed-import.test.ts`, `tests/signature-sources.test.ts`, and
   `src/control/signatures/sources/{atlas,owasp}.ts` turn it off because STIX 2.1 bundle keys
   (`spec_version`, `external_references`, `x_signature_ids`) and the OWASP snapshot's
