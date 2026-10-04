@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	BudgetSection,
 	LatencySection,
@@ -6,12 +6,21 @@ import {
 	ThreatsSection,
 } from "#/components/dashboard/metric-sections.tsx";
 import { PeopleSection } from "#/components/dashboard/people-sections.tsx";
-import { matchesPerson, roleLabel } from "#/components/dashboard/persons.ts";
+import { roleLabel } from "#/components/dashboard/persons.ts";
 import {
 	ControlsSection,
 	EscalationsSection,
 	ProfilesSection,
 } from "#/components/dashboard/policy-sections.tsx";
+import {
+	ALL_ROLES,
+	distinctRoles,
+	filterEscalationsByRole,
+	type PeopleTableRow,
+	toPeopleRows,
+	useConsumerScope,
+	useRoleScope,
+} from "#/components/dashboard/scope.ts";
 import { ThemeSwitcher } from "#/components/theme-switcher.tsx";
 import { TierStatusBanner } from "#/components/tier-status.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
@@ -25,10 +34,16 @@ import {
 import { Separator } from "#/components/ui/separator.tsx";
 import { selectEscalations, selectMetrics } from "#/dashboard/data.ts";
 import { formatTimestamp } from "#/dashboard/format.ts";
-import { ALL_CONSUMERS, type DashboardData, type EscalationRow } from "#/dashboard/types.ts";
+import {
+	ALL_CONSUMERS,
+	type ConsumerMetrics,
+	type ControlSummary,
+	type DashboardData,
+	type EscalationRow,
+	type ProfileSummary,
+} from "#/dashboard/types.ts";
 
-const ALL_ROLES = "all";
-const UNKNOWN_ROLE = "unknown";
+export type DashboardVariant = "full" | "overview";
 
 const REFRESH_INTERVAL_MS = 15_000;
 const MS_PER_SECOND = 1000;
@@ -70,36 +85,6 @@ function ConsumerSelect({
 	);
 }
 
-/**
- * Consumer scope state for the dashboard dropdown. The route's `?consumer=`
- * search param is the source of truth: `initialConsumer` seeds the state and
- * resyncs it whenever the route selection changes, while dropdown changes
- * update local state immediately and report through `onConsumerChange` so the
- * route can navigate (set or clear `?consumer=`).
- */
-function useConsumerScope(
-	initialConsumer: string | undefined,
-	onConsumerChange: ((next: string) => void) | undefined,
-): { consumer: string; handleConsumerChange: (next: string) => void } {
-	const [consumer, setConsumer] = useState<string>(initialConsumer ?? ALL_CONSUMERS);
-
-	useEffect(() => {
-		if (initialConsumer !== undefined) {
-			setConsumer(initialConsumer);
-		}
-	}, [initialConsumer]);
-
-	const handleConsumerChange = useCallback(
-		(next: string) => {
-			setConsumer(next);
-			onConsumerChange?.(next);
-		},
-		[onConsumerChange],
-	);
-
-	return { consumer, handleConsumerChange };
-}
-
 function RoleSelect({
 	onChange,
 	roles,
@@ -123,97 +108,6 @@ function RoleSelect({
 				))}
 			</SelectContent>
 		</Select>
-	);
-}
-
-/**
- * Role scope state for the people filter. Mirrors `useConsumerScope`: the
- * route's `?role=` search param is the source of truth, `initialRole` seeds
- * the state and resyncs it whenever the route selection changes, while
- * dropdown changes update local state immediately and report through
- * `onRoleChange` so the route can navigate (set or clear `?role=`). Without
- * the callback the dropdown stays purely local.
- */
-function useRoleScope(
-	initialRole: string | undefined,
-	onRoleChange: ((next: string) => void) | undefined,
-): { handleRoleChange: (next: string) => void; role: string } {
-	const [role, setRole] = useState<string>(initialRole ?? ALL_ROLES);
-
-	useEffect(() => {
-		if (initialRole !== undefined) {
-			setRole(initialRole);
-		}
-	}, [initialRole]);
-
-	const handleRoleChange = useCallback(
-		(next: string) => {
-			setRole(next);
-			onRoleChange?.(next);
-		},
-		[onRoleChange],
-	);
-
-	return { handleRoleChange, role };
-}
-
-/** Distinct roles in use, sorted for the filter dropdown. */
-function distinctRoles(personRoles: Readonly<Record<string, string>>): string[] {
-	return [...new Set(Object.values(personRoles))].sort((left, right) => left.localeCompare(right));
-}
-
-interface PeopleTableRow {
-	allow: number;
-	block: number;
-	escalate: number;
-	groupId: string;
-	redact: number;
-	total: number;
-	userId: string;
-}
-
-/** People rows from the by-consumer verdicts, filtered and sorted by total desc. */
-function toPeopleRows(
-	byConsumer: DashboardData["byConsumer"],
-	personRoles: Readonly<Record<string, string>>,
-	query: string,
-	role: string,
-): PeopleTableRow[] {
-	return Object.entries(byConsumer)
-		.map(([userId, metrics]) => ({
-			allow: metrics.verdicts.allow,
-			block: metrics.verdicts.block,
-			escalate: metrics.verdicts.escalate,
-			groupId: personRoles[userId] ?? UNKNOWN_ROLE,
-			redact: metrics.verdicts.redact,
-			total:
-				metrics.verdicts.allow +
-				metrics.verdicts.redact +
-				metrics.verdicts.block +
-				metrics.verdicts.escalate,
-			userId,
-		}))
-		.filter(
-			(row) => (role === ALL_ROLES || row.groupId === role) && matchesPerson(row.userId, query),
-		)
-		.sort((left, right) => right.total - left.total);
-}
-
-/**
- * Scope escalation rows to one role. A row matches when its subject is the
- * role or when its consumer maps to the role, so both group-attributed and
- * legacy consumer-attributed rows stay visible under their role.
- */
-function filterEscalationsByRole(
-	rows: readonly EscalationRow[],
-	role: string,
-	personRoles: Readonly<Record<string, string>>,
-): readonly EscalationRow[] {
-	if (role === ALL_ROLES) {
-		return rows;
-	}
-	return rows.filter(
-		(row) => row.subject === role || (personRoles[row.consumerKey] ?? "") === role,
 	);
 }
 
@@ -266,29 +160,36 @@ function PeopleBlock({
 /**
  * Dashboard header: title, version badges, and the consumer scope dropdown.
  * The dropdown reports through `onConsumerChange` so the route stays the
- * source of truth for `?consumer=`; no navigation happens here.
+ * source of truth for `?consumer=`; no navigation happens here. The
+ * `overview` variant frames posture/threats/budget/latency only (people and
+ * escalations live on the Activity page); `full` keeps the legacy title.
  */
 function DashboardHeader({
 	consumer,
 	consumerKeys,
 	data,
 	onConsumerChange,
+	variant,
 }: {
 	consumer: string;
 	consumerKeys: readonly string[];
 	data: DashboardData;
 	onConsumerChange: (next: string) => void;
+	variant: DashboardVariant;
 }) {
+	const title = variant === "overview" ? "Overview" : "Saif security dashboard";
+	const description =
+		variant === "overview"
+			? "Posture, threats, budget, and latency across all governed interactions."
+			: "Controls, posture, threats, budget, and latency across all governed interactions.";
 	return (
 		<header className="flex flex-wrap items-start justify-between gap-4">
 			<div className="flex flex-col gap-2">
 				<div className="flex items-center gap-3">
-					<h1 className="font-bold text-2xl tracking-tight">Saif security dashboard</h1>
+					<h1 className="font-bold text-2xl tracking-tight">{title}</h1>
 					<Badge variant="outline">AI Control Layer</Badge>
 				</div>
-				<p className="text-muted-foreground text-sm">
-					Controls, posture, threats, budget, and latency across all governed interactions.
-				</p>
+				<p className="text-muted-foreground text-sm">{description}</p>
 				<div className="flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
 					<Badge title={data.policyVersion} variant="secondary">
 						{`policy ${data.policyVersion.slice(0, POLICY_VERSION_PREVIEW_LENGTH)}`}
@@ -342,72 +243,21 @@ function usePeopleScope(
 }
 
 /**
- * Interactive dashboard (security-observability spec): controls and profiles
- * in force, posture, threats by control/category, budget vs limits, latency
- * percentiles, escalations, versions in force, per-consumer breakdown, and
- * live refresh via polling.
- *
- * `initialConsumer` seeds the consumer scope dropdown from the route's
- * `?consumer=` search param (URL is the source of truth: the effect below
- * resyncs local state whenever the route selection changes). `onConsumerChange`
- * reports dropdown changes so the route can navigate to `?consumer=` (or clear
- * it for the aggregate scope); without it the dropdown stays purely local.
- *
- * `initialRole`/`onRoleChange` mirror that pair for the role filter from the
- * route's `?role=` search param (`undefined` means all roles). The role
- * selection filters the People table and the escalation queue; the person
- * search box stays local and is never reflected in the URL.
+ * Posture, threats, budget, latency, controls, and profiles sections shared
+ * by both variants. Extracted so `Dashboard` stays under the function-size
+ * lint budget (multi-line JSX prop lines count toward it).
  */
-export function Dashboard({
-	initialConsumer,
-	initialData,
-	initialRole,
-	onConsumerChange,
-	onRefresh,
-	onRoleChange,
+function OverviewSections({
+	controls,
+	metrics,
+	profiles,
 }: {
-	initialConsumer?: string | undefined;
-	initialData: DashboardData;
-	initialRole?: string | undefined;
-	onConsumerChange?: ((next: string) => void) | undefined;
-	onRefresh: () => Promise<DashboardData>;
-	onRoleChange?: ((next: string) => void) | undefined;
+	controls: readonly ControlSummary[];
+	metrics: ConsumerMetrics;
+	profiles: readonly ProfileSummary[];
 }) {
-	const [data, setData] = useState<DashboardData>(initialData);
-	const { consumer, handleConsumerChange } = useConsumerScope(initialConsumer, onConsumerChange);
-	const { escalations, handleRoleChange, peopleRows, query, role, roles, setQuery } =
-		usePeopleScope(data, consumer, initialRole, onRoleChange);
-
-	useEffect(() => {
-		const timer = setInterval(() => {
-			onRefresh()
-				.then((next) => {
-					setData(next);
-				})
-				.catch(() => undefined);
-		}, REFRESH_INTERVAL_MS);
-		return () => {
-			clearInterval(timer);
-		};
-	}, [onRefresh]);
-
-	const metrics = useMemo(() => selectMetrics(data, consumer), [data, consumer]);
-
 	return (
-		<main className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6">
-			<DashboardHeader
-				consumer={consumer}
-				consumerKeys={data.consumerKeys}
-				data={data}
-				onConsumerChange={handleConsumerChange}
-			/>
-
-			<TierStatusBanner />
-
-			<p className="text-muted-foreground text-xs">
-				{`Live refresh every ${REFRESH_INTERVAL_SECONDS}s · last update ${formatTimestamp(data.generatedAt)}`}
-			</p>
-
+		<>
 			<div className="flex flex-col gap-3">
 				<SectionTitle
 					description="Recent verdict counts for allow, redact, block, and escalate."
@@ -449,7 +299,7 @@ export function Dashboard({
 					description="The configured controls and strictness profiles currently in force."
 					title="Controls in force"
 				/>
-				<ControlsSection controls={data.policy.controls} />
+				<ControlsSection controls={controls} />
 			</div>
 			<Separator />
 
@@ -458,40 +308,173 @@ export function Dashboard({
 					description="Strictness profiles and their inbound block thresholds."
 					title="Strictness profiles"
 				/>
-				<ProfilesSection profiles={data.policy.profiles} />
+				<ProfilesSection profiles={profiles} />
 			</div>
+		</>
+	);
+}
+
+/**
+ * People and escalation sections, rendered only in the `full` variant (they
+ * live on the Activity page, not Overview). Takes `variant` instead of a
+ * route-level conditional so `Dashboard` stays under the function-size budget.
+ */
+function FullVariantSections({
+	escalations,
+	onQueryChange,
+	onRoleChange,
+	query,
+	role,
+	roles,
+	rows,
+	variant,
+}: {
+	escalations: readonly EscalationRow[];
+	onQueryChange: (next: string) => void;
+	onRoleChange: (next: string) => void;
+	query: string;
+	role: string;
+	roles: readonly string[];
+	rows: readonly PeopleTableRow[];
+	variant: DashboardVariant;
+}) {
+	if (variant !== "full") {
+		return null;
+	}
+	return (
+		<>
 			<Separator />
 
 			<PeopleBlock
-				onQueryChange={setQuery}
-				onRoleChange={handleRoleChange}
+				onQueryChange={onQueryChange}
+				onRoleChange={onRoleChange}
 				query={query}
 				role={role}
 				roles={roles}
-				rows={peopleRows}
+				rows={rows}
 			/>
 
 			<div className="flex flex-col gap-3">
 				<SectionTitle description="Recent escalations awaiting review." title="Escalation queue" />
 				<EscalationsSection rows={escalations} />
 			</div>
+		</>
+	);
+}
 
-			<footer className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
-				<p className="text-muted-foreground text-xs">
-					{`Last update ${formatTimestamp(data.generatedAt)} · refreshes every ${REFRESH_INTERVAL_SECONDS}s`}
-				</p>
-				<p className="flex flex-wrap items-center gap-1 text-muted-foreground text-xs">
-					<span>Audit export:</span>
-					<a className="underline" href="/api/audit/export?format=jsonl">
-						JSONL
-					</a>
-					<span>·</span>
-					<a className="underline" href="/api/audit/export?format=csv">
-						CSV
-					</a>
-					<span>(exports require a consumer key)</span>
-				</p>
-			</footer>
+/**
+ * Dashboard footer: last-update stamp and the audit export links.
+ * Extracted so `Dashboard` stays under the function-size lint budget.
+ */
+function DashboardFooter({ generatedAt }: { generatedAt: string }) {
+	return (
+		<footer className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
+			<p className="text-muted-foreground text-xs">
+				{`Last update ${formatTimestamp(generatedAt)} · refreshes every ${REFRESH_INTERVAL_SECONDS}s`}
+			</p>
+			<p className="flex flex-wrap items-center gap-1 text-muted-foreground text-xs">
+				<span>Audit export:</span>
+				<a className="underline" href="/api/audit/export?format=jsonl">
+					JSONL
+				</a>
+				<span>·</span>
+				<a className="underline" href="/api/audit/export?format=csv">
+					CSV
+				</a>
+				<span>(exports require a consumer key)</span>
+			</p>
+		</footer>
+	);
+}
+
+/**
+ * Interactive dashboard (security-observability spec): controls and profiles
+ * in force, posture, threats by control/category, budget vs limits, latency
+ * percentiles, escalations, versions in force, per-consumer breakdown, and
+ * live refresh via polling.
+ *
+ * `initialConsumer` seeds the consumer scope dropdown from the route's
+ * `?consumer=` search param (URL is the source of truth: the effect below
+ * resyncs local state whenever the route selection changes). `onConsumerChange`
+ * reports dropdown changes so the route can navigate to `?consumer=` (or clear
+ * it for the aggregate scope); without it the dropdown stays purely local.
+ *
+ * `initialRole`/`onRoleChange` mirror that pair for the role filter from the
+ * route's `?role=` search param (`undefined` means all roles). The role
+ * selection filters the People table and the escalation queue; the person
+ * search box stays local and is never reflected in the URL.
+ */
+export function Dashboard({
+	initialConsumer,
+	initialData,
+	initialRole,
+	onConsumerChange,
+	onRefresh,
+	onRoleChange,
+	variant = "full",
+}: {
+	initialConsumer?: string | undefined;
+	initialData: DashboardData;
+	initialRole?: string | undefined;
+	onConsumerChange?: ((next: string) => void) | undefined;
+	onRefresh: () => Promise<DashboardData>;
+	onRoleChange?: ((next: string) => void) | undefined;
+	variant?: DashboardVariant | undefined;
+}) {
+	const [data, setData] = useState<DashboardData>(initialData);
+	const { consumer, handleConsumerChange } = useConsumerScope(initialConsumer, onConsumerChange);
+	const { escalations, handleRoleChange, peopleRows, query, role, roles, setQuery } =
+		usePeopleScope(data, consumer, initialRole, onRoleChange);
+
+	useEffect(() => {
+		const timer = setInterval(() => {
+			onRefresh()
+				.then((next) => {
+					setData(next);
+				})
+				.catch(() => undefined);
+		}, REFRESH_INTERVAL_MS);
+		return () => {
+			clearInterval(timer);
+		};
+	}, [onRefresh]);
+
+	const metrics = useMemo(() => selectMetrics(data, consumer), [data, consumer]);
+
+	return (
+		<main className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6">
+			<DashboardHeader
+				consumer={consumer}
+				consumerKeys={data.consumerKeys}
+				data={data}
+				onConsumerChange={handleConsumerChange}
+				variant={variant}
+			/>
+
+			<TierStatusBanner />
+
+			<p className="text-muted-foreground text-xs">
+				{`Live refresh every ${REFRESH_INTERVAL_SECONDS}s · last update ${formatTimestamp(data.generatedAt)}`}
+			</p>
+
+			<OverviewSections
+				controls={data.policy.controls}
+				metrics={metrics}
+				profiles={data.policy.profiles}
+			/>
+
+			<FullVariantSections
+				escalations={escalations}
+				onQueryChange={setQuery}
+				onRoleChange={handleRoleChange}
+				query={query}
+				role={role}
+				roles={roles}
+				rows={peopleRows}
+				variant={variant}
+			/>
+
+			<DashboardFooter generatedAt={data.generatedAt} />
 		</main>
 	);
 }

@@ -81,6 +81,8 @@ function toByConsumerRows(byConsumer: DashboardData["byConsumer"]): ByConsumerRo
 
 const ALL_CONSUMERS_ESCALATIONS_TITLE = "Escalations with consumer attribution";
 const ALL_ROLES = "all";
+const ACTIVITY_DESCRIPTION = "People, consumers, and escalations across the audit window.";
+const ACTIVITY_TITLE = "Activity";
 const BY_CONSUMER_DESCRIPTION = "Decisions per consumer. Select one to view it in isolation.";
 const BY_CONSUMER_TITLE = "By consumer key";
 const ESCALATIONS_DESCRIPTION =
@@ -164,6 +166,10 @@ function DashboardPage() {
 			/>
 			<div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 pb-6">
 				{scopeBanner(consumer, role)}
+				<div className="flex flex-col gap-1">
+					<h2 className="font-semibold text-lg tracking-tight">{ACTIVITY_TITLE}</h2>
+					<p className="text-muted-foreground text-sm">{ACTIVITY_DESCRIPTION}</p>
+				</div>
 				<div className="flex flex-col gap-3">
 					<div className="flex flex-col gap-1">
 						<h2 className="font-semibold text-lg tracking-tight">{BY_CONSUMER_TITLE}</h2>

@@ -11,5 +11,5 @@ export const Route = createFileRoute("/")({
 function DashboardPage() {
 	const data = Route.useLoaderData();
 	const onRefresh = useCallback(() => getDashboardData(), []);
-	return <Dashboard initialData={data} onRefresh={onRefresh} />;
+	return <Dashboard initialData={data} onRefresh={onRefresh} variant="overview" />;
 }

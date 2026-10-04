@@ -69,18 +69,14 @@ function RootDocument({ children }: { children: ReactNode }) {
 				<ThemeProvider>
 					<TooltipProvider>
 						<header className="border-b">
-							<nav aria-label="Primary" className="mx-auto flex max-w-5xl items-center gap-2 p-4">
-								<Button asChild={true} size="sm" variant="ghost">
-									<Link activeProps={{ className: "bg-accent text-accent-foreground" }} to="/">
-										Saif
-									</Link>
-								</Button>
+							<nav aria-label="Primary" className="mx-auto flex max-w-7xl items-center gap-2 p-4">
 								<Button asChild={true} size="sm" variant="ghost">
 									<Link
+										activeOptions={{ exact: true }}
 										activeProps={{ className: "bg-accent text-accent-foreground" }}
-										to="/playground"
+										to="/"
 									>
-										Playground
+										Overview
 									</Link>
 								</Button>
 								<Button asChild={true} size="sm" variant="ghost">
@@ -89,7 +85,23 @@ function RootDocument({ children }: { children: ReactNode }) {
 										search={{ consumer: undefined, role: undefined }}
 										to="/dashboard"
 									>
-										Dashboard
+										Activity
+									</Link>
+								</Button>
+								<Button asChild={true} size="sm" variant="ghost">
+									<Link
+										activeProps={{ className: "bg-accent text-accent-foreground" }}
+										to="/controls"
+									>
+										Controls
+									</Link>
+								</Button>
+								<Button asChild={true} size="sm" variant="ghost">
+									<Link
+										activeProps={{ className: "bg-accent text-accent-foreground" }}
+										to="/playground"
+									>
+										Playground
 									</Link>
 								</Button>
 								<div className="ml-auto">
