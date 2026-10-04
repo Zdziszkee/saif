@@ -54,5 +54,12 @@ export const env = createEnv({
 		/** Model name served by the OpenAI-compatible endpoint. */
 		MODEL_NAME: z.string().optional(),
 		SERVER_URL: z.string().url().optional(),
+		/** TypeSafe API key for the Jev decision model. Absence disables the semantic tier. */
+		TYPESAFE_API_KEY: z.string().min(1).optional(),
+		/**
+		 * Override for the TypeSafe endpoint (tests and the `mock:jev` stub).
+		 * Unset means the production TypeSafe API.
+		 */
+		TYPESAFE_BASE_URL: z.string().url().optional(),
 	},
 });

@@ -56,6 +56,34 @@ Watch `tail -f data/audit.jsonl` and `http://localhost:3000/dashboard`
 alongside. The mock's builders (`buildMockStreamBody`,
 `buildMockJsonBody`) are unit-tested in `tests/mock-upstream.test.ts`.
 
+## Mock Jev decision service
+
+`bun run mock:jev` stands in for TypeSafe's `POST /v1/systemone` on port
+4321 (`MOCK_JEV_PORT` overrides) so the semantic tier runs with no API key:
+
+```sh
+bun run mock:jev &                                     # terminal 1
+TYPESAFE_API_KEY=test-key TYPESAFE_BASE_URL=http://localhost:4321 bun run dev  # terminal 2
+```
+
+The mock scores content against a keyword map per check and answers with
+wire-shape `noul` probabilities. Judges can retune it without touching
+code: copy `data/mock-jev-keywords.json`, edit the keyword lists (a key
+scores every check whose id contains it, so exact check ids and fragments
+both work), and point the mock at the copy — it loads once at startup, so
+restart the mock after editing. A missing or invalid file refuses to start
+instead of scoring the wrong verdicts:
+
+```sh
+MOCK_JEV_CONFIG=/tmp/our-keywords.json bun run mock:jev
+# -> mock Jev scoring: /tmp/our-keywords.json
+```
+
+Parsing and file loading (`parseMockJevScoringConfig`,
+`loadMockJevScoringConfig`) are unit-tested in `tests/mock-jev.test.ts`,
+including a test that the shipped example scores identically to the
+built-ins.
+
 ## Not yet
 
 - **Claude Code** speaks the Anthropic Messages protocol (`/v1/messages`),

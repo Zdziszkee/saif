@@ -1,0 +1,13 @@
+{
+  "base": 0.05,
+  "checks": {
+    "data_exfiltration": ["password", "secret", "api key", "ssn", "credit card", "credentials", ".env", "token"],
+    "insider_trading": ["insider", "merger", "acquisition", "earnings", "non-public", "material"],
+    "jailbreak": ["dan", "bypass", "unrestricted", "jailbreak", "developer mode", "no restrictions", "act as", "do anything"],
+    "malicious_code": ["bomb", "explod", "wire", "malware", "ransomware", "exploit", "kill", "murder", "poison", "weapon"],
+    "privacy_violation": ["email", "ssn", "@", "phone", "address", "date of birth", "passport"],
+    "prompt_injection": ["ignore", "previous instructions", "system prompt", "unrestricted", "bypass", "jailbreak", "dan", "developer mode", "reveal", "act as", "forget", "disregard"]
+  },
+  "hit": 0.45,
+  "max": 0.98
+}

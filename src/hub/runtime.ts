@@ -89,7 +89,15 @@ export function buildSemanticControl(): Control | null {
 	// it — Jev config reload is out of scope for the policy hot path.
 	const { checks, floors, maxChars, model, timeoutMs } = SEMANTIC_DEFAULTS;
 	try {
-		const classifier = createJevClassifier({ checks, floors, maxChars, model, timeoutMs });
+		const classifier = createJevClassifier({
+			...(env.TYPESAFE_API_KEY === undefined ? {} : { apiKey: env.TYPESAFE_API_KEY }),
+			...(env.TYPESAFE_BASE_URL === undefined ? {} : { baseUrl: env.TYPESAFE_BASE_URL }),
+			checks,
+			floors,
+			maxChars,
+			model,
+			timeoutMs,
+		});
 		return createSemanticControl({ checks, classifier });
 	} catch {
 		return null;

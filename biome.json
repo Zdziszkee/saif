@@ -149,8 +149,10 @@
 				"**/src/gateway/openai.ts",
 				"**/src/gateway/prices.ts",
 				"**/scripts/mock-upstream.ts",
+				"**/scripts/mock-jev.ts",
 				"**/tests/gateway.test.ts",
-				"**/tests/gateway-mocks.test.ts"
+				"**/tests/gateway-mocks.test.ts",
+				"**/tests/mock-jev.test.ts"
 			],
 			"linter": {
 				"rules": {

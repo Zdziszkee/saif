@@ -21,6 +21,7 @@
     "data:names": "bun scripts/build-name-data.ts",
     "data:signatures": "bun scripts/build-signature-feed.ts",
     "mock": "bun scripts/mock-upstream.ts",
+    "mock:jev": "bun scripts/mock-jev.ts",
     "demo": "bun scripts/demo-gateway.ts",
     "fixtures:env": "bun scripts/build-fixture-env.ts",
     "test:integration": "SEMANTIC_LIVE=1 bun test tests/integration",
