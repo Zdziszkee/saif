@@ -4,10 +4,11 @@ import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core
 /**
  * Storage schema for the LLM gateway seam.
  *
- * Two tables, sized for dashboard queries rather than for completeness:
+ * Three tables, sized for dashboard queries rather than for completeness:
  *
  *  - `audit_events`  — what happened to an interaction (who, when, verdict, why)
  *  - `usage_records` — what the upstream model cost (tokens and computed cost)
+ *  - `mcp_tool_calls` — which MCP tool ran for whom (tool, verdict, confirmation)
  *
  * Deliberately NOT stored: latency, per-hit detail rows, raw upstream status,
  * or a separate budget table. Budget limits are enforced by aggregating
@@ -114,5 +115,48 @@ export const usageRecords = sqliteTable(
 		index("usage_records_user_ts_idx").on(table.userId, table.ts),
 		index("usage_records_group_ts_idx").on(table.groupId, table.ts),
 		index("usage_records_audit_event_idx").on(table.auditEventId),
+	],
+);
+
+/** Where an MCP tool call executed from. Mirrors `ToolSource` in `src/hub/catalog.ts`. */
+export const TOOL_SOURCES = ["builtin", "connected"] as const;
+
+/**
+ * One row per terminal MCP tool-call outcome.
+ *
+ * Additive: existing tables are untouched. `confirmed` is null when the tool
+ * needs no confirmation; `estimatedTokens` is a chars/4 heuristic over the
+ * inspected args + result (estimate, never billed — model cost stays in
+ * `usage_records`). Tool arguments and results are never stored.
+ */
+export const mcpToolCalls = sqliteTable(
+	"mcp_tool_calls",
+	{
+		/** Confirmation outcome (1/0); null when the tool needs no confirmation. */
+		confirmed: integer("confirmed"),
+		/** Decisive control for non-allow verdicts (`tool-authorization`, …). */
+		controlId: text("control_id"),
+		estimatedTokens: integer("estimated_tokens").notNull(),
+		/** Policy subject group; drives tool access and group-level reporting. */
+		groupId: text("user_group_id").notNull(),
+		id: integer({ mode: "number" }).primaryKey({ autoIncrement: true }),
+		latencyMs: integer("latency_ms"),
+		/** Hash of the tool-policy document in force, for correlating edits with outcomes. */
+		policyVersion: text("policy_version").notNull(),
+		requireConfirm: integer("require_confirm").notNull().default(0),
+		toolName: text("tool_name").notNull(),
+		toolSource: text("tool_source", { enum: TOOL_SOURCES }).notNull(),
+		/** Event time (unix seconds). */
+		ts: integer("ts", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+		/** The individual caller, from `x-user-id`. Null at group-scoped surfaces. */
+		userId: text("user_id"),
+		verdict: text("verdict", { enum: VERDICTS }).notNull(),
+	},
+	(table) => [
+		index("mcp_tool_calls_ts_idx").on(table.ts),
+		index("mcp_tool_calls_tool_ts_idx").on(table.toolName, table.ts),
+		index("mcp_tool_calls_user_ts_idx").on(table.userId, table.ts),
+		index("mcp_tool_calls_group_ts_idx").on(table.groupId, table.ts),
+		index("mcp_tool_calls_verdict_ts_idx").on(table.verdict, table.ts),
 	],
 );

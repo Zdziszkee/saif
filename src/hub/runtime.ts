@@ -42,6 +42,12 @@ import { fetchPriceTable, type ModelPriceTable } from "#/gateway/prices.ts";
 import { type BudgetRule, UsageLedger } from "#/gateway/usage.ts";
 import { createHubConfig } from "./config.ts";
 import { createHub, type Hub } from "./mcp-server.ts";
+import {
+	createFileToolPolicyStore,
+	createToolPolicyRegistry,
+	type ToolPolicyRegistry,
+} from "./tool-policy.ts";
+import { recordToolCall, type ToolUsageRecord } from "./tool-usage.ts";
 
 let auditSink: AuditSink | undefined;
 let hubPromise: Promise<Hub> | undefined;
@@ -61,6 +67,13 @@ const POLICY_PATH = "policy.json";
 const SIGNATURES_PATH = "signatures.json";
 
 let signatureFeedStore: SignatureFeedStore | undefined;
+let toolPolicyRegistry: ToolPolicyRegistry | undefined;
+
+/** Shared tool access policy: content swaps on file reload, references stay stable. */
+function getToolPolicyRegistry(): ToolPolicyRegistry {
+	toolPolicyRegistry ??= createToolPolicyRegistry();
+	return toolPolicyRegistry;
+}
 
 /**
  * Built on first hub construction, not at module import: creating the store
@@ -274,6 +287,7 @@ async function createHubAsync(): Promise<Hub> {
 				? { enabled: semanticEnabled }
 				: { enabled: semanticEnabled, reason: semanticReason },
 	};
+	await startToolPolicy(getAuditSink());
 	return createHub({
 		audit: getAuditSink(),
 		config: createHubConfig({
@@ -286,7 +300,38 @@ async function createHubAsync(): Promise<Hub> {
 			failureVerdict,
 			...(profile === null ? {} : { profile }),
 		}),
+		toolAccess: getToolPolicyRegistry(),
+		toolUsage: persistToolUsage,
 	});
+}
+
+/**
+ * Best-effort durable write of one tool-call row. The hub never blocks on the
+ * database: without `DATABASE_URL` (tests, local dev) the import throws and
+ * the in-memory audit sink stays the record.
+ */
+function persistToolUsage(record: ToolUsageRecord): void {
+	const policyVersion = getToolPolicyRegistry().version ?? "unavailable";
+	import("#/db/index.ts")
+		.then(({ db }) => recordToolCall(db, { ...record, policyVersion }))
+		.catch(() => undefined);
+}
+
+/** Load `policy.mcp.json` once and hot-reload it; absence keeps grant defaults. */
+async function startToolPolicy(audit: AuditSink): Promise<void> {
+	const store = createFileToolPolicyStore(env.MCP_TOOL_POLICY_PATH ?? "policy.mcp.json");
+	const registry = getToolPolicyRegistry();
+	const status = await store.start();
+	if (status.ok) {
+		registry.update(status.snapshot);
+	} else {
+		audit.record(
+			auditEvent("failure", {
+				controlId: "tool-policy",
+				detail: `tool policy unavailable, using grant defaults: ${status.issues[0]?.message ?? "unknown error"}`,
+			}),
+		);
+	}
 }
 
 /**

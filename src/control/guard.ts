@@ -93,6 +93,7 @@ export async function guardInteraction(
 			interactionId: interaction.id,
 			redactionCount: inspection.redactions.length,
 			seam: interaction.seam,
+			toolName: interaction.tool?.name,
 			userId: interaction.userId,
 			verdict: outcome.verdict,
 		}),

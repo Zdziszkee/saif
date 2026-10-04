@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 
 import { drizzle } from "drizzle-orm/bun-sqlite";
 
-import { auditEvents, usageRecords } from "./schema.ts";
+import { auditEvents, mcpToolCalls, usageRecords } from "./schema.ts";
 
 const { DATABASE_URL: url } = process.env;
 if (url === undefined) {
@@ -10,5 +10,5 @@ if (url === undefined) {
 }
 
 export const db = drizzle(new Database(url), {
-	schema: { auditEvents, usageRecords },
+	schema: { auditEvents, mcpToolCalls, usageRecords },
 });

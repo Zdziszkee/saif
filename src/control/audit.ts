@@ -23,6 +23,8 @@ export interface AuditEvent {
 	redactionCount?: number | undefined;
 	seam?: string | undefined;
 	timestamp: string;
+	/** MCP tool this decision concerns, when attributable (tool-call governance). */
+	toolName?: string | undefined;
 	/** The individual caller, when attributable. */
 	userId?: string | undefined;
 	verdict?: Verdict | undefined;
