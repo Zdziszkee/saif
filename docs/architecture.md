@@ -66,15 +66,19 @@ evidence to verdicts. Classification is advisory; policy decides.
           ▼                            ▼
 ┌──────────────────────┐   ┌─────────────────────────────────────────────┐
 │ Enforcement          │   │ Observability                               │
-│                      │   │                                             │
-│ allow  → forward     │   │ append-only audit log (SQLite)              │
-│ redact → forward     │   │ usage + budget windows (SQLite)             │
-│        typed         │   │ real-time metrics (verdicts, latency p50/   │
-│        placeholders  │   │   p95/p99, budget consumption per key)      │
-│ block  → reject 403, │   │ JSONL / CSV audit export (filters)          │
-│        never forward │   │ dashboard (posture, threats, budgets)       │
-│ escalate → hold for  │   │ performance telemetry per stage             │
-│        review        │   │                                             │
+│                      │   │ append-only audit sink (memory +            │
+│ allow  → forward     │   │ data/audit.jsonl; SQLite tables defined,    │
+│ redact → forward     │   │ wiring follow-up)                           │
+│        typed         │   │ usage + budget windows (SQLite)             │
+│        placeholders  │   │ real-time metrics (verdicts, latency p50/   │
+│ block  → reject 403, │   │   p95/p99, budget consumption per key)      │
+│        never forward │   │ JSONL / CSV audit export (filters)          │
+│ escalate → hold for  │   │ dashboard (live: posture/verdicts, threats  │
+│        review        │   │   from audit hits, budget vs limits from    │
+│                      │   │   usage, latency p50/p95/p99, escalations)  │
+│                      │   │ signature feed store →                      │
+│                      │   │   getDashboardData → feed badge             │
+│                      │   │ performance telemetry per stage             │
 └──────────┬───────────┘   └─────────────────────────────────────────────┘
            ▼
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -188,17 +192,36 @@ startup; per-stage rebinding is follow-up.
 ## Observability
 
 Every governed interaction produces an append-only audit entry: interaction
-identity and consumer key, direction, policy and feed version, verdict with
-reasons (fired detections, signature ids and matched form, semantic
-probabilities), redactions applied, target model, token usage, computed cost,
-and pipeline latency. Audit entries are not modifiable through application
-interfaces. On top of the audit log the layer maintains real-time metrics
+identity and consumer key, direction and seam, subject (consumer key, group,
+user), policy and feed versions, verdict with the blocking control
+(`controlId`) and reasons (fired detections, signature ids and matched form
+as hits, semantic probabilities), redactions applied (`redactionCount`),
+target model, token usage and computed cost when available, and pipeline
+latency (`latencyMs`). Audit entries are not modifiable through application
+interfaces. The live sink is memory plus `data/audit.jsonl` (one JSON object
+per line, surviving restarts); the SQLite `audit_events` / `usage_records` /
+`budget_windows` tables are defined in `src/db/` and wiring the sink to them
+is follow-up. On top of the audit log the layer maintains real-time metrics
 (verdict counts by control, category, and consumer key, redaction counts,
 budget consumption, latency percentiles p50/p95/p99) and exposes JSONL/CSV
 exports with filters (time range, verdict, control, consumer key) for security
-teams, and a dashboard for management: controls and profiles in force, security
-posture, top threat categories, blocked interactions, budget vs limits, recent
-escalations, and the policy/signature feed versions live at that moment.
+teams, and a live dashboard for management: controls and profiles in force,
+security posture and verdict counts, top threat categories from audit hits,
+budget usage vs configured limits, latency p50/p95/p99 from recorded
+`latencyMs`, recent escalations, and the policy/signature feed versions live
+at that moment (the feed badge reads the signature feed store through
+`getDashboardData` in `src/dashboard/server.ts`).
+
+Empty dashboard state is zeros and empty lists: with no recorded decisions
+every verdict count is 0, threats, budget series, and escalations render
+empty, and no seeded values are shown. The dashboard repolls
+`getDashboardData` every 15 seconds (`REFRESH_INTERVAL_MS` in
+`src/components/dashboard/dashboard.tsx`), and `TierStatusBanner`
+(`src/components/tier-status.tsx`) fetches `GET /api/status` (`getHubStatus`
+in `src/hub/runtime.ts`: feed health and version, policy profile and version,
+semantic-tier enablement and reason) and renders a banner only when the
+semantic tier is off, so verdicts with no semantic evidence stay
+explainable.
 
 ## Storage
 
@@ -294,8 +317,8 @@ network.
 | Verdict mapping | planned: `applyPolicy(evidence, profile)` in `src/control/pipeline.ts` (design D5) |
 | Subjects / consumer keys | `src/control/subjects.ts` |
 | Policy engine | `src/control/policy/` (`schema`, `loader`, `live-control`) |
-| Audit, usage, budget | `src/control/audit.ts`, `src/db/` |
-| Dashboard, audit export, playground | `src/routes/dashboard.tsx`, `src/routes/api.audit.export.ts`, `src/routes/playground.tsx` |
+| Audit, usage, budget | `src/control/audit.ts` (enriched `AuditEvent`: verdict, `controlId`, hits, `redactionCount`, `latencyMs`, usage tokens/cost, direction/seam/subject, versions), `src/db/` |
+| Dashboard, audit export, playground | `src/dashboard/data.ts` (live derivation from policy snapshot + audit sink), `src/dashboard/server.ts` (live feed version via `getDashboardData`), `src/routes/dashboard.tsx`, `src/routes/api.audit.export.ts`, `src/routes/playground.tsx` |
 
 ## Implementation status
 
@@ -313,8 +336,10 @@ error or timeout fails closed to the policy failure verdict).
 | Semantic tier (Jev catalog, doubles, fail-closed) | implemented |
 | Verdict mapping (`applyPolicy`) | in progress (control verdicts merge by severity today; profile-threshold mapping pending) |
 | Signature engine + feed ingestion | implemented (per-row feed validation, SHA-256 versioning, hot reload) |
-| Budget pre-flight / settlement | in progress (reservation must be atomic across concurrent requests) |
-| Durable audit store, metrics, export | in progress (in-memory sink today) |
-| Dashboard route | implemented (`/dashboard`, `/api/audit/export`, `/playground`) |
+| Budget pre-flight / settlement | in progress (usage vs limits live-derived; computeTimeMs/requests windows approximate — usage events carry tokens/cost when available; reservation must be atomic across concurrent requests) |
+| Durable audit store, metrics, export | in progress (memory + JSONL live; SQLite wiring follow-up) |
+| Dashboard route | implemented (live, no fixture fallback: `/dashboard`, `/api/audit/export`, `/playground`) |
+| Latency percentiles (p50/p95/p99) | live-derived from recorded decision `latencyMs`, no fixture fallback |
+| Threat breakdown by control/category | live-derived from audit hits, no fixture fallback |
 | Human-user authentication (sessions/tokens in front of the seams) | not started (consumer keys only) |
 | Durable hub grants | in process memory today |

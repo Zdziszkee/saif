@@ -189,7 +189,11 @@ function DashboardHeader({
 					<Badge title={data.policyVersion} variant="secondary">
 						{`policy ${data.policyVersion.slice(0, POLICY_VERSION_PREVIEW_LENGTH)}`}
 					</Badge>
-					<Badge variant="secondary">{`feed ${data.feedVersion}`}</Badge>
+					{data.feedVersion.trim().length === 0 || data.feedVersion === "unavailable" ? (
+						<Badge variant="secondary">feed unknown</Badge>
+					) : (
+						<Badge variant="secondary">{`feed ${data.feedVersion}`}</Badge>
+					)}
 					<span>{`default profile: ${data.policy.defaultProfile}`}</span>
 					<span>{`failure verdict: ${data.policy.failureVerdict}`}</span>
 				</div>

@@ -10,7 +10,7 @@ import { readAuditEvents } from "#/control/audit.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
 import { buildDashboardData } from "#/dashboard/data.ts";
 import type { DashboardData } from "#/dashboard/types.ts";
-import { getAuditSink } from "#/hub/runtime.ts";
+import { getAuditSink, getSignatureFeedStore } from "#/hub/runtime.ts";
 
 const POLICY_PATH = "policy.json";
 
@@ -22,10 +22,20 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(
 			const messages = result.issues.map((issue) => issue.message).join("; ");
 			throw new Error(`policy unavailable: ${messages}`);
 		}
+		let feedVersion = "unavailable";
+		try {
+			const snapshot = getSignatureFeedStore().snapshot();
+			if (snapshot.feed.version.length > 0) {
+				feedVersion = snapshot.feed.version;
+			}
+		} catch {
+			feedVersion = "unavailable";
+		}
 		return buildDashboardData(
 			result.snapshot,
 			new Date().toISOString(),
 			readAuditEvents(getAuditSink()),
+			feedVersion,
 		);
 	},
 );

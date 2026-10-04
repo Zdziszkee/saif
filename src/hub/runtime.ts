@@ -79,7 +79,7 @@ function getToolPolicyRegistry(): ToolPolicyRegistry {
  * that never touch signatures). The store lives for the process lifetime
  * after that, alongside the hub singleton.
  */
-function getSignatureFeedStore(): SignatureFeedStore {
+export function getSignatureFeedStore(): SignatureFeedStore {
 	signatureFeedStore ??= createSignatureFeedStore(SIGNATURES_PATH);
 	return signatureFeedStore;
 }

@@ -65,6 +65,7 @@ export async function guardInteraction(
 	options: GuardOptions = {},
 ): Promise<GuardOutcome> {
 	const audit = options.audit ?? noopAuditSink;
+	const start = Date.now();
 	let inspection: InspectionResult;
 	try {
 		inspection = await pipeline.inspect(interaction);
@@ -80,17 +81,34 @@ export async function guardInteraction(
 			verdict: "block",
 		};
 	}
+	const latencyMs = Date.now() - start;
 
 	const outcome = enforce(interaction, inspection, options.jsonContent ?? false);
 	audit.record(
 		auditEvent("interaction", {
+			// live-dashboard: usage plumbing ready — InspectionResult carries no
+			// usage fields yet, so tokens/cost stay undefined until upstream
+			// inspection reports them; the audit shape already accepts them.
+			completionTokens: undefined,
 			// The pipeline's blocking control covers block/escalate/redact;
 			// a clean allow belongs to the pipeline as a whole, never "none".
 			consumerKey: options.consumerKey ?? "(none)",
 			controlId: inspection.blockingControl ?? "pipeline",
+			costUsd: undefined,
 			detail: inspection.failure,
+			direction: interaction.direction,
 			groupId: interaction.groupId,
+			hits: inspection.hits.map((hit) => ({
+				// ControlHit carries no separate category field, so the hit
+				// kind doubles as the dashboard category.
+				category: hit.kind,
+				controlId: hit.controlId,
+				kind: hit.kind,
+			})),
 			interactionId: interaction.id,
+			latencyMs,
+			model: interaction.model,
+			promptTokens: undefined,
 			redactionCount: inspection.redactions.length,
 			seam: interaction.seam,
 			toolName: interaction.tool?.name,

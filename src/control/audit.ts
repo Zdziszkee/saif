@@ -6,20 +6,34 @@
  * boundary and the in-memory sink backs tests and observe-only wiring.
  */
 
-import type { Verdict } from "./types.ts";
+import type { Direction, Verdict } from "./types.ts";
 
 export type AuditEventKind = "budget" | "connection" | "failure" | "interaction" | "registration";
 
+/** One control's contribution to an audit decision, for live-dashboard drill-down. */
+export interface AuditHit {
+	category: string;
+	controlId: string;
+	kind: string;
+}
+
 export interface AuditEvent {
+	completionTokens?: number | undefined;
 	/** Raw `x-consumer-key` header value; undefined when no key was presented. */
 	consumerKey?: string | undefined;
 	/** Control responsible for the verdict, when one is attributable. */
 	controlId?: string | undefined;
+	costUsd?: number | undefined;
 	detail?: string | undefined;
+	direction?: Direction | undefined;
 	/** Policy subject: the user group the caller presented. */
 	groupId?: string | undefined;
+	hits?: AuditHit[] | undefined;
 	interactionId?: string | undefined;
 	kind: AuditEventKind;
+	latencyMs?: number | undefined;
+	model?: string | undefined;
+	promptTokens?: number | undefined;
 	redactionCount?: number | undefined;
 	seam?: string | undefined;
 	timestamp: string;
