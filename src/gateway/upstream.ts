@@ -42,6 +42,12 @@ export interface StreamUpstreamOptions {
 	baseUrl: string;
 	body: Record<string, unknown>;
 	fetchImpl?: FetchImpl | undefined;
+	/**
+	 * Provider session attribution header (`x-opencode-session`). Some
+	 * upstreams (OpenCode Zen Go) reject requests without it; generated per
+	 * request when omitted so callers never have to track provider sessions.
+	 */
+	sessionId?: string | undefined;
 	signal?: AbortSignal | undefined;
 	timeoutMs?: number | undefined;
 }
@@ -77,6 +83,7 @@ async function postUpstream(options: StreamUpstreamOptions): Promise<Response> {
 	if (options.apiKey !== undefined) {
 		headers.set("authorization", `Bearer ${options.apiKey}`);
 	}
+	headers.set("x-opencode-session", options.sessionId ?? crypto.randomUUID());
 	const timeout = AbortSignal.timeout(options.timeoutMs ?? UPSTREAM_TIMEOUT_MS);
 	const fetchImpl = options.fetchImpl ?? fetch;
 	const response = await fetchImpl(url, {

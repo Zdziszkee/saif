@@ -103,6 +103,12 @@ export interface GatewayTurnDeps {
 	clock?: (() => number) | undefined;
 	fetchImpl?: FetchImpl | undefined;
 	identity: IdentityResolver;
+	/**
+	 * Best-effort fan-out for the settled audit row (dashboard, UI poll).
+	 * The durable SQLite write always happens first; the hook only feeds
+	 * read surfaces that never touch the gateway store (hub in-memory sink).
+	 */
+	onAudit?: ((row: GatewayAuditRow) => void) | undefined;
 	pipeline: ControlPipeline;
 	policy: GatewayPolicySnapshot;
 	priceFor: PriceForModel;
@@ -987,7 +993,8 @@ async function recordTurnAudit(
 	deps: GatewayTurnDeps,
 	row: Omit<GatewayAuditRow, "policyVersion">,
 ): Promise<number> {
-	return await Promise.resolve(
-		deps.store.recordAudit({ ...row, policyVersion: deps.policy.policyVersion }),
-	);
+	const fullRow: GatewayAuditRow = { ...row, policyVersion: deps.policy.policyVersion };
+	const id = await Promise.resolve(deps.store.recordAudit(fullRow));
+	deps.onAudit?.(fullRow);
+	return id;
 }

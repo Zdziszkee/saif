@@ -1,254 +1,265 @@
 {
-  "controls": {
-    "allowlist": {
-      "models": [
-        {
-          "endpoint": "https://api.example.com/v1",
-          "name": "primary"
-        },
-        {
-          "name": "local-small"
-        }
-      ]
-    },
-    "budget": {
-      "overBudgetVerdict": "block",
-      "rules": [
-        {
-          "key": "user-1",
-          "modelScope": "*",
-          "period": "day",
-          "tokens": 250000
-        },
-        {
-          "costUsd": 20,
-          "key": "user-1",
-          "modelScope": "*",
-          "period": "month"
-        },
-        {
-          "computeTimeMs": 600000,
-          "key": "user-1",
-          "modelScope": "*",
-          "period": "day"
-        },
-        {
-          "key": "user-1",
-          "modelScope": "primary",
-          "period": "day",
-          "requests": 500
-        }
-      ]
-    },
-    "detection": {
-      "builtins": {
-        "encodingRescan": true,
-        "entropyScan": true,
-        "genericCredentials": true,
-        "pii": true,
-        "providerSecrets": true
-      },
-      "defaultActions": {
-        "custom": "redact",
-        "pii": "redact",
-        "secret": "block",
-        "suspect": "flag"
-      },
-      "rules": [
-        {
-          "action": "flag",
-          "directions": [
-            "outbound"
-          ],
-          "id": "internal-codename",
-          "kind": "custom",
-          "pattern": "\\bCONFIDENTIAL\\b"
-        },
-        {
-          "action": "redact",
-          "directions": [
-            "inbound",
-            "outbound"
-          ],
-          "id": "employee-id",
-          "kind": "pii",
-          "pattern": "\\bEMP-[0-9]{6}\\b"
-        }
-      ]
-    },
-    "enabled": true,
-    "redaction": {
-      "enabled": true
-    },
-    "shape": {
-      "maxContentBytes": 65536
-    },
-    "signatures": {
-      "enabled": true,
-      "perSignatureActions": {},
-      "severityActions": {
-        "critical": "block",
-        "high": "block",
-        "low": "flag",
-        "medium": "redact"
-      },
-      "suspect": {
-        "action": "escalate",
-        "threshold": 0.8
-      }
-    }
+      "controls": {
+            "allowlist": {
+                  "models": [
+                        {
+                              "endpoint": "https://api.example.com/v1",
+                              "name": "primary"
+                        },
+                        { "name": "gemini-3.5-flash-lite" },
+  { "name": "models/gemini-3.5-flash-lite" },  {
+   "name": "muse-spark-1.3-contributor-free"
   },
-  "defaults": {
-    "failureVerdict": "escalate",
-    "profile": "standard"
+  {
+   "name": "muse-spark-1.3-contributor"
   },
-  "profiles": {
-    "permissive": {
-      "enabledControls": {
-        "detection": true,
-        "semantic": true,
-        "signatures": true
-      },
-      "thresholds": {
-        "detection": {
-          "inbound": {
-            "block": 0.95,
-            "escalate": 0.3,
-            "redact": 0.7
-          },
-          "outbound": {
-            "block": 0.95,
-            "escalate": 0.3,
-            "redact": 0.7
-          }
-        },
-        "semantic": {
-          "inbound": {
-            "block": 0.95,
-            "escalate": 0.3,
-            "redact": 0.7
-          },
-          "outbound": {
-            "block": 0.95,
-            "escalate": 0.3,
-            "redact": 0.7
-          }
-        },
-        "signatures": {
-          "inbound": {
-            "block": 0.9,
-            "escalate": 0.3,
-            "redact": 0.6
-          },
-          "outbound": {
-            "block": 0.9,
-            "escalate": 0.3,
-            "redact": 0.6
-          }
-        }
-      }
-    },
-    "standard": {
-      "enabledControls": {
-        "detection": true,
-        "semantic": true,
-        "signatures": true
-      },
-      "thresholds": {
-        "detection": {
-          "inbound": {
-            "block": 0.85,
-            "escalate": 0.4,
-            "redact": 0.6
-          },
-          "outbound": {
-            "block": 0.85,
-            "escalate": 0.4,
-            "redact": 0.6
-          }
-        },
-        "semantic": {
-          "inbound": {
-            "block": 0.85,
-            "escalate": 0.4,
-            "redact": 0.6
-          },
-          "outbound": {
-            "block": 0.85,
-            "escalate": 0.4,
-            "redact": 0.6
-          }
-        },
-        "signatures": {
-          "inbound": {
-            "block": 0.8,
-            "escalate": 0.4,
-            "redact": 0.55
-          },
-          "outbound": {
-            "block": 0.8,
-            "escalate": 0.4,
-            "redact": 0.55
-          }
-        }
-      }
-    },
-    "strict": {
-      "enabledControls": {
-        "detection": true,
-        "semantic": true,
-        "signatures": true
-      },
-      "thresholds": {
-        "detection": {
-          "inbound": {
-            "block": 0.7,
-            "escalate": 0.5,
-            "redact": 0.45
-          },
-          "outbound": {
-            "block": 0.7,
-            "escalate": 0.5,
-            "redact": 0.45
-          }
-        },
-        "semantic": {
-          "inbound": {
-            "block": 0.7,
-            "escalate": 0.5,
-            "redact": 0.45
-          },
-          "outbound": {
-            "block": 0.7,
-            "escalate": 0.5,
-            "redact": 0.45
-          }
-        },
-        "signatures": {
-          "inbound": {
-            "block": 0.65,
-            "escalate": 0.5,
-            "redact": 0.45
-          },
-          "outbound": {
-            "block": 0.65,
-            "escalate": 0.5,
-            "redact": 0.45
-          }
-        }
-      }
-    }
+  {
+   "name": "mimo-v2.6-pro"
   },
-  "version": "1",
-  "groups": {
-    "hr": {
-      "profile": "strict"
-    },
-    "manager": {
-      "profile": "standard"
-    },
-    "software-developer": {
-      "profile": "standard"
-    }
+  {
+   "name": "local-small"
   }
+
+                  ]
+            },
+            "budget": {
+                  "overBudgetVerdict": "block",
+                  "rules": [
+                        {
+                              "key": "user-1",
+                              "modelScope": "*",
+                              "period": "day",
+                              "tokens": 250000
+                        },
+                        {
+                              "costUsd": 20,
+                              "key": "user-1",
+                              "modelScope": "*",
+                              "period": "month"
+                        },
+                        {
+                              "computeTimeMs": 600000,
+                              "key": "user-1",
+                              "modelScope": "*",
+                              "period": "day"
+                        },
+                        {
+                              "key": "user-1",
+                              "modelScope": "primary",
+                              "period": "day",
+                              "requests": 500
+                        }
+                  ]
+            },
+            "detection": {
+                  "builtins": {
+                        "encodingRescan": true,
+                        "entropyScan": true,
+                        "genericCredentials": true,
+                        "pii": true,
+                        "providerSecrets": true
+                  },
+                  "defaultActions": {
+                        "custom": "redact",
+                        "pii": "redact",
+                        "secret": "block",
+                        "suspect": "flag"
+                  },
+                  "rules": [
+                        {
+                              "action": "flag",
+                              "directions": [
+                                    "outbound"
+                              ],
+                              "id": "internal-codename",
+                              "kind": "custom",
+                              "pattern": "\\bCONFIDENTIAL\\b"
+                        },
+                        {
+                              "action": "redact",
+                              "directions": [
+                                    "inbound",
+                                    "outbound"
+                              ],
+                              "id": "employee-id",
+                              "kind": "pii",
+                              "pattern": "\\bEMP-[0-9]{6}\\b"
+                        }
+                  ]
+            },
+            "enabled": true,
+            "redaction": {
+                  "enabled": true
+            },
+            "shape": {
+                  "maxContentBytes": 65536
+            },
+            "signatures": {
+                  "enabled": true,
+                  "perSignatureActions": {},
+                  "severityActions": {
+                        "critical": "block",
+                        "high": "block",
+                        "low": "flag",
+                        "medium": "redact"
+                  },
+                  "suspect": {
+                        "action": "escalate",
+                        "threshold": 0.8
+                  }
+            }
+      },
+      "defaults": {
+            "failureVerdict": "escalate",
+            "profile": "standard"
+      },
+      "profiles": {
+            "permissive": {
+                  "enabledControls": {
+                        "detection": true,
+                        "semantic": true,
+                        "signatures": true
+                  },
+                  "thresholds": {
+                        "detection": {
+                              "inbound": {
+                                    "block": 0.95,
+                                    "escalate": 0.3,
+                                    "redact": 0.7
+                              },
+                              "outbound": {
+                                    "block": 0.95,
+                                    "escalate": 0.3,
+                                    "redact": 0.7
+                              }
+                        },
+                        "semantic": {
+                              "inbound": {
+                                    "block": 0.95,
+                                    "escalate": 0.3,
+                                    "redact": 0.7
+                              },
+                              "outbound": {
+                                    "block": 0.95,
+                                    "escalate": 0.3,
+                                    "redact": 0.7
+                              }
+                        },
+                        "signatures": {
+                              "inbound": {
+                                    "block": 0.9,
+                                    "escalate": 0.3,
+                                    "redact": 0.6
+                              },
+                              "outbound": {
+                                    "block": 0.9,
+                                    "escalate": 0.3,
+                                    "redact": 0.6
+                              }
+                        }
+                  }
+            },
+            "standard": {
+                  "enabledControls": {
+                        "detection": true,
+                        "semantic": true,
+                        "signatures": true
+                  },
+                  "thresholds": {
+                        "detection": {
+                              "inbound": {
+                                    "block": 0.85,
+                                    "escalate": 0.4,
+                                    "redact": 0.6
+                              },
+                              "outbound": {
+                                    "block": 0.85,
+                                    "escalate": 0.4,
+                                    "redact": 0.6
+                              }
+                        },
+                        "semantic": {
+                              "inbound": {
+                                    "block": 0.85,
+                                    "escalate": 0.4,
+                                    "redact": 0.6
+                              },
+                              "outbound": {
+                                    "block": 0.85,
+                                    "escalate": 0.4,
+                                    "redact": 0.6
+                              }
+                        },
+                        "signatures": {
+                              "inbound": {
+                                    "block": 0.8,
+                                    "escalate": 0.4,
+                                    "redact": 0.55
+                              },
+                              "outbound": {
+                                    "block": 0.8,
+                                    "escalate": 0.4,
+                                    "redact": 0.55
+                              }
+                        }
+                  }
+            },
+            "strict": {
+                  "enabledControls": {
+                        "detection": true,
+                        "semantic": true,
+                        "signatures": true
+                  },
+                  "thresholds": {
+                        "detection": {
+                              "inbound": {
+                                    "block": 0.7,
+                                    "escalate": 0.5,
+                                    "redact": 0.45
+                              },
+                              "outbound": {
+                                    "block": 0.7,
+                                    "escalate": 0.5,
+                                    "redact": 0.45
+                              }
+                        },
+                        "semantic": {
+                              "inbound": {
+                                    "block": 0.7,
+                                    "escalate": 0.5,
+                                    "redact": 0.45
+                              },
+                              "outbound": {
+                                    "block": 0.7,
+                                    "escalate": 0.5,
+                                    "redact": 0.45
+                              }
+                        },
+                        "signatures": {
+                              "inbound": {
+                                    "block": 0.65,
+                                    "escalate": 0.5,
+                                    "redact": 0.45
+                              },
+                              "outbound": {
+                                    "block": 0.65,
+                                    "escalate": 0.5,
+                                    "redact": 0.45
+                              }
+                        }
+                  }
+            }
+      },
+      "version": "1",
+      "groups": {
+            "hr": {
+                  "profile": "strict"
+            },
+            "manager": {
+                  "profile": "standard"
+            },
+            "software-developer": {
+                  "profile": "standard"
+            }
+      }
 }

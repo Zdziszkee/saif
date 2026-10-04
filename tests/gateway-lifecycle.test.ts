@@ -977,3 +977,36 @@ describe("gateway lifecycle decision lines", () => {
 		expect(upstreamCaptured.lines[0]).toContain("upstream=upstream-failure");
 	});
 });
+
+describe("gateway audit fan-out", () => {
+	it("invokes onAudit with the settled row after the store write", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { pipeline } = spyingPipeline();
+		const seen: GatewayAuditRow[] = [];
+		const { deps, store } = makeTurn({ fetchImpl, pipeline });
+		const response = await runGatewayTurn({
+			...deps,
+			onAudit: (row) => {
+				seen.push(row);
+			},
+		});
+		expect(response.status).toBe(200);
+		await response.text();
+		expect(store.audits).toHaveLength(1);
+		expect(seen).toHaveLength(1);
+		expect(seen[0]?.verdict).toBe("allow");
+		expect(seen[0]?.userId).toBe("alice");
+		expect(seen[0]?.groupId).toBe("hr");
+		expect(seen[0]?.policyVersion).toBe("test-policy");
+	});
+
+	it("still records the store row when no hook is attached", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { pipeline } = spyingPipeline();
+		const { deps, store } = makeTurn({ fetchImpl, pipeline });
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(200);
+		await response.text();
+		expect(store.audits).toHaveLength(1);
+	});
+});
