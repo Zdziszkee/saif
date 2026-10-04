@@ -107,6 +107,7 @@ export interface DashboardData {
 	personRoles: Readonly<Record<string, string>>;
 	policy: PolicyView;
 	policyVersion: string;
+	semanticVersion: string;
 }
 
 export const ALL_CONSUMERS = "all";

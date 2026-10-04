@@ -194,6 +194,11 @@ function DashboardHeader({
 					) : (
 						<Badge variant="secondary">{`feed ${data.feedVersion}`}</Badge>
 					)}
+					{data.semanticVersion.trim().length === 0 || data.semanticVersion === "unavailable" ? (
+						<Badge variant="secondary">jev unknown</Badge>
+					) : (
+						<Badge variant="secondary">{`jev ${data.semanticVersion}`}</Badge>
+					)}
 					<span>{`default profile: ${data.policy.defaultProfile}`}</span>
 					<span>{`failure verdict: ${data.policy.failureVerdict}`}</span>
 				</div>

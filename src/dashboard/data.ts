@@ -22,7 +22,7 @@ import { bucketStart } from "#/control/budget.ts";
 import type { PolicySnapshot } from "#/control/policy/loader.ts";
 import type { Policy } from "#/control/policy/schema.ts";
 import type { Direction, Verdict } from "#/control/types.ts";
-import { summarizePolicy } from "#/dashboard/policy-view.ts";
+import { type SemanticSummary, summarizePolicy } from "#/dashboard/policy-view.ts";
 import {
 	ALL_CONSUMERS,
 	type BudgetMetric,
@@ -476,19 +476,34 @@ export function aggregateMetrics(parts: readonly ConsumerMetrics[]): ConsumerMet
 }
 
 /**
+ * Caller-supplied version stamps for the dashboard payload. Both default to
+ * `"unavailable"` when omitted, matching the empty feed/semantic store state.
+ * The optional live semantic summary (check count plus tier mode) feeds the
+ * semantic row detail; omitted it falls back to the import-time defaults
+ * with no mode suffix.
+ */
+export interface VersionStamps {
+	feedVersion?: string | undefined;
+	semantic?: SemanticSummary | undefined;
+	semanticVersion?: string | undefined;
+}
+
+/**
  * Build the complete dashboard payload from a policy snapshot and the live
  * audit sink. Every consumer key comes from the policy; every metric comes
- * from recorded decisions, policy budget rules, and the caller-supplied feed
- * version. Consumers without decisions report zeros and empty rows so the
+ * from recorded decisions, policy budget rules, and the caller-supplied
+ * versions. Consumers without decisions report zeros and empty rows so the
  * dashboard renders the "no activity" states.
  */
 export function buildDashboardData(
 	snapshot: PolicySnapshot,
 	generatedAt: string,
 	auditEvents: readonly AuditEvent[] = [],
-	feedVersion = "unavailable",
+	versions: VersionStamps = {},
 ): DashboardData {
-	const policyView = summarizePolicy(snapshot, feedVersion);
+	const feedVersion = versions.feedVersion ?? "unavailable";
+	const semanticVersion = versions.semanticVersion ?? "unavailable";
+	const policyView = summarizePolicy(snapshot, feedVersion, semanticVersion, versions.semantic);
 	const consumerKeys = Object.keys(policyView.policy.consumers).sort();
 	const rules = snapshot.policy.controls.budget.rules;
 	const byConsumer: Record<string, ConsumerMetrics> = {};
@@ -527,6 +542,7 @@ export function buildDashboardData(
 		personRoles: personRolesFromAudit(auditEvents),
 		policy: policyView.policy,
 		policyVersion: policyView.policyVersion,
+		semanticVersion: policyView.semanticVersion,
 	};
 }
 

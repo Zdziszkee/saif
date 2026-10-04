@@ -11,7 +11,11 @@ import {
 } from "#/components/controls/controls-view.tsx";
 import { Separator } from "#/components/ui/separator.tsx";
 import { type Policy, policySchema } from "#/control/policy/schema.ts";
-import { parseSemanticConfig, type SemanticConfig } from "#/control/semantic/config.ts";
+import {
+	parseSemanticConfig,
+	SEMANTIC_DEFAULTS,
+	type SemanticConfig,
+} from "#/control/semantic/config.ts";
 import {
 	getJevDocument,
 	getPolicyDocument,
@@ -507,7 +511,10 @@ function ControlsPage() {
 	};
 	const notice = [editor.notice, jev.notice].find((entry) => entry !== null) ?? null;
 	const issues = [...editor.issues, ...jev.issues];
-	const jevDraft = jev.draft ?? undefined;
+	// The JEV catalog stays visible even when the tier is off or its document
+	// failed to load: the shipped defaults stand in so the tab never
+	// dead-ends, and the in-tab banner reports live/mock/off + reason.
+	const jevDraft = jev.draft ?? SEMANTIC_DEFAULTS;
 	return (
 		<main className="mx-auto flex max-w-5xl flex-col gap-6 p-8">
 			<PageHeader />
@@ -516,6 +523,7 @@ function ControlsPage() {
 				onDiscard={handleDiscard}
 				onSave={handleSave}
 				saving={saving}
+				semanticVersion={jev.saved?.version}
 				version={editor.saved.version}
 			/>
 			<Separator />
@@ -533,7 +541,7 @@ function ControlsPage() {
 				draft={editor.draft}
 				jevDraft={jevDraft}
 				onDraftChange={editor.handleDraftChange}
-				onJevChange={jev.draft === null ? undefined : jev.handleJevChange}
+				onJevChange={jev.handleJevChange}
 			/>
 			<StickyBar dirty={dirty} onDiscard={handleDiscard} onSave={handleSave} saving={saving} />
 		</main>

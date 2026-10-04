@@ -236,12 +236,13 @@ const RENDER_RULES: BudgetRules = [
 ];
 
 const RENDER_FEED_VERSION = "feed.test.live-render-1";
+const RENDER_SEMANTIC_VERSION = "sem.test.live-render-1";
 
 const DATA: DashboardData = buildDashboardData(
 	snapshotWithBudget(RENDER_RULES),
 	GENERATED_AT,
 	seedRenderEvents(),
-	RENDER_FEED_VERSION,
+	{ feedVersion: RENDER_FEED_VERSION, semanticVersion: RENDER_SEMANTIC_VERSION },
 );
 const ALICE = selectMetrics(DATA, "hr");
 const DEPLOY_BOT = selectMetrics(DATA, "software-developer");
@@ -288,8 +289,22 @@ describe("dashboard rendering against live data", () => {
 		expect(html).toContain("Saif security dashboard");
 		expect(html).toContain(`policy ${TEST_POLICY_VERSION.slice(0, 12)}`);
 		expect(html).toContain(`feed ${DATA.feedVersion}`);
+		expect(html).toContain(`jev ${DATA.semanticVersion}`);
 		expect(html).toContain("default profile: standard");
 		expect(html).toContain("failure verdict: escalate");
+	});
+
+	it("reads jev unknown when no semantic version is stamped", () => {
+		const unstamped = buildDashboardData(SNAPSHOT, GENERATED_AT, []);
+		expect(unstamped.semanticVersion).toBe("unavailable");
+		const html = render(
+			createElement(
+				ThemeProvider,
+				null,
+				createElement(Dashboard, { initialData: unstamped, onRefresh: async () => unstamped }),
+			),
+		);
+		expect(html).toContain("jev unknown");
 	});
 
 	it("labels all four verdicts in the posture section", () => {

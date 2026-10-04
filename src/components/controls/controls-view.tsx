@@ -3,6 +3,7 @@ import { DetectionEditor } from "#/components/controls/detection-editor.tsx";
 import { GeneralForm } from "#/components/controls/general-form.tsx";
 import { JevChecksEditor } from "#/components/controls/jev-checks-editor.tsx";
 import { ProfilesEditor } from "#/components/controls/profiles-editor.tsx";
+import { TierStatusBanner } from "#/components/tier-status.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import { Button } from "#/components/ui/button.tsx";
 import {
@@ -14,7 +15,7 @@ import {
 } from "#/components/ui/card.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs.tsx";
 import type { Policy } from "#/control/policy/schema.ts";
-import type { SemanticConfig } from "#/control/semantic/config.ts";
+import { SEMANTIC_DEFAULTS, type SemanticConfig } from "#/control/semantic/config.ts";
 
 export interface SaveIssue {
 	message: string;
@@ -65,17 +66,22 @@ export function StatusBar({
 	onDiscard,
 	onSave,
 	saving,
+	semanticVersion,
 	version,
 }: {
 	dirty: boolean;
 	onDiscard: () => void;
 	onSave: () => void;
 	saving: boolean;
+	semanticVersion?: string | undefined;
 	version: string;
 }) {
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			<Badge variant="outline">policy v{version}</Badge>
+			{semanticVersion === undefined || semanticVersion.trim().length === 0 ? null : (
+				<Badge variant="outline">jev v{semanticVersion}</Badge>
+			)}
 			{dirty ? (
 				<Badge variant="secondary">Unsaved changes</Badge>
 			) : (
@@ -118,18 +124,25 @@ export function IssuesCard({ issues }: { issues: readonly SaveIssue[] }) {
 }
 
 export function EditorTabs({
+	defaultTab,
 	draft,
 	jevDraft,
 	onDraftChange,
 	onJevChange,
 }: {
+	defaultTab?: string | undefined;
 	draft: Policy;
 	jevDraft?: SemanticConfig | undefined;
 	onDraftChange: (next: Policy) => void;
 	onJevChange?: ((next: SemanticConfig) => void) | undefined;
 }) {
+	// The JEV catalog is always visible, even with no TYPESAFE_API_KEY: a
+	// missing draft (tier off, or the JEV document still loading) falls back
+	// to the shipped defaults so the tab never dead-ends at "unavailable".
+	// The live tier banner above the editor reports live/mock/off + reason.
+	const effectiveJevDraft = jevDraft ?? SEMANTIC_DEFAULTS;
 	return (
-		<Tabs defaultValue="general">
+		<Tabs defaultValue={defaultTab ?? "general"}>
 			<TabsList>
 				<TabsTrigger value="allowlist">Allowlist</TabsTrigger>
 				<TabsTrigger value="detection">Detection</TabsTrigger>
@@ -144,11 +157,10 @@ export function EditorTabs({
 				<DetectionEditor draft={draft} onChange={onDraftChange} />
 			</TabsContent>
 			<TabsContent value="jev">
-				{jevDraft === undefined || onJevChange === undefined ? (
-					<div className="text-muted-foreground text-sm">JEV checks unavailable.</div>
-				) : (
-					<JevChecksEditor draft={jevDraft} onChange={onJevChange} />
-				)}
+				<div className="flex flex-col gap-4">
+					<TierStatusBanner />
+					<JevChecksEditor draft={effectiveJevDraft} onChange={onJevChange ?? noopJevChange} />
+				</div>
 			</TabsContent>
 			<TabsContent value="general">
 				<GeneralForm draft={draft} onChange={onDraftChange} />
@@ -158,6 +170,11 @@ export function EditorTabs({
 			</TabsContent>
 		</Tabs>
 	);
+}
+
+function noopJevChange(): void {
+	// Intentionally drops edits when no JEV handler is wired: the catalog
+	// stays visible (read-only) instead of dead-ending at "unavailable".
 }
 
 export function StickyBar({
