@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import { createHubConfig } from "#/hub/config.ts";
 import { type GovernedLoopTool, runGovernedLoop } from "#/hub/loop.ts";
 import { createHub } from "#/hub/mcp-server.ts";
-import type { AskModelResult } from "#/hub/tools.ts";
 import {
 	auditSink,
 	blockOn,
@@ -14,12 +13,13 @@ import {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function askModelResult(hub: Awaited<ReturnType<typeof createHub>>): Promise<AskModelResult> {
-	const outcome = await hub.invokeTool("askModel", { prompt: "run the loop" }, "alice");
-	if (outcome.kind !== "executed") {
-		throw new Error(`expected executed, got ${outcome.kind}`);
-	}
-	return outcome.result as AskModelResult;
+const LOOP_BUDGETS = { maxComputeMs: 5000, maxToolRounds: 5 };
+
+function governedTool(hub: Awaited<ReturnType<typeof createHub>>, name: string): GovernedLoopTool {
+	return {
+		execute: (args) => hub.invokeTool(name, args, "alice"),
+		spec: { description: `${name} fixture tool`, inputSchema: {}, name },
+	};
 }
 
 describe("tool-call enforcement modes", () => {
@@ -30,13 +30,19 @@ describe("tool-call enforcement modes", () => {
 		const hub = await createHub({
 			audit: auditSink(),
 			config: createHubConfig({ toolEnforcement: "tool" }),
-			model,
 			pipeline: pipelineWith([blockOn("EVIL")]),
 		});
 
-		const result = await askModelResult(hub);
-		expect(result.status).toBe("ok");
-		expect(result.answer).toBe("all done");
+		const result = await runGovernedLoop("run the loop", {
+			budgets: LOOP_BUDGETS,
+			enforcement: hub.config.toolEnforcement,
+			model,
+			tools: [governedTool(hub, "addTodo")],
+		});
+		expect(result.kind).toBe("answer");
+		if (result.kind === "answer") {
+			expect(result.answer).toBe("all done");
+		}
 		expect(model.requests).toHaveLength(2);
 
 		const secondRequest = model.requests[1];
@@ -52,34 +58,43 @@ describe("tool-call enforcement modes", () => {
 		const hub = await createHub({
 			audit: auditSink(),
 			config: createHubConfig({ toolEnforcement: "turn" }),
-			model,
 			pipeline: pipelineWith([blockOn("EVIL")]),
 		});
 
-		const result = await askModelResult(hub);
-		expect(result.status).toBe("blocked");
-		expect(result.verdict).toBe("block");
-		expect(result.control).toBe("fixture-block");
+		const result = await runGovernedLoop("run the loop", {
+			budgets: LOOP_BUDGETS,
+			enforcement: hub.config.toolEnforcement,
+			model,
+			tools: [governedTool(hub, "addTodo")],
+		});
+		expect(result.kind).toBe("turn-rejected");
+		if (result.kind === "turn-rejected") {
+			expect(result.rejection.control).toBe("fixture-block");
+			expect(result.rejection.verdict).toBe("block");
+		}
 		expect(model.requests).toHaveLength(1);
 	});
 });
 
 describe("governed agentic loop budgets", () => {
-	it("terminates on the request-count budget and records the over-budget verdict", async () => {
-		const audit = auditSink();
+	it("terminates on the request-count budget and reports the over-budget verdict", async () => {
 		const model = modelDouble(() => toolCallReply("listTodos", {}));
 		const hub = await createHub({
-			audit,
-			config: createHubConfig({ loop: { maxComputeMs: 5000, maxToolRounds: 3 } }),
-			model,
+			audit: auditSink(),
 			pipeline: pipelineWith([]),
 		});
 
-		const result = await askModelResult(hub);
-		expect(result.status).toBe("over-budget");
-		expect(result.verdict).toBe("block");
+		const result = await runGovernedLoop("go", {
+			budgets: { maxComputeMs: 5000, maxToolRounds: 3 },
+			enforcement: hub.config.toolEnforcement,
+			model,
+			tools: [governedTool(hub, "listTodos")],
+		});
+		expect(result.kind).toBe("over-budget");
+		if (result.kind === "over-budget") {
+			expect(result.verdict).toBe("block");
+		}
 		expect(model.requests).toHaveLength(3);
-		expect(audit.events.some((event) => event.kind === "budget")).toBe(true);
 	});
 
 	it("terminates on the compute-time budget", async () => {
