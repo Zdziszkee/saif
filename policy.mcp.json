@@ -1,0 +1,21 @@
+{
+	"tools": {
+		"addTodo": {
+			"allowedGroups": ["hr", "manager", "software-developer"],
+			"requireConfirm": false
+		},
+		"deleteAllTodos": {
+			"allowedGroups": ["manager"],
+			"requireConfirm": true
+		},
+		"fetchUrl": {
+			"allowedGroups": ["manager", "software-developer"],
+			"requireConfirm": true
+		},
+		"listTodos": {
+			"allowedGroups": ["hr", "manager", "software-developer"],
+			"requireConfirm": false
+		}
+	},
+	"version": "1"
+}

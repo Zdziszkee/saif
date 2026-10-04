@@ -24,12 +24,15 @@ import {
 } from "./connections.ts";
 import {
 	createToolGovernor,
+	definedConfirmation,
 	definedRejection,
 	type ToolCallOutcome,
 	type ToolGovernor,
 	type ToolRejection,
+	type ToolUsageSink,
 } from "./governance.ts";
 import { createGrantRegistry, type GrantRegistry } from "./grants.ts";
+import type { ToolAccessPolicy } from "./tool-policy.ts";
 import { basicBuiltinTools } from "./tools.ts";
 
 export const HUB_NAME = "saif-control-hub";
@@ -46,6 +49,10 @@ export interface HubDeps {
 	/** Transport fetch override for external MCP connections (tests substitute in-process servers). */
 	fetch?: typeof fetch | undefined;
 	pipeline: ControlPipeline;
+	/** Declarative group→tool mapping from `policy.mcp.json`; manual grants win over it. */
+	toolAccess?: ToolAccessPolicy | undefined;
+	/** Durable-usage hook receiving every terminal tool-call outcome. */
+	toolUsage?: ToolUsageSink | undefined;
 }
 
 export interface Hub {
@@ -79,9 +86,15 @@ export async function createHub(deps: HubDeps): Promise<Hub> {
 	const audit = deps.audit ?? noopAuditSink;
 	const config = deps.config ?? createHubConfig();
 	const identity = createIdentityResolver({ knownGroups: config.identity.knownGroups });
-	const grants: GrantRegistry = createGrantRegistry();
+	const grants: GrantRegistry = createGrantRegistry({ access: deps.toolAccess });
 	const catalog: ToolCatalog = createToolCatalog({ audit, pipeline: deps.pipeline });
-	const governor: ToolGovernor = createToolGovernor({ audit, grants, pipeline: deps.pipeline });
+	const governor: ToolGovernor = createToolGovernor({
+		access: deps.toolAccess,
+		audit,
+		grants,
+		pipeline: deps.pipeline,
+		...(deps.toolUsage === undefined ? {} : { usage: deps.toolUsage }),
+	});
 	const context: HubContext = { audit, catalog, config, governor, grants };
 
 	await admitBuiltinTools(catalog, grants);
@@ -146,6 +159,9 @@ function buildServer(
 			const outcome = await governor.governToolCall(entry, args, groupId, consumerKey);
 			if (outcome.kind === "refused") {
 				throw new ToolGovernanceError(definedRejection(outcome.rejection));
+			}
+			if (outcome.kind === "confirmation-required") {
+				throw new ToolGovernanceError(definedConfirmation(outcome.confirmation));
 			}
 			return outcome.result;
 		}),
