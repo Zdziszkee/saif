@@ -119,7 +119,15 @@ export function createSemanticControl(options: SemanticControlOptions): Control 
 				direction,
 				role: interaction.direction === "inbound" ? "user" : "assistant",
 			});
-			return resultForScore(scoreChecks(checks, evidence, direction), evidence.anyUncertain);
+			const answers: Record<string, number> = {};
+			for (const [id, answer] of Object.entries(evidence.answers)) {
+				answers[id] = answer.probability;
+			}
+			const result = resultForScore(
+				scoreChecks(checks, evidence, direction),
+				evidence.anyUncertain,
+			);
+			return { ...result, semanticAnswers: answers };
 		},
 	};
 }

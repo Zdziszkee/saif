@@ -54,9 +54,9 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 ## 8. Pipeline and verdict mapping
 
-- [ ] 8.1 Implement `applyPolicy(evidence, profile)` as a pure function mapping detections, signatures, semantic answers, and budget state to `allow | redact | block | escalate` per direction; verify threshold boundary tests pin every cutoff (verify: verdict mapping tests pass with fixed evidence fixtures)
-- [ ] 8.2 Implement the pipeline orchestrator with the cheap-first stage order from design D4 (shape validation, model allowlist, signature feed, deterministic PII/secrets, budget pre-flight, semantic tier), deterministic-block short-circuit, redact-then-classify flow, and fail-closed handling with timeouts; verify pipeline tests pass including classifier-unavailable failure (verify: orchestrator tests pass with the harness classifier double)
-- [ ] 8.3 Verify profile-driven divergence: identical evidence yields different verdicts under permissive and strict profiles (verify: tests assert both verdicts from one shared fixture)
+- [x] 8.1 Implement `applyPolicy(evidence, profile)` as a pure function mapping detections, signatures, semantic answers, and budget state to `allow | redact | block | escalate` per direction; verify threshold boundary tests pin every cutoff (verify: `tests/policy-apply.test.ts` pins ladder boundaries, fail-closed probabilities, and budget mapping; not yet wired into the request path — pipeline wiring is 8.2 follow-up)
+- [x] 8.2 Implement the pipeline orchestrator with the cheap-first stage order from design D4 (shape validation, model allowlist, signature feed, deterministic PII/secrets, budget pre-flight, semantic tier), deterministic-block short-circuit, redact-then-classify flow, and fail-closed handling with timeouts; verify pipeline tests pass including classifier-unavailable failure (verify: `tests/pipeline-orchestrator.test.ts` covers short-circuit, redacted semantic input, profile-over-control mapping, and answer-less fallback; budget pre-flight stubbed to allow until 7.x, shape stays enforced at the seam)
+- [x] 8.3 Verify profile-driven divergence: identical evidence yields different verdicts under permissive and strict profiles (verify: shared P=0.8 fixture yields redact under permissive, block under strict in `tests/policy-apply.test.ts`)
 
 ## 9. Enforcement seams
 

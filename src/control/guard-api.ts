@@ -59,7 +59,11 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 	}
 
 	const outcome = await guardInteraction(validation.interaction, deps.pipeline, { audit });
-	logDecision(validation.interaction, outcome.verdict, outcome.rejection?.control);
+	logDecision(
+		validation.interaction,
+		outcome.verdict,
+		outcome.rejection?.control ?? outcome.inspection.blockingControl,
+	);
 	const hits = outcome.inspection.hits.map(toHitView);
 	const reasons = buildReasons(outcome.inspection);
 	if (outcome.rejection) {
