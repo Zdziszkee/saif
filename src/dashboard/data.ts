@@ -20,6 +20,7 @@ import type { Direction, Verdict } from "#/control/types.ts";
 import {
 	FIXTURE_ESCALATIONS,
 	FIXTURE_FEED_VERSION,
+	FIXTURE_PERSON_ROLES,
 	fixtureConsumerMetrics,
 } from "#/dashboard/fixture.ts";
 import { summarizePolicy } from "#/dashboard/policy-view.ts";
@@ -159,6 +160,26 @@ function newestFirst(left: EscalationRow, right: EscalationRow): number {
 	return right.timestamp.localeCompare(left.timestamp);
 }
 
+/** Person-to-role mapping from decision events (`userId` → `groupId`).
+ * Audit order is oldest first, so later assignments overwrite earlier ones
+ * and the last decision wins. Events missing either field are skipped. */
+function personRolesFromAudit(events: readonly AuditEvent[]): Record<string, string> {
+	const roles: Record<string, string> = { ...FIXTURE_PERSON_ROLES };
+	for (const event of events) {
+		if (!isAuditDecision(event)) {
+			continue;
+		}
+		const { groupId, userId } = event;
+		if (userId === undefined || groupId === undefined) {
+			continue;
+		}
+		roles[userId] = groupId;
+	}
+	return Object.fromEntries(
+		Object.entries(roles).sort(([left], [right]) => left.localeCompare(right)),
+	);
+}
+
 /** Pool per-consumer metrics into the aggregate view. */
 export function aggregateMetrics(parts: readonly ConsumerMetrics[]): ConsumerMetrics {
 	return {
@@ -210,6 +231,7 @@ export function buildDashboardData(
 		escalations,
 		feedVersion: policyView.feedVersion,
 		generatedAt,
+		personRoles: personRolesFromAudit(auditEvents),
 		policy: policyView.policy,
 		policyVersion: policyView.policyVersion,
 	};

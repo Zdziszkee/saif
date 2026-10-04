@@ -86,7 +86,7 @@ function RootDocument({ children }: { children: ReactNode }) {
 								<Button asChild={true} size="sm" variant="ghost">
 									<Link
 										activeProps={{ className: "bg-accent text-accent-foreground" }}
-										search={{ consumer: undefined }}
+										search={{ consumer: undefined, role: undefined }}
 										to="/dashboard"
 									>
 										Dashboard

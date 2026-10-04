@@ -44,12 +44,14 @@ export const Route = createFileRoute("/api/audit/export")({
 				const sink = getAuditSink();
 				const events = readAuditEvents(sink);
 				const consumer = param("consumer") ?? param("consumerKey");
+				const user = param("user") ?? param("userId");
 				const filtered = filterAuditEvents(events, {
 					consumerKey: consumer,
 					control: param("control"),
 					groupId: param("groupId"),
 					since: param("since"),
 					until: param("until"),
+					userId: user,
 					verdict: param("verdict"),
 				});
 				const body = format === "csv" ? auditEventsToCsv(filtered) : auditEventsToJsonl(filtered);

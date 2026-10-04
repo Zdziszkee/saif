@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
+import { type AuditEvent, auditEvent } from "#/control/audit.ts";
 import type { PolicySnapshot } from "#/control/policy/loader.ts";
 import { parsePolicy } from "#/control/policy/schema.ts";
 import {
@@ -17,6 +18,7 @@ import {
 import {
 	FIXTURE_ESCALATIONS,
 	FIXTURE_FEED_VERSION,
+	FIXTURE_PERSON_ROLES,
 	fixtureConsumerMetrics,
 } from "#/dashboard/fixture.ts";
 import {
@@ -58,6 +60,17 @@ function metricsFor(key: string): ConsumerMetrics {
 }
 
 const PARTS: readonly ConsumerMetrics[] = CONSUMER_KEYS.map((key) => metricsFor(key));
+
+function personDecision(input: {
+	readonly groupId?: string;
+	readonly kind?: AuditEvent["kind"];
+	readonly timestamp: string;
+	readonly userId?: string;
+	readonly verdict?: AuditEvent["verdict"];
+}): AuditEvent {
+	const { kind, timestamp, ...fields } = input;
+	return { ...auditEvent(kind ?? "interaction", { ...fields }), timestamp };
+}
 
 describe("aggregateMetrics", () => {
 	const pooled = aggregateMetrics(PARTS);
@@ -231,6 +244,77 @@ describe("buildDashboardData", () => {
 			block: 85,
 			escalate: 13,
 			redact: 157,
+		});
+	});
+});
+
+describe("personRoles", () => {
+	it("is empty when no audit events are recorded", () => {
+		expect(DATA.personRoles).toEqual({});
+		expect(DATA.personRoles).toEqual(FIXTURE_PERSON_ROLES);
+		expect(buildDashboardData(SNAPSHOT, GENERATED_AT, []).personRoles).toEqual({});
+	});
+
+	it("maps each person to their last decision's group", () => {
+		const events: readonly AuditEvent[] = [
+			personDecision({
+				groupId: "hr",
+				timestamp: "2026-10-03T12:00:00.000Z",
+				userId: "alice",
+				verdict: "allow",
+			}),
+			personDecision({
+				groupId: "manager",
+				timestamp: "2026-10-03T13:00:00.000Z",
+				userId: "bob",
+				verdict: "block",
+			}),
+			personDecision({
+				groupId: "manager",
+				timestamp: "2026-10-03T14:00:00.000Z",
+				userId: "alice",
+				verdict: "redact",
+			}),
+		];
+		expect(buildDashboardData(SNAPSHOT, GENERATED_AT, events).personRoles).toEqual({
+			alice: "manager",
+			bob: "manager",
+		});
+	});
+
+	it("skips non-decisions and decisions missing userId or groupId", () => {
+		const events: readonly AuditEvent[] = [
+			personDecision({
+				groupId: "hr",
+				timestamp: "2026-10-03T12:00:00.000Z",
+				verdict: "allow",
+			}),
+			personDecision({
+				timestamp: "2026-10-03T13:00:00.000Z",
+				userId: "alice",
+				verdict: "allow",
+			}),
+			personDecision({
+				groupId: "hr",
+				timestamp: "2026-10-03T14:00:00.000Z",
+				userId: "bob",
+			}),
+			personDecision({
+				groupId: "hr",
+				kind: "registration",
+				timestamp: "2026-10-03T15:00:00.000Z",
+				userId: "carol",
+				verdict: "allow",
+			}),
+			personDecision({
+				groupId: "hr",
+				timestamp: "2026-10-03T16:00:00.000Z",
+				userId: "alice",
+				verdict: "allow",
+			}),
+		];
+		expect(buildDashboardData(SNAPSHOT, GENERATED_AT, events).personRoles).toEqual({
+			alice: "hr",
 		});
 	});
 });

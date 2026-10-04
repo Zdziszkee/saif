@@ -121,3 +121,76 @@ describe("audit export consumer filters", () => {
 		expect(rows[1]).toContain("alice-key");
 	});
 });
+
+const PERSON_SEED: readonly AuditEvent[] = [
+	makeEvent({
+		consumerKey: "key-1",
+		controlId: "deterministic",
+		groupId: "analyst",
+		timestamp: "2026-02-01T00:00:00.000Z",
+		userId: "alice",
+		verdict: "allow",
+	}),
+	makeEvent({
+		consumerKey: "key-1",
+		controlId: "signatures",
+		groupId: "viewer",
+		timestamp: "2026-02-02T00:00:00.000Z",
+		userId: "alice",
+		verdict: "block",
+	}),
+	makeEvent({
+		consumerKey: "key-2",
+		controlId: "deterministic",
+		groupId: "analyst",
+		timestamp: "2026-02-03T00:00:00.000Z",
+		userId: "bob",
+		verdict: "allow",
+	}),
+	makeEvent({
+		consumerKey: "key-2",
+		controlId: "semantic",
+		groupId: "analyst",
+		timestamp: "2026-02-04T00:00:00.000Z",
+		userId: "carol",
+		verdict: "redact",
+	}),
+];
+
+describe("audit export person (userId) and role (groupId) filters", () => {
+	it("scopes to a person across roles via userId", () => {
+		const filtered = filterAuditEvents(PERSON_SEED, { userId: "alice" });
+		expect(filtered).toHaveLength(2);
+		expect(filtered.map((event) => event.groupId)).toEqual(["analyst", "viewer"]);
+	});
+
+	it("keeps the person dimension distinct from the raw consumer key", () => {
+		expect(filterAuditEvents(PERSON_SEED, { consumerKey: "alice" })).toHaveLength(0);
+		expect(filterAuditEvents(PERSON_SEED, { consumerKey: "key-1" })).toHaveLength(2);
+		expect(filterAuditEvents(PERSON_SEED, { consumerKey: "key-1", userId: "alice" })).toHaveLength(
+			2,
+		);
+		expect(filterAuditEvents(PERSON_SEED, { consumerKey: "key-2", userId: "alice" })).toHaveLength(
+			0,
+		);
+	});
+
+	it("scopes to a role across people via groupId", () => {
+		const filtered = filterAuditEvents(PERSON_SEED, { groupId: "analyst" });
+		expect(filtered).toHaveLength(3);
+		expect(filtered.map((event) => event.userId)).toEqual(["alice", "bob", "carol"]);
+	});
+
+	it("combines person and role to a single intersection", () => {
+		const filtered = filterAuditEvents(PERSON_SEED, { groupId: "analyst", userId: "alice" });
+		expect(filtered).toHaveLength(1);
+		expect(filtered[0]?.verdict).toBe("allow");
+	});
+
+	it("keeps person attribution through the JSONL export encoding", () => {
+		const filtered = filterAuditEvents(PERSON_SEED, { groupId: "analyst", userId: "bob" });
+		const lines = auditEventsToJsonl(filtered).split("\n");
+		expect(lines).toHaveLength(1);
+		expect((JSON.parse(lines[0] ?? "") as AuditEvent).userId).toBe("bob");
+	});
+});
