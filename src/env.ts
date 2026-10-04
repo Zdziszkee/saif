@@ -59,6 +59,15 @@ export const env = createEnv({
 		MODEL_NAME: z.string().optional(),
 		/** Override path to the policy document (`policy.json`); defaults to the project root file. */
 		POLICY_PATH: z.string().optional(),
+		/** Model price-table URL for gateway cost accounting (LiteLLM pricing JSON). */
+		PRICING_JSON_URL: z
+			.string()
+			.url()
+			.default(
+				"https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
+			),
+		/** Price-table refresh interval in hours. */
+		PRICING_TTL_HOURS: z.coerce.number().int().positive().default(24),
 		SERVER_URL: z.string().url().optional(),
 		/** Override path to the signature feed (`signatures.json`); defaults to the project root file. */
 		SIGNATURES_PATH: z.string().optional(),

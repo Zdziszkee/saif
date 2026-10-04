@@ -14,6 +14,7 @@ import { Route as ControlsRouteImport } from './routes/controls'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PlaygroundRouteImport } from './routes/playground'
+import { Route as ApiAuditRouteImport } from './routes/api.audit'
 import { Route as ApiChatCompletionsRouteImport } from './routes/api.chat-completions'
 import { Route as ApiDecisionsRouteImport } from './routes/api.decisions'
 import { Route as ApiGuardRouteImport } from './routes/api.guard'
@@ -47,6 +48,11 @@ const PlaygroundRoute = PlaygroundRouteImport.update({
   path: '/playground',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuditRoute = ApiAuditRouteImport.update({
+  id: '/api/audit',
+  path: '/api/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatCompletionsRoute = ApiChatCompletionsRouteImport.update({
   id: '/api/chat-completions',
   path: '/api/chat-completions',
@@ -73,9 +79,9 @@ const ApiStatusRoute = ApiStatusRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuditExportRoute = ApiAuditExportRouteImport.update({
-  id: '/api/audit/export',
-  path: '/api/audit/export',
-  getParentRoute: () => rootRouteImport,
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => ApiAuditRoute,
 } as any)
 const V1ChatCompletionsRoute = V1ChatCompletionsRouteImport.update({
   id: '/v1/chat/completions',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
+  '/api/audit': typeof ApiAuditRouteWithChildren
   '/api/chat-completions': typeof ApiChatCompletionsRoute
   '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
+  '/api/audit': typeof ApiAuditRouteWithChildren
   '/api/chat-completions': typeof ApiChatCompletionsRoute
   '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
   '/playground': typeof PlaygroundRoute
+  '/api/audit': typeof ApiAuditRouteWithChildren
   '/api/chat-completions': typeof ApiChatCompletionsRoute
   '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/mcp'
     | '/playground'
+    | '/api/audit'
     | '/api/chat-completions'
     | '/api/decisions'
     | '/api/guard'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/mcp'
     | '/playground'
+    | '/api/audit'
     | '/api/chat-completions'
     | '/api/decisions'
     | '/api/guard'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/mcp'
     | '/playground'
+    | '/api/audit'
     | '/api/chat-completions'
     | '/api/decisions'
     | '/api/guard'
@@ -177,12 +189,12 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   McpRoute: typeof McpRoute
   PlaygroundRoute: typeof PlaygroundRoute
+  ApiAuditRoute: typeof ApiAuditRouteWithChildren
   ApiChatCompletionsRoute: typeof ApiChatCompletionsRoute
   ApiDecisionsRoute: typeof ApiDecisionsRoute
   ApiGuardRoute: typeof ApiGuardRoute
   ApiPolicyRoute: typeof ApiPolicyRoute
   ApiStatusRoute: typeof ApiStatusRoute
-  ApiAuditExportRoute: typeof ApiAuditExportRoute
   V1ChatCompletionsRoute: typeof V1ChatCompletionsRoute
 }
 
@@ -223,6 +235,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlaygroundRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/audit': {
+      id: '/api/audit'
+      path: '/api/audit'
+      fullPath: '/api/audit'
+      preLoaderRoute: typeof ApiAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat-completions': {
       id: '/api/chat-completions'
       path: '/api/chat-completions'
@@ -260,10 +279,10 @@ declare module '@tanstack/react-router' {
     }
     '/api/audit/export': {
       id: '/api/audit/export'
-      path: '/api/audit/export'
+      path: '/export'
       fullPath: '/api/audit/export'
       preLoaderRoute: typeof ApiAuditExportRouteImport
-      parentRoute: typeof rootRouteImport
+      parentRoute: typeof ApiAuditRoute
     }
     '/v1/chat/completions': {
       id: '/v1/chat/completions'
@@ -275,18 +294,30 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ApiAuditRouteChildren {
+  ApiAuditExportRoute: typeof ApiAuditExportRoute
+}
+
+const ApiAuditRouteChildren: ApiAuditRouteChildren = {
+  ApiAuditExportRoute: ApiAuditExportRoute,
+}
+
+const ApiAuditRouteWithChildren = ApiAuditRoute._addFileChildren(
+  ApiAuditRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ControlsRoute: ControlsRoute,
   DashboardRoute: DashboardRoute,
   McpRoute: McpRoute,
   PlaygroundRoute: PlaygroundRoute,
+  ApiAuditRoute: ApiAuditRouteWithChildren,
   ApiChatCompletionsRoute: ApiChatCompletionsRoute,
   ApiDecisionsRoute: ApiDecisionsRoute,
   ApiGuardRoute: ApiGuardRoute,
   ApiPolicyRoute: ApiPolicyRoute,
   ApiStatusRoute: ApiStatusRoute,
-  ApiAuditExportRoute: ApiAuditExportRoute,
   V1ChatCompletionsRoute: V1ChatCompletionsRoute,
 }
 export const routeTree = rootRouteImport
