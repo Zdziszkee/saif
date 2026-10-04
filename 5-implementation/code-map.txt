@@ -1,0 +1,18 @@
+WHERE THE CODE LIVES (READ IN THIS ORDER)
+============================================
+
+The entire enforcement path is about six small files:
+- pipeline.ts — the stage order, when the AI call gets skipped, how
+  scrubbed text flows, and what happens when something errors.
+- apply.ts — how evidence turns into a verdict, and how strictness
+  dials change the answer.
+- The three inspectors: pattern detectors, threat-intel matching,
+  and the AI-judge client with its question catalog.
+- gateway.ts — the model proxy: who called, over budget?, inspect,
+  forward-or-refuse, meter the usage.
+
+The rules are data, not code: policy.json (strictness, rules,
+approved models, budgets), policy.jev.json (the judge's questions),
+policy.mcp.json (tool permissions), signatures.json (generated threat
+feed). Doubles for keyless demos live in scripts/mock-*.ts; tests
+fill the tests/ folder (unit, matrix, showcase, and live tiers).

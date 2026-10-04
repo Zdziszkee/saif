@@ -1,0 +1,23 @@
+HOW IT'S CONFIGURED
+====================
+
+Everything is data you can edit in the browser — no code, no restarts.
+
+- policy.json is the rulebook: three strictness levels (relaxed,
+  standard, strict), which team gets which, the pattern rules, what
+  each threat severity means, approved models, and spending caps.
+- policy.jev.json is the question list for the AI judge. Each entry is
+  just an id, a plain-English question, on/off, and thresholds. Add a
+  row here and it's a live guardrail.
+- policy.mcp.json says which tools each team may use and which ones
+  need a human to confirm.
+- signatures.json is generated from threat-intel snapshots, not
+  hand-edited — the dashboard shows which feed version is loaded.
+
+Settings it needs from you (all optional):
+- TYPESAFE_API_KEY turns on the AI judge. Without it the system says
+  so openly and keeps guarding with the other two passes.
+- MODEL_BASE_URL + MODEL_API_KEY point it at a real model (we used
+  Gemini's standard endpoint).
+- MOCK_JEV_CONFIG lets reviewers retune the fake judge used for
+  keyless demos.

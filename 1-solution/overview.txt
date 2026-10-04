@@ -1,0 +1,29 @@
+WHAT WE BUILT
+==============
+
+AI agents send raw user and tool content straight to powerful models.
+That open channel carries prompt injection, jailbreaks, leaked secrets,
+and malicious tool calls.
+
+So we put a guard in front of every model call. It works in three passes,
+cheap first:
+
+1. Pattern matching — catches known shapes like emails, API keys, and
+   ID numbers, and scrubs them out before anything else sees them.
+2. Threat-intel feed — matches known attack patterns (jailbreaks,
+   role-hijack, system-prompt grabs, shell-pipe tricks).
+3. AI judge — a decision model scores what patterns can't: sneaky,
+   reworded, or intent-level abuse.
+
+Each request gets one clear answer: allow it, scrub it and send it on,
+or refuse it (with an option to flag it for a human to review).
+
+Two things we're proud of:
+- When the cheap passes already say no, we never call the AI judge at
+  all. No wasted money, no waiting, and known-bad content never leaves
+  the building.
+- Sensitive bits are scrubbed BEFORE the judge sees the text, so your
+  secrets never reach a third-party model either.
+
+Everything is logged, everything shows up on a live dashboard, and all
+the rules are editable in the browser — no code changes, no restarts.

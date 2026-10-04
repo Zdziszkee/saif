@@ -1,0 +1,19 @@
+HOW THIS THING IS PUT TOGETHER
+===============================
+
+One app does three jobs at once: it serves the model gateway, hosts
+the governed tool hub, and runs the operator pages (dashboard,
+playground, rule editors). One process, one audit trail.
+
+Guarding happens in two layers. The first is static and instant:
+pattern rules for secrets and personal data, plus a database of
+known jailbreaks and attack shapes. The second is a decision model
+that reads each prompt and scores how hostile it looks — per policy
+question, as a probability, never a guess presented as fact.
+
+Both outer doors are industry standards, so this plugs into modern
+agent setups with settings, not code: the model side speaks the
+standard chat-completions URL scheme (proven with opencode and a
+Gemini endpoint), and the tool side speaks the standard tool-calling
+protocol with per-team permissions. Anything already speaking those
+two protocols can sit behind this guard layer today.

@@ -1,0 +1,28 @@
+HOW A REQUEST FLOWS THROUGH THE SYSTEM
+=========================================
+
+  Agents, chat apps, tool loops
+               |
+               v
+  Front doors (all guarded the same way):
+  guard API · chat · tool calls · model gateway
+               |
+               v
+  The pipeline, cheap first:
+  1. approved-model check
+  2. threat-intel patterns  ── hit? take its action
+  3. pattern detectors ────── hit? scrub the bad spans out
+  4. AI judge (skipped if already blocked;
+     only ever sees scrubbed text)
+               |
+               v
+  One answer: allow · scrub-and-send · refuse · refuse-and-raise
+               |
+               v
+  Logged (one record per decision) ──> dashboard, review queue,
+  policy editors — all live in the browser
+
+Two rules that keep it honest:
+- If the cheap passes say no, the expensive AI call never happens.
+- A "scrub" with nothing to scrub becomes a refusal instead of
+  quietly forwarding the original text.
