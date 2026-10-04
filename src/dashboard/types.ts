@@ -95,6 +95,12 @@ export interface CostTotals {
 	unpricedCalls: number;
 }
 
+/** One user's day buckets plus rolled-up totals; drives the plot filter. */
+export interface CostUserSeries {
+	series: CostSeriesPoint[];
+	totals: CostTotals;
+}
+
 export interface EscalationRow {
 	consumerKey: string;
 	direction: Direction;
@@ -133,6 +139,7 @@ export interface DashboardData {
 	byConsumer: Readonly<Record<string, ConsumerMetrics>>;
 	consumerKeys: readonly string[];
 	costSeries: CostSeriesPoint[];
+	costSeriesByUser: Record<string, CostUserSeries>;
 	costTotals: CostTotals;
 	escalations: readonly EscalationRow[];
 	feedVersion: string;

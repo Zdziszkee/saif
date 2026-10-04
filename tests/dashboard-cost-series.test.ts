@@ -12,6 +12,7 @@ import {
 	type CostGatewayRow,
 	type CostMcpRow,
 	summarizeCostSeries,
+	summarizeCostSeriesByUser,
 	type TokenUsageRow,
 } from "#/dashboard/data.ts";
 
@@ -38,11 +39,12 @@ function gatewayRow(row: Partial<Omit<CostGatewayRow, "ts">>, ts: unknown): Cost
 		costUsd: row.costUsd,
 		promptTokens: row.promptTokens,
 		ts,
+		userId: row.userId,
 	};
 }
 
-function mcpRow(estimatedTokens: unknown, ts: unknown): CostMcpRow {
-	return { estimatedTokens, ts };
+function mcpRow(estimatedTokens: unknown, ts: unknown, userId?: unknown): CostMcpRow {
+	return { estimatedTokens, ts, userId };
 }
 
 function usageRowWithTs(row: TokenUsageRow, ts: string): TokenUsageRow {
@@ -202,7 +204,7 @@ describe("buildDashboardData cost wiring", () => {
 			),
 		];
 		const data = buildDashboardData(SNAPSHOT, GENERATED_AT, [], {}, usageRows, [
-			{ estimatedTokens: 500, ts: "2026-10-01T18:00:00.000Z" },
+			{ estimatedTokens: 500, ts: "2026-10-01T18:00:00.000Z", userId: "ana" },
 		]);
 		expect(data.costSeries).toHaveLength(1);
 		expect(data.costSeries[0]).toMatchObject({
@@ -221,5 +223,68 @@ describe("buildDashboardData cost wiring", () => {
 		});
 		// Per-user aggregation still works from the same rows.
 		expect(data.userTokenUsage).toHaveLength(1);
+	});
+});
+
+describe("summarizeCostSeriesByUser", () => {
+	const Day = "2026-10-02T10:00:00.000Z";
+
+	it("groups gateway and MCP rows per user with independent totals", () => {
+		const byUser = summarizeCostSeriesByUser(
+			[
+				gatewayRow({ completionTokens: 10, costUsd: 1, promptTokens: 20, userId: "ana" }, Day),
+				gatewayRow({ completionTokens: 5, promptTokens: 5, userId: "bob" }, Day),
+			],
+			[mcpRow(100, Day, "bob")],
+		);
+		expect(Object.keys(byUser).sort()).toEqual(["ana", "bob"]);
+		// biome-ignore lint/complexity/useLiteralKeys: tsc noPropertyAccessFromIndexSignature (TS4111) requires bracket access on the record type
+		expect(byUser["ana"]?.totals).toMatchObject({
+			costUsd: 1,
+			gatewayTokens: 30,
+			mcpTokens: 0,
+			pricedCalls: 1,
+		});
+		// biome-ignore lint/complexity/useLiteralKeys: tsc noPropertyAccessFromIndexSignature (TS4111) requires bracket access on the record type
+		expect(byUser["bob"]?.totals).toMatchObject({
+			costUsd: null,
+			gatewayTokens: 10,
+			mcpTokens: 100,
+			unpricedCalls: 1,
+		});
+		// biome-ignore lint/complexity/useLiteralKeys: tsc noPropertyAccessFromIndexSignature (TS4111) requires bracket access on the record type
+		expect(byUser["bob"]?.series).toHaveLength(1);
+		// biome-ignore lint/complexity/useLiteralKeys: tsc noPropertyAccessFromIndexSignature (TS4111) requires bracket access on the record type
+		expect(byUser["bob"]?.series[0]).toMatchObject({ date: "2026-10-02" });
+	});
+
+	it("skips blank and unattributed user ids", () => {
+		const byUser = summarizeCostSeriesByUser(
+			[
+				gatewayRow({ completionTokens: 1, promptTokens: 1, userId: "  " }, Day),
+				gatewayRow({ completionTokens: 2, promptTokens: 2 }, Day),
+			],
+			[mcpRow(50, Day, null)],
+		);
+		expect(byUser).toEqual({});
+	});
+
+	it("exposes per-user series on the dashboard payload", () => {
+		const usageRows: TokenUsageRow[] = [
+			usageRowWithTs(
+				{ completionTokens: 40, costUsd: 4, model: "gpt", promptTokens: 60, userId: "ana" },
+				"2026-10-01T10:00:00.000Z",
+			),
+		];
+		const data = buildDashboardData(SNAPSHOT, GENERATED_AT, [], {}, usageRows, [
+			{ estimatedTokens: 500, ts: "2026-10-01T18:00:00.000Z", userId: "ana" },
+		]);
+		expect(Object.keys(data.costSeriesByUser)).toEqual(["ana"]);
+		// biome-ignore lint/complexity/useLiteralKeys: tsc noPropertyAccessFromIndexSignature (TS4111) requires bracket access on the record type
+		expect(data.costSeriesByUser["ana"]?.totals).toMatchObject({
+			gatewayTokens: 100,
+			mcpTokens: 500,
+			totalTokens: 600,
+		});
 	});
 });

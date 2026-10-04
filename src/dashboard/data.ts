@@ -32,6 +32,7 @@ import {
 	type ConsumerMetrics,
 	type CostSeriesPoint,
 	type CostTotals,
+	type CostUserSeries,
 	type DashboardData,
 	type EscalationRow,
 	type LatencyPercentiles,
@@ -487,6 +488,8 @@ export interface TokenUsageRow {
 	costUsd: unknown;
 	model: unknown;
 	promptTokens: unknown;
+	/** Present on rows projected for cost aggregation; absent on older callers. */
+	ts?: unknown;
 	userId: unknown;
 }
 
@@ -581,6 +584,7 @@ export interface CostGatewayRow {
 	costUsd: unknown;
 	promptTokens: unknown;
 	ts: unknown;
+	userId: unknown;
 }
 
 /** One MCP tool-call row projected for cost aggregation. MCP tokens are a
@@ -588,6 +592,7 @@ export interface CostGatewayRow {
 export interface CostMcpRow {
 	estimatedTokens: unknown;
 	ts: unknown;
+	userId: unknown;
 }
 
 const MS_PER_SECOND = 1000;
@@ -683,6 +688,39 @@ export function summarizeCostSeries(
 }
 
 /**
+ * Per-user cost/token series: the same day buckets and totals as
+ * `summarizeCostSeries`, computed independently per user id. Users are the
+ * sorted union of gateway and MCP attribution; blank user ids are skipped
+ * on both sides. Powers the plot's user filter inbox.
+ */
+export function summarizeCostSeriesByUser(
+	gateway: readonly CostGatewayRow[],
+	mcp: readonly CostMcpRow[],
+): Record<string, CostUserSeries> {
+	const users = new Set<string>();
+	for (const row of gateway) {
+		const userId = asUsageName(row.userId);
+		if (userId !== undefined) {
+			users.add(userId);
+		}
+	}
+	for (const row of mcp) {
+		const userId = asUsageName(row.userId);
+		if (userId !== undefined) {
+			users.add(userId);
+		}
+	}
+	const byUser: Record<string, CostUserSeries> = {};
+	for (const userId of [...users].sort()) {
+		byUser[userId] = summarizeCostSeries(
+			gateway.filter((row) => asUsageName(row.userId) === userId),
+			mcp.filter((row) => asUsageName(row.userId) === userId),
+		);
+	}
+	return byUser;
+}
+
+/**
  * Caller-supplied version stamps for the dashboard payload. Both default to
  * `"unavailable"` when omitted, matching the empty feed/semantic store state.
  * The optional live semantic summary (check count plus tier mode) feeds the
@@ -742,13 +780,12 @@ export function buildDashboardData(
 		.filter((part): part is ConsumerMetrics => part !== undefined);
 	const pooled = aggregateMetrics(parts);
 	const escalations = escalationsFromAudit(decisions).sort(newestFirst);
-	// The server projects gateway rows with an extra `ts` (see `server.ts`);
-	// `TokenUsageRow` itself stays ts-less, so read it structurally here.
 	const gatewayCostRows: CostGatewayRow[] = usageRows.map((row) => ({
 		completionTokens: row.completionTokens,
 		costUsd: row.costUsd,
 		promptTokens: row.promptTokens,
-		ts: (row as { ts?: unknown }).ts,
+		ts: row.ts,
+		userId: row.userId,
 	}));
 	const { series: costSeries, totals: costTotals } = summarizeCostSeries(gatewayCostRows, mcpRows);
 	return {
@@ -756,6 +793,7 @@ export function buildDashboardData(
 		byConsumer,
 		consumerKeys,
 		costSeries,
+		costSeriesByUser: summarizeCostSeriesByUser(gatewayCostRows, mcpRows),
 		costTotals,
 		escalations,
 		feedVersion: policyView.feedVersion,

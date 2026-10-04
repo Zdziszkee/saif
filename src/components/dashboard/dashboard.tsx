@@ -37,6 +37,7 @@ import {
 	type ControlSummary,
 	type CostSeriesPoint,
 	type CostTotals,
+	type CostUserSeries,
 	type DashboardData,
 	type ProfileSummary,
 } from "#/dashboard/types.ts";
@@ -251,6 +252,7 @@ function usePeopleScope(
  * budget (multi-line JSX prop lines count toward it).
  */
 function OverviewSections({
+	byUser,
 	controls,
 	costSeries,
 	costTotals,
@@ -258,6 +260,7 @@ function OverviewSections({
 	profiles,
 	usage,
 }: {
+	byUser: Readonly<Record<string, CostUserSeries>>;
 	controls: readonly ControlSummary[];
 	costSeries: readonly CostSeriesPoint[];
 	costTotals: CostTotals;
@@ -286,7 +289,7 @@ function OverviewSections({
 			<Separator />
 
 			<div className="flex flex-col gap-3">
-				<CostPlot series={costSeries} totals={costTotals} />
+				<CostPlot byUser={byUser} series={costSeries} totals={costTotals} />
 				<UserTokenUsageCard usage={usage} />
 			</div>
 			<Separator />
@@ -459,6 +462,7 @@ export function Dashboard({
 			</p>
 
 			<OverviewSections
+				byUser={data.costSeriesByUser}
 				controls={data.policy.controls}
 				costSeries={data.costSeries}
 				costTotals={data.costTotals}

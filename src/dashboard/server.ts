@@ -62,7 +62,13 @@ function loadMcpRows(): Promise<CostMcpRow[]> {
 	return Promise.resolve()
 		.then(() => listToolUsage(getDb(), { limit: MCP_USAGE_LIMIT }))
 		.then((rows) =>
-			rows.map((row): CostMcpRow => ({ estimatedTokens: row.estimatedTokens, ts: row.ts })),
+			rows.map(
+				(row): CostMcpRow => ({
+					estimatedTokens: row.estimatedTokens,
+					ts: row.ts,
+					userId: row.userId,
+				}),
+			),
 		)
 		.catch(() => []);
 }
