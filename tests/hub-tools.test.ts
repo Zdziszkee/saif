@@ -25,8 +25,8 @@ async function connectedHub(controls: readonly Control[]) {
 	});
 	const outcome = await hub.addConnection({
 		endpoint: "https://ext.test/mcp",
+		groupId: "alice",
 		name: "ext",
-		subject: "alice",
 	});
 	if (!outcome.ok) {
 		throw new Error(`connection failed: ${outcome.error}`);

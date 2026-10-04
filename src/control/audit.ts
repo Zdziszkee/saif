@@ -14,12 +14,15 @@ export interface AuditEvent {
 	/** Control responsible for the verdict, when one is attributable. */
 	controlId?: string | undefined;
 	detail?: string | undefined;
+	/** Policy subject: the user group the caller presented. */
+	groupId?: string | undefined;
 	interactionId?: string | undefined;
 	kind: AuditEventKind;
 	redactionCount?: number | undefined;
 	seam?: string | undefined;
-	subject?: string | undefined;
 	timestamp: string;
+	/** The individual caller, when attributable. */
+	userId?: string | undefined;
 	verdict?: Verdict | undefined;
 }
 

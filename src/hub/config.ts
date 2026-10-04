@@ -13,19 +13,19 @@ const DEFAULT_MAX_COMPUTE_MS = 30_000;
 const DEFAULT_MAX_TOOL_ROUNDS = 5;
 
 export const hubConfigSchema = z.strictObject({
-	/** Consumer-key handling at every seam (multi-consumer connections). */
-	consumers: z
-		.strictObject({
-			/** Policy subject used when a consumer key resolves to the default subject. */
-			defaultSubject: z.string().min(1).default("default"),
-			/** Consumer keys the policy defines; each identifies a policy subject of the same name. */
-			knownKeys: z.array(z.string().min(1)).default([]),
-			/** Default-subject behavior for missing or unknown consumer keys. */
-			unknownKey: z.enum(["default-subject", "reject"]).default("default-subject"),
-		})
-		.default({ defaultSubject: "default", knownKeys: [], unknownKey: "default-subject" }),
 	/** Endpoints (URLs or origins, `*` wildcards allowed) external MCP servers may connect to. */
 	egressAllowlist: z.array(z.string().min(1)).default([]),
+	/**
+	 * Caller identity handling at every seam. The user group is the policy
+	 * subject: it selects the profile and the applicable control set. Unknown
+	 * groups are rejected, never defaulted to another group's configuration.
+	 */
+	identity: z
+		.strictObject({
+			/** User group ids the policy defines. Anything else is rejected. */
+			knownGroups: z.array(z.string().min(1)).default([]),
+		})
+		.default({ knownGroups: [] }),
 	loop: z
 		.strictObject({
 			/** Compute-time budget for one governed agentic loop, in milliseconds. */

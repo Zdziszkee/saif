@@ -1,52 +1,4 @@
 {
-  "consumers": {
-    "alice": {
-      "profile": "strict"
-    },
-    "deploy-bot": {
-      "overrides": {
-        "thresholds": {
-          "detection": {
-            "inbound": {
-              "block": 0.5,
-              "escalate": 0.4,
-              "redact": 0.3
-            },
-            "outbound": {
-              "block": 0.5,
-              "escalate": 0.4,
-              "redact": 0.3
-            }
-          },
-          "semantic": {
-            "inbound": {
-              "block": 0.5,
-              "escalate": 0.4,
-              "redact": 0.3
-            },
-            "outbound": {
-              "block": 0.5,
-              "escalate": 0.4,
-              "redact": 0.3
-            }
-          },
-          "signatures": {
-            "inbound": {
-              "block": 0.5,
-              "escalate": 0.4,
-              "redact": 0.3
-            },
-            "outbound": {
-              "block": 0.5,
-              "escalate": 0.4,
-              "redact": 0.3
-            }
-          }
-        }
-      },
-      "profile": "strict"
-    }
-  },
   "controls": {
     "allowlist": {
       "models": [
@@ -60,25 +12,25 @@
       "overBudgetVerdict": "block",
       "rules": [
         {
-          "key": "alice",
+          "key": "user-1",
           "modelScope": "*",
           "period": "day",
           "tokens": 100000
         },
         {
           "costUsd": 5,
-          "key": "alice",
+          "key": "user-1",
           "modelScope": "*",
           "period": "month"
         },
         {
           "computeTimeMs": 120000,
-          "key": "deploy-bot",
+          "key": "user-1",
           "modelScope": "*",
           "period": "day"
         },
         {
-          "key": "deploy-bot",
+          "key": "user-1",
           "modelScope": "primary",
           "period": "day",
           "requests": 100
@@ -147,8 +99,7 @@
     }
   },
   "defaults": {
-    "failureVerdict": "block",
-    "profile": "strict"
+    "failureVerdict": "block"
   },
   "profiles": {
     "permissive": {
@@ -287,5 +238,16 @@
       }
     }
   },
-  "version": "1-strict"
+  "version": "1-strict",
+  "groups": {
+    "hr": {
+      "profile": "strict"
+    },
+    "manager": {
+      "profile": "strict"
+    },
+    "software-developer": {
+      "profile": "strict"
+    }
+  }
 }

@@ -37,7 +37,7 @@ export interface GovernorOptions {
 }
 
 export interface ToolGovernor {
-	governToolCall(entry: CatalogEntry, args: unknown, subject: string): Promise<ToolCallOutcome>;
+	governToolCall(entry: CatalogEntry, args: unknown, groupId: string): Promise<ToolCallOutcome>;
 }
 
 interface GovernorDeps {
@@ -57,44 +57,44 @@ export function createToolGovernor(options: GovernorOptions): ToolGovernor {
 		pipeline: options.pipeline,
 	};
 	return {
-		governToolCall: (entry, args, subject) => governToolCall(entry, args, subject, deps),
+		governToolCall: (entry, args, groupId) => governToolCall(entry, args, groupId, deps),
 	};
 }
 
 async function governToolCall(
 	entry: CatalogEntry,
 	args: unknown,
-	subject: string,
+	groupId: string,
 	deps: GovernorDeps,
 ): Promise<ToolCallOutcome> {
-	const denial = checkGrant(entry, subject, deps);
+	const denial = checkGrant(entry, groupId, deps);
 	if (denial) {
 		return { kind: "refused", rejection: denial };
 	}
 
-	const forwardedArgs = await inspectArgs(entry, args, subject, deps);
+	const forwardedArgs = await inspectArgs(entry, args, groupId, deps);
 	if (forwardedArgs.rejection) {
 		return { kind: "refused", rejection: forwardedArgs.rejection };
 	}
 
-	const execution = await executeTool(entry, forwardedArgs.value, subject, deps);
+	const execution = await executeTool(entry, forwardedArgs.value, groupId, deps);
 	if (execution.rejection) {
 		return { kind: "refused", rejection: execution.rejection };
 	}
 
 	return inspectResult(deps, entry, {
 		args,
+		groupId,
 		rawResult: execution.value,
-		subject,
 	});
 }
 
 function checkGrant(
 	entry: CatalogEntry,
-	subject: string,
+	groupId: string,
 	deps: GovernorDeps,
 ): ToolRejection | undefined {
-	if (deps.grants.isGranted(subject, entry.name)) {
+	if (deps.grants.isGranted(groupId, entry.name)) {
 		return;
 	}
 	const rejection: ToolRejection = {
@@ -106,8 +106,8 @@ function checkGrant(
 		auditEvent("interaction", {
 			controlId: rejection.control,
 			detail: `tool call denied (ungranted): ${entry.name}`,
+			groupId,
 			seam: "mcp-tool",
-			subject,
 			verdict: "block",
 		}),
 	);
@@ -117,7 +117,7 @@ function checkGrant(
 async function inspectArgs(
 	entry: CatalogEntry,
 	args: unknown,
-	subject: string,
+	groupId: string,
 	deps: GovernorDeps,
 ): Promise<PhaseResult> {
 	const serializedArgs = JSON.stringify(args ?? {});
@@ -125,9 +125,9 @@ async function inspectArgs(
 		{
 			content: serializedArgs,
 			direction: "inbound",
+			groupId,
 			id: nextToolInteractionId(entry.name),
 			seam: "mcp-tool",
-			subject,
 			tool: { arguments: args, name: entry.name },
 		},
 		deps.pipeline,
@@ -142,11 +142,11 @@ async function inspectArgs(
 async function executeTool(
 	entry: CatalogEntry,
 	args: unknown,
-	subject: string,
+	groupId: string,
 	deps: GovernorDeps,
 ): Promise<PhaseResult> {
 	try {
-		return { value: await Promise.resolve(entry.implementation(args, subject)) };
+		return { value: await Promise.resolve(entry.implementation(args, groupId)) };
 	} catch (error) {
 		const detail = error instanceof Error ? error.message : String(error);
 		const rejection: ToolRejection = {
@@ -158,8 +158,8 @@ async function executeTool(
 			auditEvent("failure", {
 				controlId: rejection.control,
 				detail,
+				groupId,
 				seam: "mcp-tool",
-				subject,
 				verdict: "block",
 			}),
 		);
@@ -170,16 +170,16 @@ async function executeTool(
 async function inspectResult(
 	deps: GovernorDeps,
 	entry: CatalogEntry,
-	call: { args: unknown; rawResult: unknown; subject: string },
+	call: { args: unknown; rawResult: unknown; groupId: string },
 ): Promise<ToolCallOutcome> {
 	const serializedResult = serializeResult(call.rawResult);
 	const outcome = await guardInteraction(
 		{
 			content: serializedResult,
 			direction: "outbound",
+			groupId: call.groupId,
 			id: nextToolInteractionId(entry.name),
 			seam: "mcp-tool",
-			subject: call.subject,
 			tool: { arguments: call.args, name: entry.name },
 		},
 		deps.pipeline,

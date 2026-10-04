@@ -29,8 +29,8 @@ import type { GrantRegistry } from "./grants.ts";
 
 export interface ConnectRequest {
 	endpoint: string;
+	groupId: string;
 	name: string;
-	subject: string;
 	/** Per-service credential; forwarded only as a transport header to `endpoint`. */
 	token?: string | undefined;
 }
@@ -95,7 +95,7 @@ function reject(
 	state.audit.record(
 		auditEvent("connection", {
 			detail: `connection rejected: ${request.name} (${request.endpoint}): ${error}`,
-			subject: request.subject,
+			groupId: request.groupId,
 			verdict: "block",
 		}),
 	);
@@ -138,7 +138,7 @@ function recordEstablished(
 	state.audit.record(
 		auditEvent("connection", {
 			detail: `connection established: ${request.name} (${info.tools.length} tools)`,
-			subject: request.subject,
+			groupId: request.groupId,
 			verdict: "allow",
 		}),
 	);

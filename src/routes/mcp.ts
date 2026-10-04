@@ -1,32 +1,36 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auditEvent } from "#/control/audit.ts";
-import { consumerKeyFromRequest } from "#/control/subjects.ts";
+import { identityFromRequest } from "#/control/subjects.ts";
 import { getHub } from "#/hub/runtime.ts";
 
 /**
  * The MCP safety hub surface, served over standard MCP protocol (HTTP) via
  * `createMCPServer` from `@tanstack/ai-mcp/server`. Any standards-compliant
  * MCP client can connect, enumerate the governed tool catalog, and invoke
- * tools; every call is subject to the same tool-call governance. The consumer
- * key header identifies the policy subject the caller acts as (multi-consumer
- * connections).
+ * tools; every call is subject to the same tool-call governance.
+ *
+ * Caller identity comes from `x-user-id` / `x-user-group-id`: the group is the
+ * policy subject that selects the profile and the applicable control set.
  */
 
 async function handle(request: Request): Promise<Response> {
 	const hub = await getHub();
-	const resolution = hub.consumers.resolve(consumerKeyFromRequest(request));
+	const presented = identityFromRequest(request);
+	const resolution = hub.identity.resolve(presented.userId, presented.groupId);
 
 	if (!resolution.ok) {
 		hub.audit.record(
 			auditEvent("interaction", {
-				controlId: "consumer-key",
-				detail: `consumer key rejected: ${resolution.reason}`,
+				controlId: "caller-identity",
+				detail: `caller identity rejected: ${resolution.reason}`,
+				groupId: resolution.groupId,
+				userId: resolution.userId,
 				verdict: "block",
 			}),
 		);
 		return Response.json(
 			{
-				control: "consumer-key",
+				control: "caller-identity",
 				error: "rejected",
 				reason: resolution.reason,
 				verdict: "block",
@@ -34,16 +38,8 @@ async function handle(request: Request): Promise<Response> {
 			{ status: 403 },
 		);
 	}
-	if (resolution.kind === "default-subject") {
-		hub.audit.record(
-			auditEvent("interaction", {
-				detail: `consumer key resolved to default subject: ${resolution.key ?? "(none)"}`,
-				subject: resolution.subject,
-			}),
-		);
-	}
 
-	return hub.server(resolution.subject).fetch(request);
+	return hub.server(resolution.identity.groupId).fetch(request);
 }
 
 export const Route = createFileRoute("/mcp")({

@@ -69,8 +69,11 @@ export const auditEvents = sqliteTable(
 		score: real("score"),
 		/** Event time (unix seconds). */
 		ts: integer("ts", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-		/** The individual caller, from `x-user-id`. Primary key for usage limits. */
-		userId: text("user_id").notNull(),
+		/**
+		 * The individual caller, from `x-user-id`. Null only at group-scoped
+		 * surfaces that identify no individual (MCP hub tool calls).
+		 */
+		userId: text("user_id"),
 		verdict: text("verdict", { enum: VERDICTS }).notNull(),
 	},
 	(table) => [
@@ -103,7 +106,8 @@ export const usageRecords = sqliteTable(
 		model: text().notNull(),
 		promptTokens: integer("prompt_tokens").notNull(),
 		ts: integer("ts", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
-		userId: text("user_id").notNull(),
+		/** Null only at group-scoped surfaces that identify no individual. */
+		userId: text("user_id"),
 	},
 	(table) => [
 		index("usage_records_ts_idx").on(table.ts),

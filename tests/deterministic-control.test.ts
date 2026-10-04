@@ -37,7 +37,7 @@ function interaction(
 	content: string,
 	direction: Interaction["direction"] = "inbound",
 ): Interaction {
-	return { content, direction, id: "test-interaction", seam: "guard-api", subject: "test" };
+	return { content, direction, groupId: "test", id: "test-interaction", seam: "guard-api" };
 }
 
 function inspectControl(control: Control, content: Interaction): Promise<ControlResult> {

@@ -34,6 +34,11 @@ export interface SemanticConfig {
 	checks: readonly SemanticCheck[];
 	/** Answers below this decisiveness `max(p, 1 - p)` are treated as uncertain. */
 	floors: SemanticFloors;
+	/**
+	 * User group id -> the check ids that apply to that group. Every check is
+	 * available to every group in the shipped document; drop an id to restrict.
+	 */
+	groups: Readonly<Record<string, readonly string[]>>;
 	/** Truncation cap for the content sent to the decision model. */
 	maxChars: number;
 	/** Jev model id. */
@@ -75,6 +80,7 @@ const semanticConfigSchema = z.object({
 	floors: z.object({
 		decisiveness: z.number().min(MIN_DECISIVENESS_FLOOR).max(1),
 	}),
+	groups: z.record(z.string().min(1), z.array(z.string().min(1))),
 	maxChars: z.number().int().positive(),
 	model: z.string().min(1),
 	timeoutMs: z.number().int().positive(),
@@ -107,7 +113,51 @@ export function parseSemanticConfig(raw: unknown): SemanticConfig {
 	}
 	const config = parsed.data as SemanticConfig;
 	validateChecks(config.checks);
+	validateGroupMappings(config);
 	return config;
+}
+
+/**
+ * Every id a group lists must name a defined check, and a group must not list
+ * the same check twice. A dangling id would silently drop a guardrail.
+ */
+function validateGroupMappings(config: SemanticConfig): void {
+	const defined = new Set(config.checks.map((check) => check.id));
+
+	for (const [groupId, ids] of Object.entries(config.groups)) {
+		const seen = new Set<string>();
+		for (const id of ids) {
+			if (!defined.has(id)) {
+				throw new SemanticConfigurationError(
+					`semantic: group "${groupId}" lists unknown check "${id}"`,
+				);
+			}
+			if (seen.has(id)) {
+				throw new SemanticConfigurationError(
+					`semantic: group "${groupId}" lists check "${id}" twice`,
+				);
+			}
+			seen.add(id);
+		}
+	}
+}
+
+/**
+ * The checks that apply to a user group.
+ *
+ * An unknown group is a rejection, never a silent fallback to another group's
+ * guardrails.
+ */
+export function checksForGroup(config: SemanticConfig, groupId: string): SemanticCheck[] {
+	const ids = config.groups[groupId];
+	if (ids === undefined) {
+		throw new SemanticConfigurationError(`semantic: unknown user group "${groupId}"`);
+	}
+	const byId = new Map(config.checks.map((check) => [check.id, check]));
+	return ids.flatMap((id) => {
+		const check = byId.get(id);
+		return check === undefined ? [] : [check];
+	});
 }
 
 /**

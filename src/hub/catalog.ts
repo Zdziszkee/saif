@@ -26,7 +26,7 @@ export interface ToolRegistration {
 
 export type AdmissionResult = { ok: true } | { ok: false; rejection: GuardRejection };
 
-export type ToolImplementation = (args: unknown, subject: string) => Promise<unknown> | unknown;
+export type ToolImplementation = (args: unknown, groupId: string) => Promise<unknown> | unknown;
 
 export interface CatalogEntry {
 	description: string;
@@ -85,9 +85,9 @@ export function createToolCatalog(options: CatalogOptions): ToolCatalog {
 				{
 					content: toolSchemaText(request, inputSchema),
 					direction: "inbound",
+					groupId: "registry",
 					id: `reg_${request.name}`,
 					seam: "mcp-tool",
-					subject: "registry",
 					tool: { arguments: inputSchema, name: request.name },
 				},
 				options.pipeline,
@@ -97,7 +97,7 @@ export function createToolCatalog(options: CatalogOptions): ToolCatalog {
 				auditEvent("registration", {
 					controlId: outcome.rejection?.control,
 					detail: refused ? `tool refused at registration: ${request.name}` : request.name,
-					subject: "registry",
+					groupId: "registry",
 					verdict: outcome.verdict,
 				}),
 			);

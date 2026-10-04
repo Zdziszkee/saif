@@ -22,11 +22,18 @@ export interface ToolCallRef {
 export interface Interaction {
 	content: string;
 	direction: Direction;
+	/** Policy subject: the user group the caller presented. Selects profile and checks. */
+	groupId: string;
 	id: string;
 	model?: string | undefined;
 	seam: InteractionSeam;
-	subject: string;
 	tool?: ToolCallRef | undefined;
+	/**
+	 * The individual caller: usage limits and per-user reporting. Absent at
+	 * group-scoped surfaces that identify no individual (MCP hub tool calls and
+	 * tool registration); the gateway seam always sets it.
+	 */
+	userId?: string | undefined;
 }
 
 /** A detected sensitive span, mapped into the raw inspected content. */

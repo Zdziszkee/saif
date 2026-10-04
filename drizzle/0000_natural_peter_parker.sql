@@ -7,7 +7,7 @@ CREATE TABLE `audit_events` (
 	`prompt_text` text,
 	`score` real,
 	`ts` integer DEFAULT (unixepoch()) NOT NULL,
-	`user_id` text NOT NULL,
+	`user_id` text,
 	`verdict` text NOT NULL
 );
 --> statement-breakpoint
@@ -24,7 +24,7 @@ CREATE TABLE `usage_records` (
 	`model` text NOT NULL,
 	`prompt_tokens` integer NOT NULL,
 	`ts` integer DEFAULT (unixepoch()) NOT NULL,
-	`user_id` text NOT NULL,
+	`user_id` text,
 	FOREIGN KEY (`audit_event_id`) REFERENCES `audit_events`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint

@@ -34,8 +34,8 @@ describe("hub connections", () => {
 		const hub = await hubPromise;
 		const outcome = await hub.addConnection({
 			endpoint: "https://ext.test/mcp",
+			groupId: "alice",
 			name: "ext",
-			subject: "alice",
 			token: TOKEN,
 		});
 		expect(outcome.ok).toBe(false);
@@ -53,8 +53,8 @@ describe("hub connections", () => {
 		const hub = await hubPromise;
 		const connected = await hub.addConnection({
 			endpoint: "https://ext.test/mcp",
+			groupId: "alice",
 			name: "ext",
-			subject: "alice",
 		});
 		expect(connected.ok).toBe(true);
 		expect(hub.toolNames()).toContain("ext_echo");
@@ -82,7 +82,7 @@ describe("hub connections", () => {
 		const { hubPromise } = connectionHub(["https://ext.test"]);
 		const hub = await hubPromise;
 		const outcomes = await hub.addConnections([
-			{ endpoint: "https://ext.test/mcp", name: "ext", subject: "alice" },
+			{ endpoint: "https://ext.test/mcp", groupId: "alice", name: "ext" },
 		]);
 		expect(outcomes).toHaveLength(1);
 		expect(outcomes[0]?.ok).toBe(true);
@@ -94,8 +94,8 @@ describe("hub connections", () => {
 		const hub = await hubPromise;
 		const connected = await hub.addConnection({
 			endpoint: "https://ext.test/mcp",
+			groupId: "alice",
 			name: "ext",
-			subject: "alice",
 			token: TOKEN,
 		});
 		expect(connected.ok).toBe(true);

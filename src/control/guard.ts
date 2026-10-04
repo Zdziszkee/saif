@@ -67,10 +67,11 @@ export async function guardInteraction(
 		auditEvent("interaction", {
 			controlId: outcome.rejection?.control,
 			detail: inspection.failure,
+			groupId: interaction.groupId,
 			interactionId: interaction.id,
 			redactionCount: inspection.redactions.length,
 			seam: interaction.seam,
-			subject: interaction.subject,
+			userId: interaction.userId,
 			verdict: outcome.verdict,
 		}),
 	);

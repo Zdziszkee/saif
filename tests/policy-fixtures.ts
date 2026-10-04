@@ -17,9 +17,6 @@ export function makeProfile(thresholds: {
 }
 
 export const basePolicy: PolicyInput = {
-	consumers: {
-		alice: { profile: "standard" },
-	},
 	controls: {
 		allowlist: {
 			models: [{ endpoint: "https://api.example.com/v1", name: "primary" }],
@@ -67,7 +64,11 @@ export const basePolicy: PolicyInput = {
 			suspect: { action: "escalate", threshold: 0.8 },
 		},
 	},
-	defaults: { failureVerdict: "escalate", profile: "standard" },
+	defaults: { failureVerdict: "escalate" },
+	groups: {
+		hr: { profile: "standard" },
+		manager: { profile: "standard" },
+	},
 	profiles: {
 		permissive: makeProfile({ block: 0.95, escalate: 0.3, redact: 0.7 }),
 		standard: makeProfile({ block: 0.85, escalate: 0.4, redact: 0.6 }),

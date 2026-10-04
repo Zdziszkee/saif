@@ -1,58 +1,96 @@
 /**
- * Multi-consumer connections (interaction-gateway requirement).
+ * Caller identity across seams (interaction-gateway requirement).
  *
- * Every seam accepts a consumer key through a defined request header
- * (`x-consumer-key`). The key identifies the policy subject the caller acts
- * as, and each consumer's traffic is governed in isolation. A missing or
- * unknown key follows the policy's configured default-subject behavior —
- * a defined default subject or rejection — and never silently inherits
- * another consumer's configuration.
+ * Every seam accepts a user id and a user group id through defined request
+ * headers. The user id identifies the individual and is the unit of usage
+ * limiting and per-user reporting; the group id identifies the policy subject —
+ * it selects the strictness profile and the semantic checks that apply — and is
+ * the unit of group-level reporting.
+ *
+ * A missing identity, or a group the policy does not define, is a rejection.
+ * Callers never fall back to another caller's configuration: an unknown group
+ * silently inheriting someone else's guardrails would be a security hole.
  */
 
-export const CONSUMER_KEY_HEADER = "x-consumer-key";
+export const USER_ID_HEADER = "x-user-id";
+export const USER_GROUP_ID_HEADER = "x-user-group-id";
 
-export interface ConsumerPolicy {
-	/** Policy subject used by the default-subject behavior. */
-	defaultSubject: string;
-	/** Consumer keys the policy defines; each maps to a policy subject of the same name. */
-	knownKeys: readonly string[];
-	/** Behavior for missing or unknown consumer keys. */
-	unknownKey: "default-subject" | "reject";
+/** The caller as presented on a request. */
+export interface CallerIdentity {
+	/** Policy subject: selects the profile and the applicable control set. */
+	groupId: string;
+	/** The individual: usage limits and per-user reporting. */
+	userId: string;
 }
 
-export type SubjectResolution =
-	| { key: string | undefined; kind: "known"; ok: true; subject: string }
-	| { key: string | undefined; kind: "default-subject"; ok: true; subject: string }
-	| { key: string | undefined; kind: "missing" | "unknown"; ok: false; reason: string };
+export type IdentityResolution =
+	| { identity: CallerIdentity; kind: "known"; ok: true }
+	| {
+			groupId: string | undefined;
+			kind: "missing-identity" | "unknown-group";
+			ok: false;
+			reason: string;
+			userId: string | undefined;
+	  };
 
-export interface ConsumerResolver {
-	resolve(key: string | undefined): SubjectResolution;
+export interface IdentityPolicy {
+	/** Group ids the policy defines. Anything else is rejected. */
+	knownGroups: readonly string[];
 }
 
-export function createConsumerResolver(policy: ConsumerPolicy): ConsumerResolver {
-	const known = new Set(policy.knownKeys);
+export interface IdentityResolver {
+	resolve(userId: string | undefined, groupId: string | undefined): IdentityResolution;
+}
+
+export function createIdentityResolver(policy: IdentityPolicy): IdentityResolver {
+	const known = new Set(policy.knownGroups);
 	return {
-		resolve(key) {
-			if (key !== undefined && known.has(key)) {
-				return { key, kind: "known", ok: true, subject: key };
-			}
-			if (policy.unknownKey === "reject") {
+		resolve(userId, groupId) {
+			if (userId === undefined || userId.length === 0) {
 				return {
-					key,
-					kind: key === undefined ? "missing" : "unknown",
+					groupId,
+					kind: "missing-identity",
 					ok: false,
-					reason:
-						key === undefined
-							? "no consumer key presented"
-							: `consumer key not defined by policy: ${key}`,
+					reason: `no ${USER_ID_HEADER} presented`,
+					userId,
 				};
 			}
-			return { key, kind: "default-subject", ok: true, subject: policy.defaultSubject };
+			if (groupId === undefined || groupId.length === 0) {
+				return {
+					groupId,
+					kind: "missing-identity",
+					ok: false,
+					reason: `no ${USER_GROUP_ID_HEADER} presented`,
+					userId,
+				};
+			}
+			if (!known.has(groupId)) {
+				return {
+					groupId,
+					kind: "unknown-group",
+					ok: false,
+					reason: `user group not defined by policy: ${groupId}`,
+					userId,
+				};
+			}
+			return {
+				identity: { groupId, userId },
+				kind: "known",
+				ok: true,
+			};
 		},
 	};
 }
 
-export function consumerKeyFromRequest(request: Request): string | undefined {
-	const key = request.headers.get(CONSUMER_KEY_HEADER);
-	return key === null || key.length === 0 ? undefined : key;
+/** Read both identity headers from a request. Absent headers become `undefined`. */
+export function identityFromRequest(request: Request): {
+	groupId: string | undefined;
+	userId: string | undefined;
+} {
+	const userId = request.headers.get(USER_ID_HEADER);
+	const groupId = request.headers.get(USER_GROUP_ID_HEADER);
+	return {
+		groupId: groupId === null || groupId.length === 0 ? undefined : groupId,
+		userId: userId === null || userId.length === 0 ? undefined : userId,
+	};
 }

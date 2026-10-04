@@ -171,7 +171,7 @@ itself is D4; this section specifies what each stage actually does.
   `policy.jev.json` at the project root (D3). Zod schema is the single definition,
   shared by runtime loader and tests; unknown keys rejected (`z.strictObject`).
 - **Resolution order**: base document → profile overlay (permissive/standard/strict,
-  deep-merge) → per-consumer / per-route override. Precedence is deterministic and
+  deep-merge) → per-group / per-route override. Precedence is deterministic and
   documented in `docs/policy.md`; every merge result is itself schema-valid.
 - **Versioned activation**: dashboard save or JSON import → validate → new version row
   (`policyVersion = sha256(canonical JSON)`) → atomic snapshot swap (each request pins one
@@ -253,7 +253,7 @@ The "first line of defense" is a layered detector pipeline. Regex is layer 1, bu
 - **Windows**: tumbling time buckets (hour/day) keyed `(subject, model, window)`; bucket is
   computed from timestamp, so rollover is free (D7). Over-budget → policy's over-budget
   verdict (default `block`).
-- **Burst control (optional refinement)**: token-bucket rate limit per consumer for runaway
+- **Burst control (optional refinement)**: token-bucket rate limit per user for runaway
   agent loops, complementing the windowed spend cap.
 
 ### R4. Historical attack mitigation (signature engine)
@@ -346,7 +346,7 @@ surface, not just message content.
 
 | Problem | Controls |
 | --- | --- |
-| Over-broad access / impersonation | model allowlist, per-consumer policy subjects and overrides |
+| Over-broad access / impersonation | model allowlist, per-group policy subjects and overrides |
 | Prompt injection & sensitive output | R2a L1–L4 inbound + output direction, R2b semantic questions, signature feed (R4) |
 | Runaway loops / resource blowup | budget windows + reservations (R3), optional token-bucket rate limit, per-stage latency telemetry (R5) |
 
@@ -361,7 +361,7 @@ surface, not just message content.
   with questions in parallel; per-stage latency recorded in audit for the telemetry the
   challenge asks for. Budget a p95 target of ~100 ms deterministic / ~600 ms with semantic.
 - [Prompts leave the house when using hosted Jev] → Policy option to disable the semantic
-  tier per consumer (`off` egress mode, deterministic-only); state passed to Jev is
+  tier per group (`off` egress mode, deterministic-only); state passed to Jev is
   trimmed to the fields the decision needs.
 - [Policy hot-reload races] → Immutable snapshot per request with version stamping (D6).
 - [Signature feed false positives] → Severity-keyed actions with policy overrides;

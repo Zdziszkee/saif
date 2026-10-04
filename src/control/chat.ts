@@ -23,8 +23,9 @@ export type ChatAsk = (prompt: string) => Promise<string>;
 export interface ChatSeamOptions {
 	ask: ChatAsk;
 	audit?: AuditSink | undefined;
+	groupId: string;
 	pipeline: ControlPipeline;
-	subject: string;
+	userId: string;
 }
 
 export interface ChatSeamOutcome {
@@ -46,9 +47,10 @@ export async function guardedChat(
 		{
 			content: prompt,
 			direction: "inbound",
+			groupId: options.groupId,
 			id: nextChatInteractionId(),
 			seam: "chat",
-			subject: options.subject,
+			userId: options.userId,
 		},
 		options.pipeline,
 		{ audit: options.audit },
@@ -66,9 +68,10 @@ export async function guardedChat(
 		{
 			content: rawAnswer,
 			direction: "outbound",
+			groupId: options.groupId,
 			id: nextChatInteractionId(),
 			seam: "chat",
-			subject: options.subject,
+			userId: options.userId,
 		},
 		options.pipeline,
 		{ audit: options.audit },

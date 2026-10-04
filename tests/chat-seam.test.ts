@@ -10,8 +10,9 @@ describe("chat seam", () => {
 				asked.push(prompt);
 				return Promise.resolve("answer");
 			},
+			groupId: "hr",
 			pipeline: pipelineWith([blockOn("BLOCKME")]),
-			subject: "alice",
+			userId: "alice",
 		});
 		expect(outcome.verdict).toBe("block");
 		expect(outcome.rejection?.control).toBe("fixture-block");
@@ -22,8 +23,9 @@ describe("chat seam", () => {
 	it("returns only the redacted answer", async () => {
 		const outcome = await guardedChat("what is my token?", {
 			ask: () => Promise.resolve("your token is SECRET-9"),
+			groupId: "hr",
 			pipeline: pipelineWith([redactOn("SECRET-9", "[TOKEN]")]),
-			subject: "alice",
+			userId: "alice",
 		});
 		expect(outcome.verdict).toBe("redact");
 		expect(outcome.answer).toBe("your token is [TOKEN]");
@@ -36,8 +38,9 @@ describe("chat seam", () => {
 				asked.push(prompt);
 				return Promise.resolve("done");
 			},
+			groupId: "hr",
 			pipeline: pipelineWith([redactOn("SECRET-3", "[TOKEN]")]),
-			subject: "alice",
+			userId: "alice",
 		});
 		expect(asked).toEqual(["remember [TOKEN] for me"]);
 		expect(outcome.promptVerdict).toBe("redact");
@@ -50,11 +53,13 @@ describe("chat seam", () => {
 		await guardedChat("hello", {
 			ask: () => Promise.resolve("hi"),
 			audit,
+			groupId: "hr",
 			pipeline: pipelineWith([]),
-			subject: "alice",
+			userId: "alice",
 		});
 		const chatEvents = audit.events.filter((event) => event.seam === "chat");
 		expect(chatEvents).toHaveLength(2);
-		expect(chatEvents.map((event) => event.subject)).toEqual(["alice", "alice"]);
+		expect(chatEvents.map((event) => event.groupId)).toEqual(["hr", "hr"]);
+		expect(chatEvents.map((event) => event.userId)).toEqual(["alice", "alice"]);
 	});
 });

@@ -86,7 +86,7 @@ describe("hub prompt governance", () => {
 		await hub.invokeTool("askModel", { prompt: "hello" }, "alice");
 		const events = audit.events.filter((event) => event.seam === "mcp-tool");
 		expect(events.length).toBeGreaterThanOrEqual(2);
-		expect(events.every((event) => event.subject === "alice")).toBe(true);
+		expect(events.every((event) => event.groupId === "alice")).toBe(true);
 	});
 
 	it("exposes no model-reaching route outside the hub", async () => {

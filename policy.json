@@ -1,22 +1,4 @@
 {
-  "consumers": {
-    "alice": {
-      "profile": "standard"
-    },
-    "analyst": {
-      "profile": "permissive"
-    },
-    "deploy-bot": {
-      "overrides": {
-        "enabledControls": {
-          "detection": true,
-          "semantic": false,
-          "signatures": true
-        }
-      },
-      "profile": "strict"
-    }
-  },
   "controls": {
     "allowlist": {
       "models": [
@@ -33,25 +15,25 @@
       "overBudgetVerdict": "block",
       "rules": [
         {
-          "key": "alice",
+          "key": "user-1",
           "modelScope": "*",
           "period": "day",
           "tokens": 250000
         },
         {
           "costUsd": 20,
-          "key": "alice",
+          "key": "user-1",
           "modelScope": "*",
           "period": "month"
         },
         {
           "computeTimeMs": 600000,
-          "key": "deploy-bot",
+          "key": "user-1",
           "modelScope": "*",
           "period": "day"
         },
         {
-          "key": "analyst",
+          "key": "user-1",
           "modelScope": "primary",
           "period": "day",
           "requests": 500
@@ -119,8 +101,7 @@
     }
   },
   "defaults": {
-    "failureVerdict": "escalate",
-    "profile": "standard"
+    "failureVerdict": "escalate"
   },
   "profiles": {
     "permissive": {
@@ -259,5 +240,16 @@
       }
     }
   },
-  "version": "1"
+  "version": "1",
+  "groups": {
+    "hr": {
+      "profile": "strict"
+    },
+    "manager": {
+      "profile": "standard"
+    },
+    "software-developer": {
+      "profile": "standard"
+    }
+  }
 }

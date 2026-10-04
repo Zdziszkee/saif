@@ -11,7 +11,7 @@
 import { toolDefinition } from "@tanstack/ai";
 import { createMCPServer, type MCPServer } from "@tanstack/ai-mcp/server";
 import { type AuditSink, auditEvent, noopAuditSink } from "#/control/audit.ts";
-import { type ConsumerResolver, createConsumerResolver } from "#/control/subjects.ts";
+import { createIdentityResolver, type IdentityResolver } from "#/control/subjects.ts";
 import type { ControlPipeline } from "#/control/types.ts";
 import {
 	type CatalogEntry,
@@ -67,11 +67,11 @@ export interface Hub {
 	audit: AuditSink;
 	config: HubConfig;
 	connections: HubConnections;
-	consumers: ConsumerResolver;
-	grant(subject: string, toolName: string): void;
-	invokeTool(name: string, args: unknown, subject: string): Promise<ToolCallOutcome>;
+	grant(groupId: string, toolName: string): void;
+	identity: IdentityResolver;
+	invokeTool(name: string, args: unknown, groupId: string): Promise<ToolCallOutcome>;
 	pipeline: ControlPipeline;
-	server(subject?: string): MCPServer;
+	server(groupId?: string): MCPServer;
 	toolNames(): string[];
 }
 
@@ -87,7 +87,7 @@ interface HubContext {
 export async function createHub(deps: HubDeps): Promise<Hub> {
 	const audit = deps.audit ?? noopAuditSink;
 	const config = deps.config ?? createHubConfig();
-	const consumers = createConsumerResolver(config.consumers);
+	const identity = createIdentityResolver({ knownGroups: config.identity.knownGroups });
 	const grants: GrantRegistry = createGrantRegistry();
 	const catalog: ToolCatalog = createToolCatalog({ audit, pipeline: deps.pipeline });
 	const governor: ToolGovernor = createToolGovernor({ audit, grants, pipeline: deps.pipeline });
@@ -109,13 +109,13 @@ export async function createHub(deps: HubDeps): Promise<Hub> {
 		audit,
 		config,
 		connections,
-		consumers,
-		grant: (subject, toolName) => {
-			grants.grant(subject, toolName);
+		grant: (groupId, toolName) => {
+			grants.grant(groupId, toolName);
 		},
-		invokeTool: (name, args, subject) => invokeTool(context, { args, name, subject }),
+		identity,
+		invokeTool: (name, args, groupId) => invokeTool(context, { args, groupId, name }),
 		pipeline: deps.pipeline,
-		server: (subject = "anonymous") => buildServer(catalog, governor, subject),
+		server: (groupId = "anonymous") => buildServer(catalog, governor, groupId),
 		toolNames: () => catalog.snapshot().map((entry) => entry.name),
 	};
 }
@@ -149,7 +149,7 @@ function createAskModelRegistration(context: HubContext): ToolRegistration {
 	return {
 		description: askModelDescription,
 		grantedByDefault: true,
-		implementation: (args, subject) => runAskModel(context, args, subject),
+		implementation: (args, groupId) => runAskModel(context, args, groupId),
 		inputSchema: askModelInputSchema,
 		name: askModelName,
 		source: "builtin",
@@ -159,28 +159,28 @@ function createAskModelRegistration(context: HubContext): ToolRegistration {
 async function runAskModel(
 	context: HubContext,
 	args: unknown,
-	subject: string,
+	groupId: string,
 ): Promise<AskModelResult> {
 	const { prompt } = args as { prompt: string };
 	const result = await runGovernedLoop(prompt, {
 		budgets: context.config.loop,
 		enforcement: context.config.toolEnforcement,
 		model: context.model,
-		tools: loopToolsFor(context, subject),
+		tools: loopToolsFor(context, groupId),
 	});
-	return toAskModelResult(result, subject, context.audit);
+	return toAskModelResult(result, groupId, context.audit);
 }
 
-function loopToolsFor(context: HubContext, subject: string): GovernedLoopTool[] {
+function loopToolsFor(context: HubContext, groupId: string): GovernedLoopTool[] {
 	return context.catalog
 		.snapshot()
 		.filter((entry) => entry.name !== askModelName)
-		.map((entry) => loopToolFor(entry, context, subject));
+		.map((entry) => loopToolFor(entry, context, groupId));
 }
 
-function loopToolFor(entry: CatalogEntry, context: HubContext, subject: string): GovernedLoopTool {
+function loopToolFor(entry: CatalogEntry, context: HubContext, groupId: string): GovernedLoopTool {
 	return {
-		execute: (args) => context.governor.governToolCall(entry, args, subject),
+		execute: (args) => context.governor.governToolCall(entry, args, groupId),
 		spec: {
 			description: entry.description,
 			inputSchema: entry.inputSchema,
@@ -189,7 +189,7 @@ function loopToolFor(entry: CatalogEntry, context: HubContext, subject: string):
 	};
 }
 
-function toAskModelResult(result: LoopResult, subject: string, audit: AuditSink): AskModelResult {
+function toAskModelResult(result: LoopResult, groupId: string, audit: AuditSink): AskModelResult {
 	if (result.kind === "answer") {
 		return { answer: result.answer, control: "", status: "ok", verdict: "allow" };
 	}
@@ -197,7 +197,7 @@ function toAskModelResult(result: LoopResult, subject: string, audit: AuditSink)
 		audit.record(
 			auditEvent("budget", {
 				detail: `agentic loop exceeded budget after ${result.rounds} model requests`,
-				subject,
+				groupId,
 				verdict: result.verdict,
 			}),
 		);
@@ -221,14 +221,14 @@ function rejectionStatus(rejection: ToolRejection): "blocked" | "escalated" | "f
 	return "blocked";
 }
 
-function buildServer(catalog: ToolCatalog, governor: ToolGovernor, subject: string): MCPServer {
+function buildServer(catalog: ToolCatalog, governor: ToolGovernor, groupId: string): MCPServer {
 	const tools = catalog.snapshot().map((entry) =>
 		toolDefinition({
 			description: entry.description,
 			inputSchema: entry.inputSchema,
 			name: entry.name,
 		}).server(async (args) => {
-			const outcome = await governor.governToolCall(entry, args, subject);
+			const outcome = await governor.governToolCall(entry, args, groupId);
 			if (outcome.kind === "refused") {
 				throw new ToolGovernanceError(definedRejection(outcome.rejection));
 			}
@@ -240,7 +240,7 @@ function buildServer(catalog: ToolCatalog, governor: ToolGovernor, subject: stri
 
 function invokeTool(
 	context: HubContext,
-	call: { args: unknown; name: string; subject: string },
+	call: { args: unknown; name: string; groupId: string },
 ): Promise<ToolCallOutcome> {
 	const entry = context.catalog.get(call.name);
 	if (!entry) {
@@ -253,12 +253,12 @@ function invokeTool(
 			auditEvent("interaction", {
 				controlId: rejection.control,
 				detail: `unknown tool: ${call.name}`,
+				groupId: call.groupId,
 				seam: "mcp-tool",
-				subject: call.subject,
 				verdict: "block",
 			}),
 		);
 		return Promise.resolve({ kind: "refused", rejection });
 	}
-	return context.governor.governToolCall(entry, call.args, call.subject);
+	return context.governor.governToolCall(entry, call.args, call.groupId);
 }
