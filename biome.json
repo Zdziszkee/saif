@@ -153,7 +153,13 @@
 			}
 		},
 		{
-			"includes": ["**/scripts/build-signature-feed.ts", "**/tests/signature-feed-import.test.ts"],
+			"includes": [
+				"**/scripts/build-signature-feed.ts",
+				"**/tests/signature-feed-import.test.ts",
+				"**/tests/signature-sources.test.ts",
+				"**/src/control/signatures/sources/atlas.ts",
+				"**/src/control/signatures/sources/owasp.ts"
+			],
 			"linter": {
 				"rules": {
 					"style": {

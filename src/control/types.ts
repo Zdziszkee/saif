@@ -80,6 +80,13 @@ export interface Control {
 }
 
 export interface ControlResult {
+	/**
+	 * Whether a `flag`-style finding fired, even when a stronger action won
+	 * the verdict. A control collapses its findings into one hit carrying the
+	 * worst action, which would otherwise swallow review annotations — e.g. a
+	 * redacted email next to a flagged codename must still raise review.
+	 */
+	flagged?: boolean | undefined;
 	hit?: ControlHit | undefined;
 	redactions?: RedactionSpan[] | undefined;
 	verdict: Verdict;

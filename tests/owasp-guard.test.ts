@@ -229,4 +229,18 @@ describe("owasp end to end (signature feed, shipped signatures.json)", () => {
 		expect(body.flagged).toBe(true);
 		expect(body.reasons?.join("\n")).toContain("internal-codename");
 	});
+
+	it("redacts and raises when PII meets a custom-policy flag outbound", async () => {
+		const { body, status } = await check(
+			"Contact alice@example.com about the CONFIDENTIAL launch; badge EMP-482910.",
+			{ direction: "outbound" },
+		);
+		expect(status).toBe(200);
+		expect(body.verdict).toBe("redact");
+		expect(body.flagged).toBe(true);
+		expect(body.content).toBe(
+			"Contact [EMAIL] about the CONFIDENTIAL launch; badge [CUSTOM:EMPLOYEE_ID].",
+		);
+		expect(body.hits?.some((hit) => hit.engine === "regex")).toBe(true);
+	});
 });

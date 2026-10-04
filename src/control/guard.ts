@@ -82,7 +82,9 @@ export async function guardInteraction(
 	const outcome = enforce(interaction, inspection, options.jsonContent ?? false);
 	audit.record(
 		auditEvent("interaction", {
-			controlId: outcome.rejection?.control,
+			// The pipeline's blocking control covers block/escalate/redact;
+			// a clean allow belongs to the pipeline as a whole, never "none".
+			controlId: inspection.blockingControl ?? "pipeline",
 			detail: inspection.failure,
 			groupId: interaction.groupId,
 			interactionId: interaction.id,

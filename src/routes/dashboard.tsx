@@ -11,6 +11,7 @@ import {
 	CardTitle,
 } from "#/components/ui/card.tsx";
 import type { AuditDecisionSummary } from "#/control/audit.ts";
+import { engineOfControlId } from "#/control/guard-api.ts";
 
 const REFRESH_INTERVAL_MS = 5000;
 
@@ -136,7 +137,8 @@ function Dashboard() {
 							<ul className="mt-1 space-y-1 font-mono text-sm">
 								{data.recent.map((event) => (
 									<li key={`${event.timestamp}-${event.interactionId ?? ""}`}>
-										{event.timestamp} [{event.verdict ?? "?"}] {event.controlId ?? ""}{" "}
+										{event.timestamp} [{event.verdict ?? "?"}] [
+										{engineOfControlId(event.controlId ?? "pipeline")}] {event.controlId ?? ""}{" "}
 										{event.groupId ?? ""} ({event.seam ?? "?"})
 									</li>
 								))}

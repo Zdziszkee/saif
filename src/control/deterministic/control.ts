@@ -141,6 +141,7 @@ function decideResult(findings: readonly Finding[]): ControlResult {
 	};
 	const redactions = redactionsFromFindings(findings);
 	return {
+		flagged: findings.some((finding) => finding.action === "flag"),
 		...(redactions.length > 0 ? { redactions } : {}),
 		hit,
 		verdict,
