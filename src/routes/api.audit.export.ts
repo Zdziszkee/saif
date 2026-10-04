@@ -19,6 +19,10 @@ export const Route = createFileRoute("/api/audit/export")({
 				if (!access.ok) {
 					hub.audit.record(
 						auditEvent("interaction", {
+							// The gate is identity-based, but the denial keeps per-key
+							// attribution: the identity model removed the consumer-key
+							// helper, so read the raw header inline.
+							consumerKey: request.headers.get("x-consumer-key") || "(none)",
 							controlId: "consumer-key",
 							detail: `audit export denied: ${access.reason}`,
 							groupId: "export",
@@ -36,9 +40,14 @@ export const Route = createFileRoute("/api/audit/export")({
 				}
 				const sink = getAuditSink();
 				const events = readAuditEvents(sink);
+				const consumer =
+					url.searchParams.get("consumer") ?? url.searchParams.get("consumerKey") ?? undefined;
 				const filtered = filterAuditEvents(events, {
+					consumerKey: consumer,
 					control: url.searchParams.get("control") ?? undefined,
 					groupId: url.searchParams.get("groupId") ?? undefined,
+					since: url.searchParams.get("since") ?? undefined,
+					until: url.searchParams.get("until") ?? undefined,
 					verdict: url.searchParams.get("verdict") ?? undefined,
 				});
 				const body = format === "csv" ? auditEventsToCsv(filtered) : auditEventsToJsonl(filtered);

@@ -21,7 +21,9 @@ async function handle(request: Request): Promise<Response> {
 		return identityRejection(resolution, hub.audit);
 	}
 
-	return hub.server(resolution.identity.groupId).fetch(request);
+	// The user id is the per-user tracking key: thread it as the consumerKey so
+	// every governed tool-call audit carries per-user attribution.
+	return hub.server(resolution.identity.groupId, resolution.identity.userId).fetch(request);
 }
 
 export const Route = createFileRoute("/mcp")({

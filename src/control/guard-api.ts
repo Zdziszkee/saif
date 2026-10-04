@@ -47,6 +47,7 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 	if (!validation.ok) {
 		audit.record(
 			auditEvent("interaction", {
+				consumerKey: identity.userId ?? "(none)",
 				detail: `malformed request rejected: ${validation.errors.join("; ")}`,
 				groupId: identity.groupId,
 				userId: identity.userId,
@@ -58,7 +59,10 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 		);
 	}
 
-	const outcome = await guardInteraction(validation.interaction, deps.pipeline, { audit });
+	const outcome = await guardInteraction(validation.interaction, deps.pipeline, {
+		audit,
+		consumerKey: identity.userId ?? "(none)",
+	});
 	logDecision(
 		validation.interaction,
 		outcome.verdict,

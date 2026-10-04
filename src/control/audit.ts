@@ -11,6 +11,8 @@ import type { Verdict } from "./types.ts";
 export type AuditEventKind = "budget" | "connection" | "failure" | "interaction" | "registration";
 
 export interface AuditEvent {
+	/** Raw `x-consumer-key` header value; undefined when no key was presented. */
+	consumerKey?: string | undefined;
 	/** Control responsible for the verdict, when one is attributable. */
 	controlId?: string | undefined;
 	detail?: string | undefined;
@@ -63,8 +65,11 @@ export function auditEvent(
 }
 
 export interface AuditFilter {
+	consumerKey?: string | undefined;
 	control?: string | undefined;
 	groupId?: string | undefined;
+	since?: string | undefined;
+	until?: string | undefined;
 	userId?: string | undefined;
 	verdict?: string | undefined;
 }
@@ -78,7 +83,11 @@ export function filterAuditEvents(
 		(event) =>
 			(filter.verdict === undefined || event.verdict === filter.verdict) &&
 			(filter.control === undefined || event.controlId === filter.control) &&
-			(filter.groupId === undefined || event.groupId === filter.groupId),
+			(filter.groupId === undefined || event.groupId === filter.groupId) &&
+			(filter.userId === undefined || event.userId === filter.userId) &&
+			(filter.consumerKey === undefined || event.consumerKey === filter.consumerKey) &&
+			(filter.since === undefined || event.timestamp >= filter.since) &&
+			(filter.until === undefined || event.timestamp <= filter.until),
 	);
 }
 
@@ -118,6 +127,7 @@ function isAuditEvent(event: unknown): event is AuditEvent {
 }
 
 export interface AuditDecisionSummary {
+	byConsumer: [string, number][];
 	byControl: [string, number][];
 	byVerdict: [string, number][];
 	recent: AuditEvent[];
@@ -142,6 +152,7 @@ export function summarizeAuditDecisions(
 		return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 	};
 	return {
+		byConsumer: byCount((event) => event.consumerKey ?? "none"),
 		byControl: byCount((event) => event.controlId ?? "none"),
 		byVerdict: byCount((event) => event.verdict ?? "none"),
 		recent: decisions.slice(-recentLimit).reverse(),
@@ -155,6 +166,7 @@ const CSV_COLUMNS = [
 	"verdict",
 	"controlId",
 	"groupId",
+	"consumerKey",
 	"seam",
 	"interactionId",
 	"detail",

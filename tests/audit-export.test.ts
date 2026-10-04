@@ -64,7 +64,7 @@ describe("audit export", () => {
 	it("emits a header row and RFC 4180 quoting", () => {
 		const rows = auditEventsToCsv(seed).split("\n");
 		expect(rows[0]).toBe(
-			"timestamp,kind,verdict,controlId,groupId,seam,interactionId,detail,redactionCount",
+			"timestamp,kind,verdict,controlId,groupId,consumerKey,seam,interactionId,detail,redactionCount",
 		);
 		expect(rows).toHaveLength(4);
 		expect(rows[3]).toContain('"quoted ""value"", and more"');

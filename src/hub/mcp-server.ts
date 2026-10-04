@@ -56,9 +56,14 @@ export interface Hub {
 	connections: HubConnections;
 	grant(groupId: string, toolName: string): void;
 	identity: IdentityResolver;
-	invokeTool(name: string, args: unknown, groupId: string): Promise<ToolCallOutcome>;
+	invokeTool(
+		name: string,
+		args: unknown,
+		groupId: string,
+		consumerKey?: string,
+	): Promise<ToolCallOutcome>;
 	pipeline: ControlPipeline;
-	server(groupId?: string): MCPServer;
+	server(groupId?: string, consumerKey?: string): MCPServer;
 	toolNames(): string[];
 }
 
@@ -99,9 +104,11 @@ export async function createHub(deps: HubDeps): Promise<Hub> {
 			grants.grant(groupId, toolName);
 		},
 		identity,
-		invokeTool: (name, args, groupId) => invokeTool(context, { args, groupId, name }),
+		invokeTool: (name, args, groupId, consumerKey) =>
+			invokeTool(context, { args, consumerKey, groupId, name }),
 		pipeline: deps.pipeline,
-		server: (groupId = "anonymous") => buildServer(catalog, governor, groupId),
+		server: (groupId = "anonymous", consumerKey = "(none)") =>
+			buildServer(catalog, governor, groupId, consumerKey),
 		toolNames: () => catalog.snapshot().map((entry) => entry.name),
 	};
 }
@@ -124,14 +131,19 @@ async function admitBuiltinTools(catalog: ToolCatalog, grants: GrantRegistry): P
 	}
 }
 
-function buildServer(catalog: ToolCatalog, governor: ToolGovernor, groupId: string): MCPServer {
+function buildServer(
+	catalog: ToolCatalog,
+	governor: ToolGovernor,
+	groupId: string,
+	consumerKey: string,
+): MCPServer {
 	const tools = catalog.snapshot().map((entry) =>
 		toolDefinition({
 			description: entry.description,
 			inputSchema: entry.inputSchema,
 			name: entry.name,
 		}).server(async (args) => {
-			const outcome = await governor.governToolCall(entry, args, groupId);
+			const outcome = await governor.governToolCall(entry, args, groupId, consumerKey);
 			if (outcome.kind === "refused") {
 				throw new ToolGovernanceError(definedRejection(outcome.rejection));
 			}
@@ -143,7 +155,12 @@ function buildServer(catalog: ToolCatalog, governor: ToolGovernor, groupId: stri
 
 function invokeTool(
 	context: HubContext,
-	call: { args: unknown; name: string; groupId: string },
+	call: {
+		args: unknown;
+		consumerKey?: string | undefined;
+		groupId: string;
+		name: string;
+	},
 ): Promise<ToolCallOutcome> {
 	const entry = context.catalog.get(call.name);
 	if (!entry) {
@@ -154,6 +171,7 @@ function invokeTool(
 		};
 		context.audit.record(
 			auditEvent("interaction", {
+				consumerKey: call.consumerKey ?? "(none)",
 				controlId: rejection.control,
 				detail: `unknown tool: ${call.name}`,
 				groupId: call.groupId,
@@ -163,5 +181,5 @@ function invokeTool(
 		);
 		return Promise.resolve({ kind: "refused", rejection });
 	}
-	return context.governor.governToolCall(entry, call.args, call.groupId);
+	return context.governor.governToolCall(entry, call.args, call.groupId, call.consumerKey);
 }

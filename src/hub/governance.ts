@@ -39,7 +39,12 @@ export interface GovernorOptions {
 }
 
 export interface ToolGovernor {
-	governToolCall(entry: CatalogEntry, args: unknown, groupId: string): Promise<ToolCallOutcome>;
+	governToolCall(
+		entry: CatalogEntry,
+		args: unknown,
+		groupId: string,
+		consumerKey?: string,
+	): Promise<ToolCallOutcome>;
 }
 
 interface GovernorDeps {
@@ -59,33 +64,37 @@ export function createToolGovernor(options: GovernorOptions): ToolGovernor {
 		pipeline: options.pipeline,
 	};
 	return {
-		governToolCall: (entry, args, groupId) => governToolCall(entry, args, groupId, deps),
+		governToolCall: (entry, args, groupId, consumerKey) =>
+			governToolCall(entry, args, groupId, deps, consumerKey),
 	};
 }
 
+// biome-ignore lint/complexity/useMaxParams: governance phases share (entry, args, groupId, deps, consumerKey) positionally
 async function governToolCall(
 	entry: CatalogEntry,
 	args: unknown,
 	groupId: string,
 	deps: GovernorDeps,
+	consumerKey?: string,
 ): Promise<ToolCallOutcome> {
-	const denial = checkGrant(entry, groupId, deps);
+	const denial = checkGrant(entry, groupId, deps, consumerKey);
 	if (denial) {
 		return { kind: "refused", rejection: denial };
 	}
 
-	const forwardedArgs = await inspectArgs(entry, args, groupId, deps);
+	const forwardedArgs = await inspectArgs(entry, args, groupId, deps, consumerKey);
 	if (forwardedArgs.rejection) {
 		return { kind: "refused", rejection: forwardedArgs.rejection };
 	}
 
-	const execution = await executeTool(entry, forwardedArgs.value, groupId, deps);
+	const execution = await executeTool(entry, forwardedArgs.value, groupId, deps, consumerKey);
 	if (execution.rejection) {
 		return { kind: "refused", rejection: execution.rejection };
 	}
 
 	return inspectResult(deps, entry, {
 		args,
+		consumerKey,
 		groupId,
 		rawResult: execution.value,
 	});
@@ -95,6 +104,7 @@ function checkGrant(
 	entry: CatalogEntry,
 	groupId: string,
 	deps: GovernorDeps,
+	consumerKey?: string,
 ): ToolRejection | undefined {
 	if (deps.grants.isGranted(groupId, entry.name)) {
 		return;
@@ -106,6 +116,7 @@ function checkGrant(
 	};
 	deps.audit.record(
 		auditEvent("interaction", {
+			consumerKey: consumerKey ?? "(none)",
 			controlId: rejection.control,
 			detail: `tool call denied (ungranted): ${entry.name}`,
 			groupId,
@@ -116,11 +127,13 @@ function checkGrant(
 	return rejection;
 }
 
+// biome-ignore lint/complexity/useMaxParams: governance phases share (entry, args, groupId, deps, consumerKey) positionally
 async function inspectArgs(
 	entry: CatalogEntry,
 	args: unknown,
 	groupId: string,
 	deps: GovernorDeps,
+	consumerKey?: string,
 ): Promise<PhaseResult> {
 	const serializedArgs = JSON.stringify(args ?? {});
 	const outcome = await guardInteraction(
@@ -133,7 +146,7 @@ async function inspectArgs(
 			tool: { arguments: args, name: entry.name },
 		},
 		deps.pipeline,
-		{ audit: deps.audit, jsonContent: true },
+		{ audit: deps.audit, consumerKey: consumerKey ?? "(none)", jsonContent: true },
 	);
 	if (outcome.rejection) {
 		return { rejection: toToolRejection(outcome.rejection) };
@@ -141,11 +154,13 @@ async function inspectArgs(
 	return { value: parseArgs(outcome.content ?? serializedArgs) };
 }
 
+// biome-ignore lint/complexity/useMaxParams: governance phases share (entry, args, groupId, deps, consumerKey) positionally
 async function executeTool(
 	entry: CatalogEntry,
 	args: unknown,
 	groupId: string,
 	deps: GovernorDeps,
+	consumerKey?: string,
 ): Promise<PhaseResult> {
 	try {
 		return { value: await Promise.resolve(entry.implementation(args, groupId)) };
@@ -158,6 +173,7 @@ async function executeTool(
 		};
 		deps.audit.record(
 			auditEvent("failure", {
+				consumerKey: consumerKey ?? "(none)",
 				controlId: rejection.control,
 				detail,
 				groupId,
@@ -172,7 +188,12 @@ async function executeTool(
 async function inspectResult(
 	deps: GovernorDeps,
 	entry: CatalogEntry,
-	call: { args: unknown; rawResult: unknown; groupId: string },
+	call: {
+		args: unknown;
+		consumerKey?: string | undefined;
+		groupId: string;
+		rawResult: unknown;
+	},
 ): Promise<ToolCallOutcome> {
 	const serializedResult = serializeResult(call.rawResult);
 	const outcome = await guardInteraction(
@@ -185,7 +206,7 @@ async function inspectResult(
 			tool: { arguments: call.args, name: entry.name },
 		},
 		deps.pipeline,
-		{ audit: deps.audit, jsonContent: true },
+		{ audit: deps.audit, consumerKey: call.consumerKey ?? "(none)", jsonContent: true },
 	);
 	if (outcome.rejection) {
 		return { kind: "refused", rejection: toToolRejection(outcome.rejection) };

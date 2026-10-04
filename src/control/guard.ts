@@ -46,6 +46,8 @@ export interface GuardOutcome {
 
 export interface GuardOptions {
 	audit?: AuditSink | undefined;
+	/** Raw consumer key the caller presented; recorded as `"(none)"` when absent. */
+	consumerKey?: string | undefined;
 	/** Serialize as JSON (tool arguments/results) instead of plain text. */
 	jsonContent?: boolean | undefined;
 }
@@ -84,6 +86,7 @@ export async function guardInteraction(
 		auditEvent("interaction", {
 			// The pipeline's blocking control covers block/escalate/redact;
 			// a clean allow belongs to the pipeline as a whole, never "none".
+			consumerKey: options.consumerKey ?? "(none)",
 			controlId: inspection.blockingControl ?? "pipeline",
 			detail: inspection.failure,
 			groupId: interaction.groupId,
