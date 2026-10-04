@@ -29,6 +29,39 @@ export function applyRedactions(content: string, spans: readonly RedactionSpan[]
 }
 
 /**
+ * Collect redactable spans from control findings.
+ *
+ * Deterministic and signature tiers each filtered findings for
+ * `action === "redact"` with a non-null placeholder (and, for signatures,
+ * a non-null span) and mapped them to {@link RedactionSpan}. The filters
+ * and the mapping live here; tiers only normalize their finding shape.
+ */
+export interface RedactableFinding {
+	readonly action: string;
+	readonly detectorId: string;
+	readonly kind: string;
+	readonly placeholder: string | null;
+	readonly span: { readonly end: number; readonly start: number } | null;
+}
+
+/** Redaction spans for every finding that carries a placeholder. */
+export function redactionsFromFindings(findings: readonly RedactableFinding[]): RedactionSpan[] {
+	const redactions: RedactionSpan[] = [];
+	for (const finding of findings) {
+		if (finding.action !== "redact" || finding.placeholder === null || finding.span === null) {
+			continue;
+		}
+		redactions.push({
+			detectorId: finding.detectorId,
+			end: finding.span.end,
+			kind: finding.kind,
+			placeholder: finding.placeholder,
+			start: finding.span.start,
+		});
+	}
+	return redactions;
+}
+/**
  * Redact serialized JSON content (tool arguments, tool results) and re-parse
  * it. When redaction breaks the JSON structure, every string leaf is replaced
  * with a generic placeholder so nothing sensitive can survive the fallback.
@@ -39,7 +72,16 @@ export function redactJson(content: string, spans: readonly RedactionSpan[]): st
 		JSON.parse(redacted);
 		return redacted;
 	} catch {
-		return JSON.stringify(redactStringLeaves(JSON.parse(content)));
+		// Redaction broke the JSON structure: replace every string leaf so
+		// nothing sensitive survives. `content` itself may not be JSON either
+		// (enforcement runs outside the inspection try), so a second
+		// unparseable input fails closed to a placeholder instead of
+		// throwing out of `guardInteraction`.
+		try {
+			return JSON.stringify(redactStringLeaves(JSON.parse(content)));
+		} catch {
+			return '"[REDACTED]"';
+		}
 	}
 }
 

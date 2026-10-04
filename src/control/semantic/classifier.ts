@@ -182,7 +182,7 @@ function mapFailure(error: unknown, deadline: Deadline, name: string, timeoutMs:
 			? new SemanticTimeoutError(`semantic: ${name} did not answer within ${timeoutMs}ms`, {
 					cause: error,
 				})
-			: new Error("semantic: evaluation aborted by caller");
+			: new Error("semantic: evaluation aborted by caller", { cause: error });
 	}
 	// `decide()` rejects answers that do not match their question definition
 	// before we ever see them. That is a schema-contract violation, not an

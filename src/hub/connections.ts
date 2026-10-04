@@ -23,6 +23,8 @@ import {
 	type TransportInput,
 } from "@tanstack/ai-mcp";
 import { type AuditSink, auditEvent, noopAuditSink } from "#/control/audit.ts";
+import { describeError } from "#/lib/errors.ts";
+import { parseJsonOrForward } from "#/lib/json.ts";
 import type { AdmissionResult, ToolImplementation, ToolRegistration } from "./catalog.ts";
 import { type HubConfig, isEgressAllowed } from "./config.ts";
 import type { GrantRegistry } from "./grants.ts";
@@ -169,7 +171,7 @@ async function connectOne(
 		return recordEstablished(state, request, () => client.close(), info);
 	} catch (error) {
 		await client.close();
-		return reject(state, request, error instanceof Error ? error.message : String(error));
+		return reject(state, request, describeError(error));
 	}
 }
 
@@ -240,23 +242,24 @@ function transportFor(request: ConnectRequest, fetchOverride?: typeof fetch): Tr
  * payload (JSON parsed when possible), or the list of text parts.
  */
 function unwrapToolResult(rawResult: unknown): unknown {
-	const result = rawResult as {
-		content?: Array<{ text?: string | undefined }>;
-		structuredContent?: unknown;
-	};
-	if (result.structuredContent !== undefined) {
-		return result.structuredContent;
+	if (typeof rawResult !== "object" || rawResult === null) {
+		return rawResult;
 	}
-	const texts = (result.content ?? [])
-		.filter((part) => typeof part.text === "string")
-		.map((part) => part.text ?? "");
+	const { content, structuredContent }: { content?: unknown; structuredContent?: unknown } =
+		rawResult;
+	if (structuredContent !== undefined) {
+		return structuredContent;
+	}
+	if (!Array.isArray(content)) {
+		return [];
+	}
+	const texts = content
+		.filter((part): part is { text?: unknown } => typeof part === "object" && part !== null)
+		.map((part) => part.text)
+		.filter((text): text is string => typeof text === "string");
 	const single = texts.length === 1 ? texts[0] : undefined;
 	if (single !== undefined) {
-		try {
-			return JSON.parse(single);
-		} catch {
-			return single;
-		}
+		return parseJsonOrForward(single);
 	}
 	return texts;
 }

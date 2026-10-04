@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { auditEvent } from "#/control/audit.ts";
-import { identityFromRequest } from "#/control/subjects.ts";
+import { identityFromRequest, identityRejection } from "#/control/subjects.ts";
 import { getHub } from "#/hub/runtime.ts";
 
 /**
@@ -19,24 +18,7 @@ async function handle(request: Request): Promise<Response> {
 	const resolution = hub.identity.resolve(presented.userId, presented.groupId);
 
 	if (!resolution.ok) {
-		hub.audit.record(
-			auditEvent("interaction", {
-				controlId: "caller-identity",
-				detail: `caller identity rejected: ${resolution.reason}`,
-				groupId: resolution.groupId,
-				userId: resolution.userId,
-				verdict: "block",
-			}),
-		);
-		return Response.json(
-			{
-				control: "caller-identity",
-				error: "rejected",
-				reason: resolution.reason,
-				verdict: "block",
-			},
-			{ status: 403 },
-		);
+		return identityRejection(resolution, hub.audit);
 	}
 
 	return hub.server(resolution.identity.groupId).fetch(request);

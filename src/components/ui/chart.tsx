@@ -170,7 +170,7 @@ function ChartTooltipContent({
 		return <div className={cn("font-medium", labelClassName)}>{value}</div>;
 	}, [label, labelFormatter, payload, hideLabel, labelClassName, config, labelKey]);
 
-	if (!(active && payload?.length > 0)) {
+	if (!(active && payload.length > 0)) {
 		return null;
 	}
 
@@ -328,14 +328,15 @@ function getPayloadConfigFromPayload(config: ChartConfig, payload: unknown, key:
 
 	let configLabelKey: string = key;
 
-	if (key in payload && typeof payload[key as keyof typeof payload] === "string") {
-		configLabelKey = payload[key as keyof typeof payload] as string;
-	} else if (
-		payloadPayload &&
-		key in payloadPayload &&
-		typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
-	) {
-		configLabelKey = payloadPayload[key as keyof typeof payloadPayload] as string;
+	const candidate: unknown = key in payload ? (payload as Record<string, unknown>)[key] : undefined;
+	if (typeof candidate === "string") {
+		configLabelKey = candidate;
+	} else if (payloadPayload !== undefined) {
+		const nested: unknown =
+			key in payloadPayload ? (payloadPayload as Record<string, unknown>)[key] : undefined;
+		if (typeof nested === "string") {
+			configLabelKey = nested;
+		}
 	}
 
 	return configLabelKey in config ? config[configLabelKey] : config[key];

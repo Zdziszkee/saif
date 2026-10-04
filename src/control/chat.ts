@@ -7,16 +7,12 @@
  * the hub's MCP surface is tools-only.
  */
 
+import { createIdSequence } from "#/lib/ids.ts";
 import type { AuditSink } from "./audit.ts";
 import { guardInteraction } from "./guard.ts";
 import type { ControlPipeline, Verdict } from "./types.ts";
 
-let chatSequence = 0;
-
-function nextChatInteractionId(): string {
-	chatSequence += 1;
-	return `chat_${Date.now()}_${chatSequence}`;
-}
+const nextChatInteractionId = createIdSequence("chat");
 
 export type ChatAsk = (prompt: string) => Promise<string>;
 

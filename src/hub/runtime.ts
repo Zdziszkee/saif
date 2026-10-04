@@ -22,6 +22,7 @@ import { createControlPipeline } from "#/control/pipeline.ts";
 import { createLiveDetectionControl } from "#/control/policy/live-control.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
 import type { Policy } from "#/control/policy/schema.ts";
+import { policyUnavailableControl } from "#/control/policy/unavailable.ts";
 import { SEMANTIC_DEFAULTS } from "#/control/semantic/config.ts";
 import { createSemanticControl } from "#/control/semantic/control.ts";
 import { createJevClassifier } from "#/control/semantic/jev.ts";
@@ -62,21 +63,6 @@ let signatureFeedStore: SignatureFeedStore | undefined;
 function getSignatureFeedStore(): SignatureFeedStore {
 	signatureFeedStore ??= createSignatureFeedStore(SIGNATURES_PATH);
 	return signatureFeedStore;
-}
-
-function policyUnavailableControl(): Control {
-	return {
-		id: "policy-unavailable",
-		inspect: () => ({
-			hit: {
-				controlId: "policy-unavailable",
-				detail: "no valid policy loaded",
-				kind: "policy",
-				verdict: "block",
-			},
-			verdict: "block",
-		}),
-	};
 }
 
 /**
@@ -130,7 +116,9 @@ function assembleStages(policy: Policy, audit: AuditSink, loader: PolicyLoader):
 				getFeed: () => {
 					const snapshot = getSignatureFeedStore().snapshot();
 					if (!snapshot.ok) {
-						throw new Error(`signature feed unavailable: ${snapshot.errors[0]?.message}`);
+						throw new Error(
+							`signature feed unavailable: ${snapshot.errors[0]?.message ?? "unknown feed error"}`,
+						);
 					}
 					return snapshot.feed;
 				},

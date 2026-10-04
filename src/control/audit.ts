@@ -100,12 +100,21 @@ export function isAuditDecision(event: { kind?: string; verdict?: unknown }): bo
  */
 export function readAuditEvents(sink: AuditSink): readonly AuditEvent[] {
 	if ("events" in sink) {
-		const { events } = sink as { events?: unknown };
+		const { events }: { events?: unknown } = sink;
 		if (Array.isArray(events)) {
-			return events as AuditEvent[];
+			return events.filter((event): event is AuditEvent => isAuditEvent(event));
 		}
 	}
 	return [];
+}
+
+/** Narrowing guard for audit events read through the duck-typed `events` access. */
+function isAuditEvent(event: unknown): event is AuditEvent {
+	if (typeof event !== "object" || event === null) {
+		return false;
+	}
+	const record = event as { kind?: unknown; timestamp?: unknown };
+	return typeof record.kind === "string" && typeof record.timestamp === "string";
 }
 
 export interface AuditDecisionSummary {

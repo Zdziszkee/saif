@@ -12,6 +12,8 @@
  * silently inheriting someone else's guardrails would be a security hole.
  */
 
+import { type AuditSink, auditEvent } from "./audit.ts";
+
 export const USER_ID_HEADER = "x-user-id";
 export const USER_GROUP_ID_HEADER = "x-user-group-id";
 
@@ -104,6 +106,38 @@ export function identityPolicyFromDocument(
 	groups: Readonly<Record<string, unknown>>,
 ): IdentityPolicy {
 	return { knownGroups: Object.keys(groups).sort() };
+}
+
+/**
+ * The defined rejection for an unusable caller identity. A missing identity or
+ * an unknown group is never a fallback to another caller's configuration.
+ *
+ * Both request seams (guard API, MCP route) answer through this helper so the
+ * audited 403 stays identical on each — the shape was already duplicated
+ * verbatim before extraction.
+ */
+export function identityRejection(
+	resolution: Extract<IdentityResolution, { ok: false }>,
+	audit: AuditSink,
+): Response {
+	audit.record(
+		auditEvent("interaction", {
+			controlId: "caller-identity",
+			detail: `caller identity rejected: ${resolution.reason}`,
+			groupId: resolution.groupId,
+			userId: resolution.userId,
+			verdict: "block",
+		}),
+	);
+	return Response.json(
+		{
+			control: "caller-identity",
+			error: "rejected",
+			reason: resolution.reason,
+			verdict: "block",
+		},
+		{ status: 403 },
+	);
 }
 
 /**

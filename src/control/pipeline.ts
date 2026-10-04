@@ -9,6 +9,7 @@
  * arrive with their own spec modules and are injected as {@link Control}s.
  */
 
+import { describeError } from "#/lib/errors.ts";
 import { type AuditSink, auditEvent, noopAuditSink } from "./audit.ts";
 import {
 	type Control,
@@ -18,10 +19,10 @@ import {
 	type InspectionResult,
 	type Interaction,
 	isVerdict,
-	OUTCOME_SEVERITY,
 	type RedactionSpan,
 	type Verdict,
 } from "./types.ts";
+import { isMoreSevere } from "./verdicts.ts";
 
 export interface ControlPipelineOptions {
 	audit?: AuditSink | undefined;
@@ -99,7 +100,7 @@ function mergeControlResult(
 	if (result.redactions && result.redactions.length > 0) {
 		state.redactions.push(...result.redactions);
 	}
-	if (OUTCOME_SEVERITY[result.verdict] > OUTCOME_SEVERITY[state.verdict]) {
+	if (isMoreSevere(result.verdict, state.verdict)) {
 		state.verdict = result.verdict;
 		state.blockingControl = result.verdict === "allow" ? undefined : controlId;
 	}
@@ -127,12 +128,12 @@ function failClosed(
 	);
 	let verdict: Verdict;
 	let blockingControl: string | undefined;
-	if (OUTCOME_SEVERITY[state.verdict] >= OUTCOME_SEVERITY[failure.failureVerdict]) {
-		verdict = state.verdict;
-		blockingControl = state.verdict === "allow" ? undefined : state.blockingControl;
-	} else {
+	if (isMoreSevere(failure.failureVerdict, state.verdict)) {
 		verdict = failure.failureVerdict;
 		blockingControl = failure.failureVerdict === "allow" ? undefined : failure.controlId;
+	} else {
+		verdict = state.verdict;
+		blockingControl = state.verdict === "allow" ? undefined : state.blockingControl;
 	}
 	return {
 		blockingControl,
@@ -162,7 +163,7 @@ async function runControl(
 		]);
 		return validateResult(inspected, interaction);
 	} catch (error) {
-		return { error: error instanceof Error ? error.message : String(error), ok: false };
+		return { error: describeError(error), ok: false };
 	} finally {
 		if (timer !== undefined) {
 			clearTimeout(timer);

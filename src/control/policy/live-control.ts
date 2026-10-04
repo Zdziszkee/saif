@@ -10,6 +10,7 @@
  */
 
 import { createDeterministicControl } from "#/control/deterministic/control.ts";
+import { policyUnavailableResult } from "#/control/policy/unavailable.ts";
 import type { Control, ControlResult, Interaction } from "#/control/types.ts";
 import type { DetectionConfig } from "./schema.ts";
 
@@ -26,15 +27,7 @@ export function createLiveDetectionControl(getActive: () => ActiveDetection | un
 		inspect: (interaction: Interaction): ControlResult | Promise<ControlResult> => {
 			const active = getActive();
 			if (active === undefined) {
-				return {
-					hit: {
-						controlId: "policy-unavailable",
-						detail: "no valid policy loaded",
-						kind: "policy",
-						verdict: "block",
-					},
-					verdict: "block",
-				};
+				return policyUnavailableResult();
 			}
 			if (bound === undefined || bound.policyVersion !== active.policyVersion) {
 				bound = {

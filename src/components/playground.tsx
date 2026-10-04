@@ -93,9 +93,12 @@ export function GuardForm(props: GuardFormProps) {
 				<select
 					className="rounded-md border border-gray-300 px-2 py-1 text-sm"
 					id={directionId}
-					onChange={(event) =>
-						props.onDirectionChange(event.target.value as "inbound" | "outbound")
-					}
+					onChange={(event) => {
+						const value: unknown = event.target.value;
+						if (value === "inbound" || value === "outbound") {
+							props.onDirectionChange(value);
+						}
+					}}
 					value={props.direction}
 				>
 					<option value="inbound">inbound</option>
@@ -107,9 +110,12 @@ export function GuardForm(props: GuardFormProps) {
 				<select
 					className="rounded-md border border-gray-300 px-2 py-1 text-sm"
 					id={seamId}
-					onChange={(event) =>
-						props.onSeamChange(event.target.value as "chat" | "guard-api" | "mcp-tool")
-					}
+					onChange={(event) => {
+						const value: unknown = event.target.value;
+						if (value === "chat" || value === "guard-api" || value === "mcp-tool") {
+							props.onSeamChange(value);
+						}
+					}}
 					value={props.seam}
 				>
 					<option value="chat">chat</option>

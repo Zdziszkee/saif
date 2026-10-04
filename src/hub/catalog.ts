@@ -63,9 +63,13 @@ export function toolSchemaText(request: ToolRegistration, inputSchema: unknown):
 /** Normalize a zod or plain-JSON schema to a JSON-schema object. */
 export function toJsonSchema(schema: unknown): Record<string, unknown> {
 	if (schema instanceof z.ZodType) {
-		return z.toJSONSchema(schema, { io: "input" }) as Record<string, unknown>;
+		const converted: unknown = z.toJSONSchema(schema, { io: "input" });
+		if (converted !== null && typeof converted === "object" && !Array.isArray(converted)) {
+			return converted as Record<string, unknown>;
+		}
+		return {};
 	}
-	if (schema !== null && typeof schema === "object") {
+	if (schema !== null && typeof schema === "object" && !Array.isArray(schema)) {
 		return schema as Record<string, unknown>;
 	}
 	return {};

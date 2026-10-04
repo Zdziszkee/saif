@@ -8,6 +8,7 @@
  * `escalate` never forward and return the defined rejection shape.
  */
 
+import { describeError } from "#/lib/errors.ts";
 import { type AuditSink, auditEvent, noopAuditSink } from "./audit.ts";
 import { applyRedactions, redactJson } from "./redact.ts";
 import {
@@ -23,6 +24,16 @@ export interface GuardRejection {
 	control: string;
 	status: number;
 	verdict: Verdict;
+}
+
+/**
+ * Caller-facing error kind for a refusing verdict: `escalate` surfaces as
+ * `escalated` (human review), every other refusal as `blocked`. The guard
+ * API and the hub's tool rejection share this so the same verdict never
+ * renders two different error strings on two seams.
+ */
+export function rejectionKind(verdict: Verdict): "blocked" | "escalated" {
+	return verdict === "escalate" ? "escalated" : "blocked";
 }
 
 export interface GuardOutcome {
@@ -56,7 +67,7 @@ export async function guardInteraction(
 	try {
 		inspection = await pipeline.inspect(interaction);
 	} catch (error) {
-		const failure = error instanceof Error ? error.message : String(error);
+		const failure = describeError(error);
 		inspection = {
 			blockingControl: "pipeline",
 			content: interaction.content,

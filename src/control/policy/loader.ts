@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
 import { watch } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { sha256Hex } from "#/control/hash.ts";
 import type { Policy } from "#/control/policy/schema.ts";
 import { parsePolicy } from "#/control/policy/schema.ts";
 
@@ -31,7 +31,7 @@ function canonicalJson(value: unknown): string {
 		return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
 	}
 	if (value !== null && typeof value === "object") {
-		const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) => {
+		const entries = Object.entries(value).sort(([left], [right]) => {
 			if (left === right) {
 				return 0;
 			}
@@ -47,7 +47,7 @@ function canonicalJson(value: unknown): string {
 function deepFreeze<T>(value: T): T {
 	if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
 		Object.freeze(value);
-		for (const item of Object.values(value as Record<string, unknown>)) {
+		for (const item of Object.values(value)) {
 			deepFreeze(item);
 		}
 	}
@@ -135,7 +135,7 @@ export class PolicyLoader {
 		if (!parsed.success) {
 			return { issues: parsed.issues, ok: false };
 		}
-		const policyVersion = createHash("sha256").update(canonicalJson(document)).digest("hex");
+		const policyVersion = sha256Hex(canonicalJson(document));
 		const snapshot: PolicySnapshot = deepFreeze({
 			policy: deepFreeze(parsed.policy),
 			policyVersion,

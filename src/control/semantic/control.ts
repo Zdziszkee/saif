@@ -8,7 +8,8 @@
  * classifier failures propagate so the pipeline fails closed.
  */
 
-import { type Control, type ControlResult, OUTCOME_SEVERITY, type Verdict } from "../types.ts";
+import type { Control, ControlResult } from "../types.ts";
+import { isMoreSevere, splitOutcome } from "../verdicts.ts";
 import { SemanticInvalidAnswerError } from "./errors.ts";
 import type {
 	SemanticCheck,
@@ -24,7 +25,9 @@ export interface SemanticControlOptions {
 
 function ladderVerdict(
 	probability: number,
-	ladder: { block?: number; flag?: number; redact?: number } | undefined,
+	ladder:
+		| { block?: number | undefined; flag?: number | undefined; redact?: number | undefined }
+		| undefined,
 ): "allow" | "block" | "flag" | "redact" {
 	if (ladder?.block !== undefined && probability >= ladder.block) {
 		return "block";
@@ -67,7 +70,7 @@ function scoreChecks(
 		}
 		const outcome = ladderVerdict(answer.probability, ladder);
 		scored.push(`${check.id}=${answer.probability.toFixed(2)}`);
-		if (OUTCOME_SEVERITY[outcome] > OUTCOME_SEVERITY[worst]) {
+		if (isMoreSevere(outcome, worst)) {
 			worst = outcome;
 			worstCheck = check.id;
 		}
@@ -90,13 +93,13 @@ function resultForScore(scored: ScoredChecks, uncertain: boolean): ControlResult
 	if (scored.outcome === "allow") {
 		return { verdict: "allow" };
 	}
-	const verdict: Verdict = scored.outcome === "flag" ? "allow" : scored.outcome;
+	const { hitVerdict, verdict } = splitOutcome(scored.outcome);
 	return {
 		hit: {
 			controlId: "semantic",
 			detail: `${scored.kind}: ${scored.detail}`,
 			kind: scored.kind,
-			verdict: scored.outcome === "flag" ? "flag" : scored.outcome,
+			verdict: hitVerdict,
 		},
 		verdict,
 	};

@@ -1,3 +1,4 @@
+import { scanMatches } from "#/control/scan.ts";
 import namesData from "../../../data/names.json" with { type: "json" };
 
 export interface NameMatch {
@@ -95,24 +96,14 @@ const lowercaseWord = /[\p{Ll}'’-]+/gu;
 
 function tokenize(text: string): Token[] {
 	const tokens: Token[] = [];
-	for (const match of text.matchAll(capitalizedWord)) {
-		const value = match[0];
-		const start = match.index;
-		if (value === undefined || start === undefined) {
-			continue;
-		}
+	scanMatches(text, capitalizedWord, (value, start) => {
 		tokens.push({ end: start + value.length, particle: false, start, value });
-	}
-	for (const match of text.matchAll(lowercaseWord)) {
-		const value = match[0];
-		const start = match.index;
-		if (value === undefined || start === undefined) {
-			continue;
-		}
+	});
+	scanMatches(text, lowercaseWord, (value, start) => {
 		if (surnameParticles.has(normalize(value))) {
 			tokens.push({ end: start + value.length, particle: true, start, value });
 		}
-	}
+	});
 	return tokens.sort((a, b) => a.start - b.start);
 }
 
