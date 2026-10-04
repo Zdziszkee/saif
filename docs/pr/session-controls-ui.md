@@ -15,3 +15,19 @@ File writes remain the persistence model: the UI posts a full validated `Policy`
 - `bun run verify` (`tsc --noEmit && biome check .`): clean — Checked 185 files, no fixes applied.
 - `bun test --path-ignore-patterns tests/integration`: 702 pass, 0 fail across 55 files.
 - `bun --bun vite build`: success, regenerated `src/routeTree.gen.ts` for `/controls` and `/api/policy` (only expected Radix `MODULE_LEVEL_DIRECTIVE` notes).
+
+## Polish batch
+
+- Threshold inputs in `profiles-editor` are spinner-free text inputs: empty input reverts to the current value on blur, non-numeric input reverts, numeric input is clamped to [0, 1] before `onChange`.
+- Controls route loader/save goes through SSR-safe server functions (`getPolicyDocument`/`updatePolicyDocument` in `policy-server.ts`) instead of `fetch("/api/policy")`.
+- Hub refresh parity: `updatePolicyDocument` calls `refreshHubAfterPolicyWrite()` on success, matching the `POST /api/policy` write path.
+- Single Overview: `/` accepts `?consumer=`/`?role=` search params and renders `ActivitySections` below the dashboard; `/dashboard` redirects to `/` forwarding validated search params; `__root` nav keeps Overview only.
+- Escalation filter aligns to the subject-or-consumer mapping (`filterEscalationsByRole` over `selectEscalations` output); `dashboard.tsx` no longer duplicates the escalation queue.
+- Activity sections use plain anchor `href`s for consumer/scope links instead of router `Link`s.
+- Test updates: `dashboard.test.ts` renders `ActivitySections` for escalation scope cases; new `controls-polish.test.ts` covers threshold commit/search validation; new `activity-sections.test.ts` covers scope banner, consumer hrefs, and empty states.
+
+## Validation (polish batch)
+
+- `bun run verify` (`tsc --noEmit && biome check .`): clean — Checked 188 files, no fixes applied.
+- `bun test --path-ignore-patterns tests/integration`: 717 pass, 0 fail across 57 files.
+- `bun --bun vite build`: success (only expected Radix `MODULE_LEVEL_DIRECTIVE` notes); `routeTree.gen.ts` unchanged (route shapes stable).

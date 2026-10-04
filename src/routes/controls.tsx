@@ -11,6 +11,7 @@ import {
 } from "#/components/controls/controls-view.tsx";
 import { Separator } from "#/components/ui/separator.tsx";
 import { type Policy, policySchema } from "#/control/policy/schema.ts";
+import { getPolicyDocument, updatePolicyDocument } from "#/dashboard/policy-server.ts";
 
 interface PolicyPayload {
 	policy: Policy;
@@ -38,13 +39,6 @@ interface PolicyPayloadBody {
 interface IssueBody {
 	message?: unknown;
 	path?: unknown;
-}
-
-interface SaveResponseBody {
-	issues?: unknown;
-	ok?: unknown;
-	policy?: unknown;
-	policyVersion?: unknown;
 }
 
 function parsePolicyPayload(body: unknown): PolicyPayload | null {
@@ -92,11 +86,15 @@ function parseIssues(value: unknown): SaveIssue[] {
 
 async function loadPolicy(): Promise<PolicyPayload | null> {
 	try {
-		const response = await fetch("/api/policy");
-		if (!response.ok) {
-			return null;
+		const document = await getPolicyDocument();
+		const payload = parsePolicyPayload({
+			policy: document.policy,
+			policyVersion: document.policyVersion,
+		});
+		if (payload !== null) {
+			return payload;
 		}
-		return parsePolicyPayload(await response.json());
+		return { policy: document.policy, version: document.policyVersion };
 	} catch {
 		return null;
 	}
@@ -104,23 +102,13 @@ async function loadPolicy(): Promise<PolicyPayload | null> {
 
 async function postPolicy(policy: Policy, baseVersion: string): Promise<SaveResult> {
 	try {
-		const response = await fetch("/api/policy", {
-			body: JSON.stringify({ baseVersion, policy }),
-			headers: { "content-type": "application/json" },
-			method: "POST",
-		});
-		const json: unknown = await response.json();
-		if (!isRecord(json)) {
-			return { issues: [{ message: SAVE_FAILED_MESSAGE, path: "" }], payload: null };
-		}
-		const body: SaveResponseBody = json;
-		const issues = parseIssues(body.issues);
-		if (body.ok !== true) {
-			return { issues, payload: null };
+		const result = await updatePolicyDocument({ data: { baseVersion, policy } });
+		if (!result.ok) {
+			return { issues: parseIssues(result.issues), payload: null };
 		}
 		const payload = parsePolicyPayload({
-			policy: body.policy ?? policy,
-			policyVersion: body.policyVersion ?? baseVersion,
+			policy: result.policy,
+			policyVersion: result.policyVersion,
 		});
 		if (payload === null) {
 			return { issues: [{ message: SAVE_FAILED_MESSAGE, path: "" }], payload: null };

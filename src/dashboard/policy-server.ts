@@ -5,6 +5,7 @@ import {
 	type SavePolicyResult,
 	savePolicyDocument,
 } from "#/control/policy/store.ts";
+import { refreshHubAfterPolicyWrite } from "#/hub/runtime.ts";
 
 /**
  * Server-function wrappers over the file-backed policy store for TanStack
@@ -34,7 +35,10 @@ export const getPolicyDocument = createServerFn({ method: "GET" }).handler(
 
 export const updatePolicyDocument = createServerFn({ method: "POST" })
 	.validator((data: { baseVersion: string; policy: unknown }) => data)
-	.handler(
-		async ({ data }): Promise<SavePolicyResult> =>
-			savePolicyDocument(data.policy, data.baseVersion),
-	);
+	.handler(async ({ data }): Promise<SavePolicyResult> => {
+		const result = await savePolicyDocument(data.policy, data.baseVersion);
+		if (result.ok) {
+			refreshHubAfterPolicyWrite();
+		}
+		return result;
+	});

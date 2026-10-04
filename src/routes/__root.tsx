@@ -50,7 +50,9 @@ function NotFound() {
 				</CardHeader>
 				<CardContent>
 					<Button asChild={true}>
-						<Link to="/">Go home</Link>
+						<Link search={{ consumer: undefined, role: undefined }} to="/">
+							Go home
+						</Link>
 					</Button>
 				</CardContent>
 			</Card>
@@ -74,18 +76,10 @@ function RootDocument({ children }: { children: ReactNode }) {
 									<Link
 										activeOptions={{ exact: true }}
 										activeProps={{ className: "bg-accent text-accent-foreground" }}
+										search={{ consumer: undefined, role: undefined }}
 										to="/"
 									>
 										Overview
-									</Link>
-								</Button>
-								<Button asChild={true} size="sm" variant="ghost">
-									<Link
-										activeProps={{ className: "bg-accent text-accent-foreground" }}
-										search={{ consumer: undefined, role: undefined }}
-										to="/dashboard"
-									>
-										Activity
 									</Link>
 								</Button>
 								<Button asChild={true} size="sm" variant="ghost">

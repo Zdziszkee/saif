@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { CheckRow } from "#/components/controls/fields.tsx";
 import { PROFILE_NAMES, type ProfileName } from "#/components/controls/options.ts";
 import {
@@ -26,7 +27,6 @@ const MIN_THRESHOLD = 0;
 const THRESHOLD_CONTROLS: readonly ThresholdControl[] = ["detection", "semantic", "signatures"];
 const THRESHOLD_DIRECTIONS: readonly ThresholdDirection[] = ["inbound", "outbound"];
 const THRESHOLD_KINDS: readonly ThresholdKind[] = ["block", "escalate", "redact"];
-const THRESHOLD_STEP = 0.05;
 
 interface ProfilesEditorProps {
 	draft: Policy;
@@ -133,22 +133,44 @@ function ThresholdInput({
 	onChange: (next: number) => void;
 	value: number;
 }) {
+	const [text, setText] = useState(String(value));
+	useEffect(() => {
+		setText(String(value));
+	}, [value]);
+	const commit = () => {
+		if (text.trim() === "") {
+			setText(String(value));
+			return;
+		}
+		const parsed = Number(text);
+		if (Number.isNaN(parsed)) {
+			setText(String(value));
+			return;
+		}
+		const clamped = Math.min(MAX_THRESHOLD, Math.max(MIN_THRESHOLD, parsed));
+		if (clamped !== value) {
+			onChange(clamped);
+		} else if (text !== String(value)) {
+			setText(String(value));
+		}
+	};
 	return (
 		<input
 			aria-label={label}
+			autoComplete="off"
 			className="w-20 rounded-md border border-input bg-transparent px-2 py-1 text-right text-sm tabular-nums shadow-xs outline-none focus-visible:border-ring"
-			max={MAX_THRESHOLD}
-			min={MIN_THRESHOLD}
-			onChange={(event) => {
-				const next = Number(event.target.value);
-				if (Number.isNaN(next)) {
-					return;
+			inputMode="decimal"
+			onBlur={commit}
+			onChange={(event) => setText(event.target.value)}
+			onKeyDown={(event) => {
+				if (event.key === "Enter") {
+					event.currentTarget.blur();
 				}
-				onChange(Math.min(MAX_THRESHOLD, Math.max(MIN_THRESHOLD, next)));
 			}}
-			step={THRESHOLD_STEP}
-			type="number"
-			value={value}
+			pattern="[0-9]*[.]?[0-9]*"
+			title="Enter a number from 0 to 1"
+			type="text"
+			value={text}
 		/>
 	);
 }

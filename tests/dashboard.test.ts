@@ -9,6 +9,7 @@ import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { ActivitySections } from "#/components/dashboard/activity-sections.tsx";
 import { Dashboard } from "#/components/dashboard/dashboard.tsx";
 import {
 	BudgetSection,
@@ -70,7 +71,7 @@ describe("dashboard rendering against fixture data", () => {
 			"Latency",
 			"Controls in force",
 			"Strictness profiles",
-			"Escalation queue",
+			"People",
 		]) {
 			expect(html).toContain(heading);
 		}
@@ -308,10 +309,10 @@ describe("dashboard people section", () => {
 
 	it("scopes the escalation queue by role through the consumer mapping", () => {
 		const html = renderDashboard(
-			createElement(Dashboard, {
-				initialData: PEOPLE_DATA,
-				initialRole: "admin",
-				onRefresh: async () => PEOPLE_DATA,
+			createElement(ActivitySections, {
+				consumer: undefined,
+				data: PEOPLE_DATA,
+				role: "admin",
 			}),
 		);
 		expect(html).toContain("signature suspect signals above threshold");
@@ -321,7 +322,11 @@ describe("dashboard people section", () => {
 
 	it("keeps every escalation without a role filter", () => {
 		const html = renderDashboard(
-			createElement(Dashboard, { initialData: PEOPLE_DATA, onRefresh: async () => PEOPLE_DATA }),
+			createElement(ActivitySections, {
+				consumer: undefined,
+				data: PEOPLE_DATA,
+				role: undefined,
+			}),
 		);
 		expect(html).toContain("signature suspect signals above threshold");
 		expect(html).toContain("semantic decisiveness below floor");

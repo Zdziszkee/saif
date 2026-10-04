@@ -7,15 +7,10 @@ import {
 } from "#/components/dashboard/metric-sections.tsx";
 import { PeopleSection } from "#/components/dashboard/people-sections.tsx";
 import { roleLabel } from "#/components/dashboard/persons.ts";
-import {
-	ControlsSection,
-	EscalationsSection,
-	ProfilesSection,
-} from "#/components/dashboard/policy-sections.tsx";
+import { ControlsSection, ProfilesSection } from "#/components/dashboard/policy-sections.tsx";
 import {
 	ALL_ROLES,
 	distinctRoles,
-	filterEscalationsByRole,
 	type PeopleTableRow,
 	toPeopleRows,
 	useConsumerScope,
@@ -32,14 +27,13 @@ import {
 	SelectValue,
 } from "#/components/ui/select.tsx";
 import { Separator } from "#/components/ui/separator.tsx";
-import { selectEscalations, selectMetrics } from "#/dashboard/data.ts";
+import { selectMetrics } from "#/dashboard/data.ts";
 import { formatTimestamp } from "#/dashboard/format.ts";
 import {
 	ALL_CONSUMERS,
 	type ConsumerMetrics,
 	type ControlSummary,
 	type DashboardData,
-	type EscalationRow,
 	type ProfileSummary,
 } from "#/dashboard/types.ts";
 
@@ -161,8 +155,9 @@ function PeopleBlock({
  * Dashboard header: title, version badges, and the consumer scope dropdown.
  * The dropdown reports through `onConsumerChange` so the route stays the
  * source of truth for `?consumer=`; no navigation happens here. The
- * `overview` variant frames posture/threats/budget/latency only (people and
- * escalations live on the Activity page); `full` keeps the legacy title.
+ * `overview` variant uses the Overview title/description; `full` keeps the
+ * legacy title. People render in `FullVariantSections` below and escalations
+ * render separately in `ActivitySections` on the Overview page.
  */
 function DashboardHeader({
 	consumer,
@@ -209,18 +204,16 @@ function DashboardHeader({
 
 /**
  * People scope for the dashboard: role state (URL-backed like the consumer
- * scope), the local person search query, the distinct roles, the filtered
- * people rows, and the role-scoped escalation queue. Keeps the `Dashboard`
- * body small; the route stays the source of truth for `?role=` through
- * `initialRole`/`onRoleChange`.
+ * scope), the local person search query, the distinct roles, and the filtered
+ * people rows. Keeps the `Dashboard` body small; the route stays the source
+ * of truth for `?role=` through `initialRole`/`onRoleChange`. Escalations
+ * render separately in `ActivitySections` on the Overview page.
  */
 function usePeopleScope(
 	data: DashboardData,
-	consumer: string,
 	initialRole: string | undefined,
 	onRoleChange: ((next: string) => void) | undefined,
 ): {
-	escalations: readonly EscalationRow[];
 	handleRoleChange: (next: string) => void;
 	peopleRows: PeopleTableRow[];
 	query: string;
@@ -235,17 +228,14 @@ function usePeopleScope(
 		() => toPeopleRows(data.byConsumer, data.personRoles, query, role),
 		[data, query, role],
 	);
-	const escalations = useMemo(
-		() => filterEscalationsByRole(selectEscalations(data, consumer), role, data.personRoles),
-		[data, consumer, role],
-	);
-	return { escalations, handleRoleChange, peopleRows, query, role, roles, setQuery };
+	return { handleRoleChange, peopleRows, query, role, roles, setQuery };
 }
 
 /**
- * Posture, threats, budget, latency, controls, and profiles sections shared
- * by both variants. Extracted so `Dashboard` stays under the function-size
- * lint budget (multi-line JSX prop lines count toward it).
+ * Posture, threats, budget, latency, controls, and profiles sections. The
+ * variant split is collapsed so these are simply the metric and policy
+ * sections. Extracted so `Dashboard` stays under the function-size lint
+ * budget (multi-line JSX prop lines count toward it).
  */
 function OverviewSections({
 	controls,
@@ -315,32 +305,26 @@ function OverviewSections({
 }
 
 /**
- * People and escalation sections, rendered only in the `full` variant (they
- * live on the Activity page, not Overview). Takes `variant` instead of a
- * route-level conditional so `Dashboard` stays under the function-size budget.
+ * People section. The `overview`/`full` variant split is collapsed (Overview
+ * merge): this always renders. Escalations render separately in
+ * `ActivitySections` on the Overview page, so they are not duplicated here.
+ * `Dashboard` keeps its `variant` prop for route compat (header copy only).
  */
 function FullVariantSections({
-	escalations,
 	onQueryChange,
 	onRoleChange,
 	query,
 	role,
 	roles,
 	rows,
-	variant,
 }: {
-	escalations: readonly EscalationRow[];
 	onQueryChange: (next: string) => void;
 	onRoleChange: (next: string) => void;
 	query: string;
 	role: string;
 	roles: readonly string[];
 	rows: readonly PeopleTableRow[];
-	variant: DashboardVariant;
 }) {
-	if (variant !== "full") {
-		return null;
-	}
 	return (
 		<>
 			<Separator />
@@ -353,11 +337,6 @@ function FullVariantSections({
 				roles={roles}
 				rows={rows}
 			/>
-
-			<div className="flex flex-col gap-3">
-				<SectionTitle description="Recent escalations awaiting review." title="Escalation queue" />
-				<EscalationsSection rows={escalations} />
-			</div>
 		</>
 	);
 }
@@ -390,8 +369,9 @@ function DashboardFooter({ generatedAt }: { generatedAt: string }) {
 /**
  * Interactive dashboard (security-observability spec): controls and profiles
  * in force, posture, threats by control/category, budget vs limits, latency
- * percentiles, escalations, versions in force, per-consumer breakdown, and
- * live refresh via polling.
+ * percentiles, people, versions in force, and live refresh via polling.
+ * Escalations and the per-consumer breakdown render separately in
+ * `ActivitySections` on the Overview page and are not duplicated here.
  *
  * `initialConsumer` seeds the consumer scope dropdown from the route's
  * `?consumer=` search param (URL is the source of truth: the effect below
@@ -401,8 +381,9 @@ function DashboardFooter({ generatedAt }: { generatedAt: string }) {
  *
  * `initialRole`/`onRoleChange` mirror that pair for the role filter from the
  * route's `?role=` search param (`undefined` means all roles). The role
- * selection filters the People table and the escalation queue; the person
- * search box stays local and is never reflected in the URL.
+ * selection filters the People table; escalations render separately in
+ * `ActivitySections` on the Overview page. The person search box stays local
+ * and is never reflected in the URL.
  */
 export function Dashboard({
 	initialConsumer,
@@ -423,8 +404,11 @@ export function Dashboard({
 }) {
 	const [data, setData] = useState<DashboardData>(initialData);
 	const { consumer, handleConsumerChange } = useConsumerScope(initialConsumer, onConsumerChange);
-	const { escalations, handleRoleChange, peopleRows, query, role, roles, setQuery } =
-		usePeopleScope(data, consumer, initialRole, onRoleChange);
+	const { handleRoleChange, peopleRows, query, role, roles, setQuery } = usePeopleScope(
+		data,
+		initialRole,
+		onRoleChange,
+	);
 
 	useEffect(() => {
 		const timer = setInterval(() => {
@@ -464,14 +448,12 @@ export function Dashboard({
 			/>
 
 			<FullVariantSections
-				escalations={escalations}
 				onQueryChange={setQuery}
 				onRoleChange={handleRoleChange}
 				query={query}
 				role={role}
 				roles={roles}
 				rows={peopleRows}
-				variant={variant}
 			/>
 
 			<DashboardFooter generatedAt={data.generatedAt} />

@@ -102,7 +102,7 @@ export function IssuesCard({ issues }: { issues: readonly SaveIssue[] }) {
 				<CardDescription>The server rejected the saved document.</CardDescription>
 			</CardHeader>
 			<CardContent>
-				<ul className="flex flex-col gap-1">
+				<ul className="flex flex-col gap-1" role="alert">
 					{issues.map((issue) => (
 						<li className="text-sm" key={`${issue.path}:${issue.message}`}>
 							<span className="font-mono">{issue.path.length > 0 ? issue.path : "(root)"}</span>
