@@ -7,7 +7,7 @@ Records every control decision in an append-only audit log, maintains real-time 
 ## ADDED Requirements
 
 ### Requirement: Append-only audit log
-The system SHALL record one append-only audit row per governed interaction, carrying exactly the fields the reporting surfaces use: event time, user id, user group id, verdict, cause, the decisive check identifier and its score, the policy version in force, and the prompt text for rejected content. Audit rows MUST NOT be modifiable through application interfaces.
+The system SHALL record one append-only audit row per governed interaction, carrying exactly the fields the reporting surfaces use: event time, user id, user group id, verdict, cause, the decisive check identifier, its numeric probability when available, and the combined scored evidence detail, the policy version in force, and the prompt text for rejected content. Audit rows MUST NOT be modifiable through application interfaces.
 
 The prompt text SHALL be stored only for `block` and `escalate` outcomes, where it is the evidence a security team needs. Allowed traffic is recorded without its content.
 
@@ -15,7 +15,7 @@ Token usage and monetary cost are NOT part of the audit row; they are recorded i
 
 #### Scenario: Blocked interaction audited
 - **WHEN** an interaction is blocked by a control
-- **THEN** an audit row records the verdict, the cause, the decisive check and its score, the policy version, the responsible user and group, and the exact prompt text
+- **THEN** an audit row records the verdict, the cause, the decisive check and its score, the combined scored evidence detail, the policy version, the responsible user and group, and the exact prompt text
 
 #### Scenario: Allowed interaction audited
 - **WHEN** an interaction is allowed
@@ -24,6 +24,21 @@ Token usage and monetary cost are NOT part of the audit row; they are recorded i
 #### Scenario: Non-check rejection audited
 - **WHEN** an interaction is rejected for a reason other than a control — missing identity, an unknown group, or an exhausted budget
 - **THEN** the audit row records the cause naming that reason and carries no check identifier
+
+#### Scenario: UI audit response carries scored evidence
+- **WHEN** the dashboard polls recent audit rows
+- **THEN** each returned event carries the decisive check identifier, its probability when available, and the combined scored evidence detail
+
+### Requirement: Stdout decision line
+The gateway SHALL write one stdout decision line per completed terminal outcome. Each line carries redaction-safe fields only — identity, direction, model, outcome, blocking control, hit counts with truncated evidence, token and cost totals, and upstream status — and MUST NOT contain raw prompt text.
+
+#### Scenario: Terminal outcome logged without content
+- **WHEN** a turn ends in any terminal outcome
+- **THEN** exactly one decision line is written carrying the outcome and the blocking control but not the prompt text
+
+#### Scenario: Settled call logged with usage
+- **WHEN** a forwarded call completes against the provider
+- **THEN** the decision line carries the observed prompt and completion token counts and the computed cost, or an unpriced marker when the model has no known price
 
 ### Requirement: Usage and cost records
 For every call forwarded to a model provider the system SHALL record a usage row: event time, user id, user group id, model, prompt and completion token counts, and computed monetary cost. A row whose model has no known price SHALL record cost as unknown rather than zero.

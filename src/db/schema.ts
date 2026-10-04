@@ -36,6 +36,8 @@ export const AUDIT_CAUSES = [
 	"classifier-failure",
 	/** The upstream provider failed after the prompt had passed validation. */
 	"upstream-failure",
+	/** The request body did not match the chat-completions schema. */
+	"malformed-request",
 ] as const;
 
 export type Verdict = (typeof VERDICTS)[number];
@@ -55,9 +57,13 @@ export const auditEvents = sqliteTable(
 		cause: text({ enum: AUDIT_CAUSES }),
 		/** The decisive check id, e.g. `prompt_injection` or a detection rule id. */
 		controlId: text("control_id"),
+		/** Full scored evidence, e.g. `prompt_injection=0.91, jailbreak=0.87`. */
+		detail: text("detail"),
 		/** Policy subject group; drives check selection and group-level reporting. */
 		groupId: text("user_group_id").notNull(),
 		id: integer({ mode: "number" }).primaryKey({ autoIncrement: true }),
+		/** Requested model; null on rejections that never parsed a body. */
+		model: text(),
 		/** Hash of the policy document in force, so edits can be correlated with outcomes. */
 		policyVersion: text("policy_version").notNull(),
 		/** Exact prompt, `block`/`escalate` only. Null for allowed traffic. */

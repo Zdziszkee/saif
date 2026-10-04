@@ -16,6 +16,12 @@ const config = defineConfig({
 		viteReact(),
 	],
 	resolve: { tsconfigPaths: true },
+	ssr: {
+		// `bun:sqlite` is a Bun-runtime builtin, not a package Vite can
+		// resolve/transform. Leave it for the runtime to load natively;
+		// otherwise the SSR loader fails with an unknown-protocol error.
+		external: ["bun:sqlite"],
+	},
 });
 
 export default config;
