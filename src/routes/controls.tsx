@@ -133,7 +133,7 @@ async function postPolicy(policy: Policy, baseVersion: string): Promise<SaveResu
 
 export const Route = createFileRoute("/controls")({
 	component: ControlsPage,
-	loader: loadPolicy,
+	loader: async () => ({ jev: await loadJev(), policy: await loadPolicy() }),
 });
 
 interface JevPayload {
@@ -218,10 +218,13 @@ interface JevLoaderState {
 	setSaved: (next: JevPayload | null) => void;
 }
 
-function useJevLoader(): JevLoaderState {
+function useJevLoader(initial: JevPayload | null | undefined): JevLoaderState {
 	const liveRef = useRef(true);
-	const [draft, setDraft] = useState<SemanticConfig | null>(null);
-	const [saved, setSaved] = useState<JevPayload | null>(null);
+	const seed: JevPayload | null = initial ?? null;
+	const [draft, setDraft] = useState<SemanticConfig | null>(() =>
+		seed === null ? null : structuredClone(seed.config),
+	);
+	const [saved, setSaved] = useState<JevPayload | null>(seed);
 	const [jevLoadError, setJevLoadError] = useState<string | null>(null);
 	useEffect(
 		() => () => {
@@ -250,8 +253,10 @@ function useJevLoader(): JevLoaderState {
 			});
 	}, []);
 	useEffect(() => {
-		reload();
-	}, [reload]);
+		if (initial === null) {
+			reload();
+		}
+	}, [initial, reload]);
 	return { draft, jevLoadError, onRetry: reload, saved, setDraft, setSaved };
 }
 
@@ -287,8 +292,8 @@ function submitJev(
 		});
 }
 
-function useJevEditor(): JevEditorState {
-	const { draft, jevLoadError, onRetry, saved, setDraft, setSaved } = useJevLoader();
+function useJevEditor(initial: JevPayload | null | undefined): JevEditorState {
+	const { draft, jevLoadError, onRetry, saved, setDraft, setSaved } = useJevLoader(initial);
 	const [issues, setIssues] = useState<readonly SaveIssue[]>([]);
 	const [notice, setNotice] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
@@ -485,8 +490,8 @@ function usePolicyEditor(initial: PolicyPayload | null | undefined): PolicyEdito
 
 function ControlsPage() {
 	const initial = Route.useLoaderData();
-	const editor = usePolicyEditor(initial);
-	const jev = useJevEditor();
+	const editor = usePolicyEditor(initial.policy);
+	const jev = useJevEditor(initial.jev);
 	if (editor.saved === null || editor.draft === null) {
 		return (
 			<main className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
