@@ -13,14 +13,15 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "#/components/ui/chart.tsx";
-import { formatTokens, formatUsd } from "#/dashboard/format.ts";
+import { formatTokens, formatUsdCompact } from "#/dashboard/format.ts";
 import type { CostSeriesPoint, CostTotals, CostUserSeries } from "#/dashboard/types.ts";
 
-const CHART_HEIGHT_CLASS = "h-[220px]";
+const CHART_HEIGHT_CLASS = "h-[320px]";
 const COST_AXIS_ID = "cost";
 const ISO_DAY_LENGTH = 10;
 const LINE_STROKE_WIDTH = 2;
-const TOKEN_AXIS_ID = "tokens";
+const MIN_TICK_GAP = 24;
+const SPARSE_POINT_LIMIT = 7;
 
 /** `YYYY-MM-DD` tick label for a linear millisecond time axis. */
 function formatDayTick(timeMs: number): string {
@@ -29,8 +30,6 @@ function formatDayTick(timeMs: number): string {
 
 const COST_CONFIG: ChartConfig = {
 	costUsd: { color: "var(--chart-1)", label: "Cost (USD)" },
-	gatewayTokens: { color: "var(--chart-2)", label: "Gateway tokens" },
-	mcpTokens: { color: "var(--chart-3)", label: "MCP tokens" },
 };
 
 const EMPTY_TOTALS: CostTotals = {
@@ -69,8 +68,9 @@ interface TimedPoint extends CostSeriesPoint {
 	t: number;
 }
 
-/** Linear-time line chart: gateway/MCP token lines plus a cost line. */
+/** Linear-time USD cost line chart. */
 function CostLines({ points }: { points: readonly TimedPoint[] }) {
+	const showDots = points.length <= SPARSE_POINT_LIMIT;
 	return (
 		<ChartContainer className={CHART_HEIGHT_CLASS} config={COST_CONFIG}>
 			<LineChart data={[...points]}>
@@ -79,32 +79,21 @@ function CostLines({ points }: { points: readonly TimedPoint[] }) {
 					axisLine={false}
 					dataKey="t"
 					domain={["auto", "auto"]}
+					minTickGap={MIN_TICK_GAP}
 					tickFormatter={formatDayTick}
 					tickLine={false}
 					type="number"
 				/>
-				<YAxis axisLine={false} tickLine={false} yAxisId={COST_AXIS_ID} />
-				<YAxis axisLine={false} orientation="right" tickLine={false} yAxisId={TOKEN_AXIS_ID} />
+				<YAxis
+					axisLine={false}
+					tickFormatter={formatUsdCompact}
+					tickLine={false}
+					yAxisId={COST_AXIS_ID}
+				/>
 				<ChartTooltip content={<ChartTooltipContent />} />
 				<Line
-					dataKey="gatewayTokens"
-					dot={false}
-					stroke="var(--color-gatewayTokens)"
-					strokeWidth={LINE_STROKE_WIDTH}
-					type="monotone"
-					yAxisId={TOKEN_AXIS_ID}
-				/>
-				<Line
-					dataKey="mcpTokens"
-					dot={false}
-					stroke="var(--color-mcpTokens)"
-					strokeWidth={LINE_STROKE_WIDTH}
-					type="monotone"
-					yAxisId={TOKEN_AXIS_ID}
-				/>
-				<Line
 					dataKey="costUsd"
-					dot={false}
+					dot={showDots}
 					stroke="var(--color-costUsd)"
 					strokeWidth={LINE_STROKE_WIDTH}
 					type="monotone"
@@ -135,7 +124,8 @@ export function CostPlot({
 		[scope.series],
 	);
 	const shownTotals = scope.totals;
-	const costLabel = shownTotals.costUsd === null ? "unpriced" : formatUsd(shownTotals.costUsd);
+	const costLabel =
+		shownTotals.costUsd === null ? "unpriced" : formatUsdCompact(shownTotals.costUsd);
 	return (
 		<Card>
 			<CardHeader>
