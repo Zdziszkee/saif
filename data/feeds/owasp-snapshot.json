@@ -1,0 +1,94 @@
+{
+	"source": "owasp-llm-top10",
+	"version": "2025",
+	"reference": "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+	"categories": [
+		{
+			"id": "LLM01",
+			"title": "Prompt Injection",
+			"url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+			"markers": [
+				"ignore previous instructions",
+				"faked system markers",
+				"role-hijack persona override",
+				"delimiter escape",
+				"translate-and-follow",
+				"base64 decode-and-follow"
+			],
+			"signature_ids": [
+				"inj-ignore-previous",
+				"inj-system-marker",
+				"inj-delimiter-escape",
+				"inj-above-override",
+				"inj-translate-follow",
+				"inj-base64-directive",
+				"inj-repeat-verbatim",
+				"inj-instead-reframe",
+				"jail-dan",
+				"jail-developer-mode",
+				"jail-roleplay-game"
+			]
+		},
+		{
+			"id": "LLM02",
+			"title": "Sensitive Information Disclosure",
+			"url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+			"markers": ["credential file read", "secret echo", "outbound beacon"],
+			"signature_ids": [
+				"exfil-secret-file",
+				"inj-secret-echo",
+				"inj-markdown-beacon",
+				"deser-pickle",
+				"deser-yaml-unsafe"
+			]
+		},
+		{
+			"id": "LLM06",
+			"title": "Excessive Agency",
+			"url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+			"markers": ["shell pipe", "download-and-execute", "encoded powershell", "destructive delete"],
+			"signature_ids": [
+				"tool-shell-pipe",
+				"tool-delete-recursive",
+				"tool-download-execute",
+				"tool-powershell-encoded",
+				"tool-python-inline",
+				"tool-certutil-fetch",
+				"tool-chmod-exec",
+				"code-eval-input",
+				"code-os-system",
+				"code-child-process"
+			]
+		},
+		{
+			"id": "LLM07",
+			"title": "System Prompt Leakage",
+			"url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+			"markers": ["reveal system prompt", "repeat verbatim", "persona bypass"],
+			"signature_ids": [
+				"exfil-system-prompt",
+				"inj-repeat-verbatim",
+				"jail-bypass-filters",
+				"jail-disable-safety",
+				"jail-uncensored-persona",
+				"jail-drop-morals",
+				"inj-role-hijack"
+			]
+		},
+		{
+			"id": "LLM10",
+			"title": "Unbounded Consumption and Supply-Chain",
+			"url": "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
+			"markers": ["untrusted package index", "install hook", "model hub load"],
+			"signature_ids": [
+				"supply-torch-hub",
+				"supply-pip-untrusted",
+				"supply-npm-lifecycle",
+				"supply-setup-hook",
+				"deser-marshal-shelve",
+				"deser-php-unserialize",
+				"deser-java-native"
+			]
+		}
+	]
+}
