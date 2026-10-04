@@ -89,6 +89,14 @@ export interface ControlResult {
 	flagged?: boolean | undefined;
 	hit?: ControlHit | undefined;
 	redactions?: RedactionSpan[] | undefined;
+	/**
+	 * Raw semantic probabilities, P(true) per check id, for policy-level
+	 * mapping. Set by the semantic tier alongside its own verdict; the
+	 * pipeline prefers these over the control's verdict when a resolved
+	 * profile is available, so profile strictness — not check ladders —
+	 * decides identical answers under different profiles.
+	 */
+	semanticAnswers?: Readonly<Record<string, number>> | undefined;
 	verdict: Verdict;
 }
 

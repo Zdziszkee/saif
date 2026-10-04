@@ -19,6 +19,7 @@ import {
 } from "#/control/audit.ts";
 import { createFileAuditSink } from "#/control/audit-file.ts";
 import { createControlPipeline } from "#/control/pipeline.ts";
+import { type ResolvedProfile, resolveProfile } from "#/control/policy/apply.ts";
 import { createLiveDetectionControl } from "#/control/policy/live-control.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
 import type { Policy } from "#/control/policy/schema.ts";
@@ -85,11 +86,13 @@ export function buildSemanticControl(): Control | null {
 }
 
 interface BuiltControls {
+	budgetVerdict: Verdict;
 	controls: readonly Control[];
 	failureVerdict: Verdict;
 	identity: IdentityPolicy;
 	policyProfile: string;
 	policyVersion: string;
+	profile: ResolvedProfile | null;
 	semanticEnabled: boolean;
 	semanticReason?: string | undefined;
 }
@@ -161,11 +164,13 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 	const status = await loader.start();
 	if (!status.ok) {
 		return {
+			budgetVerdict: "block",
 			controls: [policyUnavailableControl()],
 			failureVerdict: "block",
 			identity: { knownGroups: [] },
 			policyProfile: "unavailable",
 			policyVersion: "unavailable",
+			profile: null,
 			semanticEnabled: false,
 			semanticReason: "no valid policy loaded",
 		};
@@ -174,11 +179,13 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 	const enabled = policy.profiles[policy.defaults.profile].enabledControls;
 	const assembly = assembleStages(policy, audit, loader);
 	return {
+		budgetVerdict: policy.controls.budget.overBudgetVerdict,
 		controls: assembly.controls,
 		failureVerdict: policy.defaults.failureVerdict,
 		identity: identityPolicyFromDocument(policy.groups),
 		policyProfile: policy.defaults.profile,
 		policyVersion: policy.version,
+		profile: resolveProfile(policy, policy.defaults.profile),
 		semanticEnabled: enabled.semantic && !assembly.semanticSkipped,
 		...(assembly.semanticReason === undefined ? {} : { semanticReason: assembly.semanticReason }),
 	};
@@ -191,11 +198,13 @@ export function getHub(): Promise<Hub> {
 
 async function createHubAsync(): Promise<Hub> {
 	const {
+		budgetVerdict,
 		identity,
 		controls,
 		failureVerdict,
 		policyProfile,
 		policyVersion,
+		profile,
 		semanticEnabled,
 		semanticReason,
 	} = await buildControls(getAuditSink());
@@ -212,7 +221,12 @@ async function createHubAsync(): Promise<Hub> {
 			egressAllowlist: parseAllowlist(env.MCP_EGRESS_ALLOWLIST),
 			identity,
 		}),
-		pipeline: createControlPipeline({ controls, failureVerdict }),
+		pipeline: createControlPipeline({
+			budgetVerdict,
+			controls,
+			failureVerdict,
+			...(profile === null ? {} : { profile }),
+		}),
 	});
 }
 
