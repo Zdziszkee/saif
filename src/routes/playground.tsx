@@ -17,7 +17,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card.tsx";
-import { getHubStatus } from "#/hub/runtime.ts";
 
 const samples: readonly Sample[] = [
 	{
@@ -106,12 +105,7 @@ const samples: readonly Sample[] = [
 	},
 ];
 
-export const Route = createFileRoute("/playground")({
-	component: Playground,
-	// Tier status loads server-side so the JEV-off banner is in the initial
-	// HTML even before hydration or any client fetch runs.
-	loader: () => getHubStatus(),
-});
+export const Route = createFileRoute("/playground")({ component: Playground });
 
 interface RawGuardBody {
 	blockedBy?: unknown;
@@ -180,7 +174,6 @@ function isHit(value: unknown): value is GuardHit {
 }
 
 function Playground() {
-	const tierStatus = Route.useLoaderData();
 	const first = samples[0];
 	const [text, setText] = useState(first?.text ?? "");
 	const [direction, setDirection] = useState<"inbound" | "outbound">(first?.direction ?? "inbound");
@@ -214,7 +207,7 @@ function Playground() {
 					<span className="font-mono">JEV</span> for the semantic tier.
 				</p>
 			</header>
-			<TierStatusBanner status={tierStatus} />
+			<TierStatusBanner />
 			<Card>
 				<CardHeader>
 					<CardTitle>Try a sample</CardTitle>

@@ -11,9 +11,9 @@
 
 import { createAllowlistControl } from "#/control/allowlist.ts";
 import {
+	type AuditEvent,
 	type AuditSink,
 	auditEvent,
-	combineAuditSinks,
 	createInMemoryAuditSink,
 } from "#/control/audit.ts";
 import { createFileAuditSink } from "#/control/audit-file.ts";
@@ -252,13 +252,22 @@ export function getAuditSink(): AuditSink {
 
 /**
  * Product sink: in-memory for the dashboard plus a durable JSONL file
- * (`tail -f data/audit.jsonl` shows every decision live). A broken log
- * file degrades to memory-only rather than taking down the hub.
+ * (`tail -f data/audit.jsonl` shows every decision live). The in-memory
+ * `events` array stays exposed — `readAuditEvents()` duck-types it, and a
+ * fan-out object without it would read back empty. A broken log file
+ * degrades to memory-only rather than taking down the hub.
  */
-function createProductAuditSink(): AuditSink {
+function createProductAuditSink(): AuditSink & { events: AuditEvent[] } {
 	const memory = createInMemoryAuditSink();
 	try {
-		return combineAuditSinks(memory, createFileAuditSink("data/audit.jsonl"));
+		const file = createFileAuditSink("data/audit.jsonl");
+		return {
+			events: memory.events,
+			record: (event) => {
+				memory.record(event);
+				file.record(event);
+			},
+		};
 	} catch {
 		return memory;
 	}

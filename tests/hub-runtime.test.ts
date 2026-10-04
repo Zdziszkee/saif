@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { rm } from "node:fs/promises";
 
+import { readAuditEvents } from "#/control/audit.ts";
 import { createDeterministicControl } from "#/control/deterministic/control.ts";
 import { guardInteraction } from "#/control/guard.ts";
 import { createControlPipeline } from "#/control/pipeline.ts";
@@ -7,7 +9,7 @@ import { detectionConfigSchema } from "#/control/policy/schema.ts";
 import { createSignatureControl } from "#/control/signatures/control.ts";
 import { loadSignatureFeed } from "#/control/signatures/feed.ts";
 import type { Control, Interaction } from "#/control/types.ts";
-import { buildSemanticControl, getHubStatus } from "#/hub/runtime.ts";
+import { buildSemanticControl, getAuditSink, getHubStatus } from "#/hub/runtime.ts";
 import policyDocument from "../policy.json" with { type: "json" };
 import feedDocument from "../signatures.json" with { type: "json" };
 import { auditSink } from "./helpers/fixtures.ts";
@@ -76,5 +78,20 @@ describe("hub runtime without a TypeSafe key", () => {
 			expect(status.feed.ok).toBe(true);
 			expect(status.policy.version).toBe("1");
 		});
+	});
+
+	it("exposes product sink events to dashboard/export readers", async () => {
+		const sink = getAuditSink();
+		sink.record({
+			kind: "interaction",
+			subject: "parity-probe",
+			timestamp: new Date().toISOString(),
+			verdict: "allow",
+		});
+		try {
+			expect(readAuditEvents(sink).some((event) => event.subject === "parity-probe")).toBe(true);
+		} finally {
+			await rm("data/audit.jsonl", { force: true });
+		}
 	});
 });
