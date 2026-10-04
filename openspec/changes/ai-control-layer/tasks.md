@@ -7,7 +7,7 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 - [x] 1.1 Add `@tanstack/ai-typesafe` to package.json, keep the `test`/`test:integration` scripts on `bun test` (unit tier hermetic via `--path-ignore-patterns`, live tier opt-in via `SEMANTIC_LIVE=1`), and verify `bun install` and `bun test` execute the suite (verify: `bun run test` green with no network)
 - [ ] 1.2 Extend `src/env.ts` with optional `TYPESAFE_API_KEY`, policy/feed paths, and budget window defaults; verify `bun run typecheck` passes and the app starts without the key set (verify: `bun run typecheck` and `bun run dev` both succeed)
-- [ ] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit) and `src/lib/jev/` (adapter, catalog) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
+- [x] 1.3 Create the module skeleton `src/control/` (policy, pipeline, tiers, budget, audit) and `src/lib/jev/` (adapter, catalog) with empty index exports; verify typecheck passes (verify: `bun run typecheck`)
 
 ## 2. Policy engine
 
@@ -19,7 +19,7 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 - [x] 3.1 Add `audit_events` and `usage_records` to `src/db/schema.ts` (only the columns the reporting surfaces query: time, user, group, verdict, cause, decisive check and score, policy version, prompt for rejected content, and per-call tokens and cost), generate the Drizzle migration, and verify `bun run db:migrate` applies cleanly to a fresh database (verify: `bun run db:generate` emits the migration and `bun run db:migrate` creates both tables on a temp SQLite file)
 - [ ] 3.2 Implement repository modules (append-only audit insert and query, usage insert and per-user/per-group aggregation, windowed spend totals for limit enforcement) and verify roundtrip tests on a temp database (verify: repository tests cover insert, query by user/group/verdict/check, and windowed spend aggregation)
-- [ ] 3.3 Document the storage schema and the reporting dimensions it supports in `docs/storage.md` so dashboard work can start from it (verify: doc lists every column with its dashboard purpose)
+- [x] 3.3 Document the storage schema and the reporting dimensions it supports in `docs/storage.md` so dashboard work can start from it (verify: doc lists every column with its dashboard purpose)
 
 ## 4. Deterministic tier
 
@@ -33,7 +33,7 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 - [x] 5.2 Implement the shared canonicalization and decode module `src/control/text/` (NFKD + casefold, zero-width/bidi stripping, homoglyph folding, leetspeak folding, whitespace/punctuation collapsing, bounded layered base64/URL/hex/HTML-entity decode) with span mapping back to raw content, reused by the deterministic tier L4 re-scan; verify transform-matrix tests pass (verify: `tests/text.test.ts` covers all evasion variants with raw-span assertions)
 - [ ] 5.3 Implement the matcher (literal prefilter, per-signature compiled regex over raw/canonical/decoded forms, optional validator stage) and structural suspect signals (invisible-character density, payload splitting, high-entropy blobs); verify exploit-positive and benign-negative tests pass across all kinds and obfuscated forms (verify: matcher tests cover injection, jailbreak, malicious code execution, unsafe-deserialization, and supply-chain markers in raw and evasion-variant forms)
 - [ ] 5.4 Implement match safety (per-pattern and per-content match budget, bounded feed size, ReDoS containment); verify a pathological pattern is reported and skipped without stalling (verify: match-budget test proves remaining signatures still fire)
-- [ ] 5.5 Implement policy-mapped actions (severity to default action, per-signature overrides, suspect action and threshold); verify mapping tests pin every action (verify: severity-mapping and override tests pass)
+- [x] 5.5 Implement policy-mapped actions (severity to default action, per-signature overrides, suspect action and threshold); verify mapping tests pin every action (verify: severity-mapping and override tests pass)
 - [ ] 5.6 Implement feed hot reload and ship `signatures.json` seeded with known historical AI-exploit patterns (prompt injection, jailbreak, malicious code execution, unsafe deserialization, model-repo supply chain), each with positive and evasion-variant fixtures rewritten from cited public sources; verify a reload test adds a pattern that blocks a matching request (verify: hot-reload integration test passes)
 - [ ] 5.7 Implement audit provenance recording (signature id, source, feed version hash, matched form, raw-mapped span); verify provenance lands in audit (verify: provenance tests pass)
 - [x] 5.8 Implement external feed ingestion adapters — OSV malicious-package reports (OpenSSF `MAL-`) and MITRE ATLAS STIX 2.1 bundles — plus an offline corpus importer (JailbreakBench artifacts, in-the-wild jailbreak prompts, public payload collections) normalizing into the internal schema with external references retained; verify adapter and citation tests pass (verify: `tests/signature-sources.test.ts` covers OSV ingest incl. withdrawn/non-MAL/unsupported skips, corpus txt/json import with provenance and stable ids, moved ATLAS/OWASP parsers, and reference retention; live OSV querying stays a scheduler concern)
@@ -70,24 +70,24 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 - [ ] 10.1 Record audit rows from the pipeline (time, user, group, verdict, cause, decisive check and score, policy version, prompt for rejected content) and verify append-only behavior tests pass (verify: audit tests cover allow, redact, block, escalate, and each rejection cause)
 - [ ] 10.2 Implement metrics aggregation (verdicts by check and by group, unpriced-call counts, spend by user and group against limits) and verify aggregation tests pass (verify: metrics tests pass against seeded audit and usage data)
-- [ ] 10.3 Implement audit/usage export endpoints (JSON Lines and CSV with filters: time range, verdict, cause, check, user id, group id) and verify export tests pass (verify: export tests assert filter correctness and parseable output)
-- [ ] 10.4 Implement rejection notifications to the dashboard in addition to the durable record; verify a block surfaces without a manual reload (verify: notification test covers each rejection cause)
+- [x] 10.3 Implement audit/usage export endpoints (JSON Lines and CSV with filters: time range, verdict, cause, check, user id, group id) and verify export tests pass (verify: export tests assert filter correctness and parseable output)
+- [x] 10.4 Implement rejection notifications to the dashboard in addition to the durable record; verify a block surfaces without a manual reload (verify: notification test covers each rejection cause)
 
 ## 11. Dashboard
 
-- [x] 11.1 Build the dashboard route (controls and profiles overview, verdict counts, top threat categories, budget vs limits, recent escalations, policy and signature feed versions in force) fed by the metrics and audit queries; verify it renders with seeded data (verify: component renders expected sections against fixture data) (note: shipped at `/` with `/dashboard` kept working; every section renders against the seeded fixtures in `src/dashboard/fixture.ts`, with controls, profiles, and versions from the live `policy.json` projection (metrics/audit query-backed counts still pending tasks 10.2-10.3)
+- [x] 11.1 Build the dashboard route (controls and profiles overview, verdict counts, top threat categories, budget vs limits, recent escalations, policy and signature feed versions in force) fed by the metrics and audit queries; verify it renders with seeded data (verify: component renders expected sections against fixture data) (note: shipped at `/` with `/dashboard` kept working; `src/dashboard/data.ts` derives every section live from the policy snapshot plus recorded audit decisions — zeros and empty lists when idle — with 15s polling refresh)
 - [x] 11.2 Add live refresh (polling); verify updates appear within one refresh interval (verify: manual check on `bun run dev`) (note: 15-second polling interval via `getDashboardData()` re-fetch in `src/components/dashboard/dashboard.tsx`; checked on `bun run dev`)
 
 ## 12. Demo, docs, and architecture
 
 - [ ] 12.1 Build the demo showcase traffic (guarded chat prompt and scripted interactions exercising allow, redact, block, and escalate paths end to end); verify each path demoable locally (verify: demo walkthrough script in `docs/demo.md` runs as written)
-- [ ] 12.2 Write `docs/architecture.md` with the ASCII architecture diagram and the tier/pipeline explanation required by the challenge; verify the diagram matches the implemented stage order (verify: doc review against `src/control` modules)
+- [x] 12.2 Write `docs/architecture.md` with the ASCII architecture diagram and the tier/pipeline explanation required by the challenge; verify the diagram matches the implemented stage order (verify: doc review against `src/control` modules)
 - [ ] 12.3 Write the judge quickstart (run tests, run the app, edit policy and feed live, read the dashboard, export audit) in README; verify commands run as written from a clean clone (verify: README commands executed successfully)
 
 ## 13. Test suite and verification
 
-- [ ] 13.1 Run the test suite with no credentials set and verify all spec scenarios pass (verify: `bun run test` green with `TYPESAFE_API_KEY` unset)
-- [ ] 13.2 Verify `bun run verify` (typecheck + biome) passes and record performance telemetry for the deterministic and semantic paths (verify: telemetry numbers captured in `docs/performance.md`)
+- [x] 13.1 Run the test suite with no credentials set and verify all spec scenarios pass (verify: `bun run test` green with `TYPESAFE_API_KEY` unset)
+- [x] 13.2 Verify `bun run verify` (typecheck + biome) passes and record performance telemetry for the deterministic and semantic paths (verify: telemetry numbers captured in `docs/performance.md`)
 
 ## 14. LLM gateway seam (OpenAI-compatible endpoint)
 

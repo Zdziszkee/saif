@@ -294,3 +294,56 @@ Loaders simplify your data fetching logic dramatically. Check out more informati
 You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
 
 For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+
+## Judge quickstart
+
+Fastest path from a clean clone to a governed verdict, in two terminals.
+Full walkthrough: [`docs/demo.md`](docs/demo.md).
+
+```bash
+bun install
+bun test            # unit tests (tests/**/*.test.ts, bun:test API)
+```
+
+Terminal 1 — run the app (boots keyless; no API keys required):
+
+```bash
+bun run dev         # serves http://localhost:3000
+```
+
+Terminal 2 — exercise every verdict (allow, redact, block, escalate) plus a
+guarded-chat prompt, all deterministic content on localhost:
+
+```bash
+bun scripts/demo-traffic.ts
+```
+
+The script asserts each verdict and fails non-zero with a reason on the
+first mismatch.
+
+Tune live — edit detection rules in `policy.json` or patterns in
+`signatures.json`, then re-run the demo script: both hot-reload without a
+restart. Structural policy changes (profiles, groups) apply via
+`POST /api/policy` or a restart.
+
+Read the dashboard, keyless:
+
+```bash
+open http://localhost:3000/dashboard
+curl http://localhost:3000/api/decisions   # counts + recent rows (JSON)
+curl http://localhost:3000/api/status      # tier status, semantic on/off
+```
+
+Export the audit trail (identity-gated — same gateway headers as the demo):
+
+```bash
+curl -H "x-user-id: demo-judge" -H "x-user-group-id: software-developer" \
+  "http://localhost:3000/api/audit/export?format=jsonl" -o audit.jsonl
+curl -H "x-user-id: demo-judge" -H "x-user-group-id: software-developer" \
+  "http://localhost:3000/api/audit/export?format=csv" -o audit.csv
+```
+
+Harness pointer: every `POST /api/guard` request carries caller identity in
+`x-user-id` (the individual) and `x-user-group-id` (the policy subject —
+selects the strictness profile and semantic checks). Unknown groups are
+rejected, never defaulted. See `src/control/subjects.ts`.

@@ -18,6 +18,7 @@ import { Route as ApiDecisionsRouteImport } from './routes/api.decisions'
 import { Route as ApiGuardRouteImport } from './routes/api.guard'
 import { Route as ApiPolicyRouteImport } from './routes/api.policy'
 import { Route as ApiStatusRouteImport } from './routes/api.status'
+import { Route as V1ChatCompletionsRouteImport } from './routes/v1.chat-completions'
 import { Route as ApiAuditExportRouteImport } from './routes/api.audit.export'
 import { Route as V1ChatCompletionsRouteImport } from './routes/v1.chat.completions'
 
@@ -66,6 +67,11 @@ const ApiStatusRoute = ApiStatusRouteImport.update({
   path: '/api/status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const V1ChatCompletionsRoute = V1ChatCompletionsRouteImport.update({
+  id: '/v1/chat-completions',
+  path: '/v1/chat-completions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuditExportRoute = ApiAuditExportRouteImport.update({
   id: '/api/audit/export',
   path: '/api/audit/export',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/api/guard': typeof ApiGuardRoute
   '/api/policy': typeof ApiPolicyRoute
   '/api/status': typeof ApiStatusRoute
+  '/v1/chat-completions': typeof V1ChatCompletionsRoute
   '/api/audit/export': typeof ApiAuditExportRoute
   '/v1/chat/completions': typeof V1ChatCompletionsRoute
 }
@@ -100,6 +107,7 @@ export interface FileRoutesByTo {
   '/api/guard': typeof ApiGuardRoute
   '/api/policy': typeof ApiPolicyRoute
   '/api/status': typeof ApiStatusRoute
+  '/v1/chat-completions': typeof V1ChatCompletionsRoute
   '/api/audit/export': typeof ApiAuditExportRoute
   '/v1/chat/completions': typeof V1ChatCompletionsRoute
 }
@@ -114,6 +122,7 @@ export interface FileRoutesById {
   '/api/guard': typeof ApiGuardRoute
   '/api/policy': typeof ApiPolicyRoute
   '/api/status': typeof ApiStatusRoute
+  '/v1/chat-completions': typeof V1ChatCompletionsRoute
   '/api/audit/export': typeof ApiAuditExportRoute
   '/v1/chat/completions': typeof V1ChatCompletionsRoute
 }
@@ -129,6 +138,7 @@ export interface FileRouteTypes {
     | '/api/guard'
     | '/api/policy'
     | '/api/status'
+    | '/v1/chat-completions'
     | '/api/audit/export'
     | '/v1/chat/completions'
   fileRoutesByTo: FileRoutesByTo
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/api/guard'
     | '/api/policy'
     | '/api/status'
+    | '/v1/chat-completions'
     | '/api/audit/export'
     | '/v1/chat/completions'
   id:
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/api/guard'
     | '/api/policy'
     | '/api/status'
+    | '/v1/chat-completions'
     | '/api/audit/export'
     | '/v1/chat/completions'
   fileRoutesById: FileRoutesById
@@ -169,6 +181,7 @@ export interface RootRouteChildren {
   ApiGuardRoute: typeof ApiGuardRoute
   ApiPolicyRoute: typeof ApiPolicyRoute
   ApiStatusRoute: typeof ApiStatusRoute
+  V1ChatCompletionsRoute: typeof V1ChatCompletionsRoute
   ApiAuditExportRoute: typeof ApiAuditExportRoute
   V1ChatCompletionsRoute: typeof V1ChatCompletionsRoute
 }
@@ -238,6 +251,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/v1/chat-completions': {
+      id: '/v1/chat-completions'
+      path: '/v1/chat-completions'
+      fullPath: '/v1/chat-completions'
+      preLoaderRoute: typeof V1ChatCompletionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/audit/export': {
       id: '/api/audit/export'
       path: '/api/audit/export'
@@ -265,6 +285,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGuardRoute: ApiGuardRoute,
   ApiPolicyRoute: ApiPolicyRoute,
   ApiStatusRoute: ApiStatusRoute,
+  V1ChatCompletionsRoute: V1ChatCompletionsRoute,
   ApiAuditExportRoute: ApiAuditExportRoute,
   V1ChatCompletionsRoute: V1ChatCompletionsRoute,
 }

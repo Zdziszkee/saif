@@ -18,6 +18,16 @@ function resultText(result: unknown): string {
 const BUILTIN_TOOLS = ["addTodo", "deleteAllTodos", "fetchUrl", "listTodos"];
 const MODEL_BYPASS_PATTERN = /createOpenAICompatibleConnection|#\/hub\/model\.ts/;
 
+/**
+ * Prompt-plane gateway seam (task 14.x): `POST /v1/chat/completions` reaches
+ * the model through the hub's OpenAI-compatible transport, governed by the
+ * shared pipeline (identity -> usage-limit -> deterministic -> semantic ->
+ * forward). D10 still bans model-reaching MCP-serving routes — this is the
+ * only route allowed to name the model transport, and only because every
+ * prompt and (non-stream) answer flows through `guardInteraction()`.
+ */
+const GATEWAY_ALLOWLIST = new Set(["v1.chat-completions.ts"]);
+
 function surfaceClient(hub: Awaited<ReturnType<typeof createHub>>) {
 	return createMCPClient({
 		transport: {
@@ -66,10 +76,18 @@ describe("standard MCP surface", () => {
 		const offenders: string[] = [];
 		for await (const routeFile of glob.scan({ cwd: "src/routes" })) {
 			const text = await file(`src/routes/${routeFile}`).text();
-			if (MODEL_BYPASS_PATTERN.test(text)) {
+			if (MODEL_BYPASS_PATTERN.test(text) && !GATEWAY_ALLOWLIST.has(routeFile)) {
 				offenders.push(routeFile);
 			}
 		}
 		expect(offenders).toEqual([]);
+	});
+
+	it("holds the allowlisted gateway seam to pipeline governance", async () => {
+		for (const routeFile of GATEWAY_ALLOWLIST) {
+			// biome-ignore lint/performance/noAwaitInLoops: allowlist reads run in order, one file each
+			const text = await file(`src/routes/${routeFile}`).text();
+			expect(text).toContain("guardInteraction");
+		}
 	});
 });

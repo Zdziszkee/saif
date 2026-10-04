@@ -21,6 +21,7 @@ import {
 	type AuditSink,
 	auditEvent,
 	createInMemoryAuditSink,
+	isAuditDecision,
 } from "#/control/audit.ts";
 import { createFileAuditSink } from "#/control/audit-file.ts";
 import { createControlPipeline } from "#/control/pipeline.ts";
@@ -374,6 +375,7 @@ function createProductAuditSink(): AuditSink & { events: AuditEvent[] } {
 			record: (event) => {
 				memory.record(event);
 				file.record(event);
+				persistAuditEvent(event);
 			},
 		};
 	} catch {
@@ -436,6 +438,26 @@ export async function getGatewayDeps(): Promise<GatewayDeps> {
 		prices: getModelPrices,
 		upstream: upstreamFromEnv(),
 	};
+}
+
+/**
+ * Best-effort durable write of one governance decision to SQLite. Only
+ * decisions (`kind: "interaction"` with a verdict) persist — registration
+ * admissions, control failures, and verdict-less notes stay in the memory and
+ * JSONL trail, otherwise one guard call would show up as several dashboard
+ * rows. The hub never blocks on the database: the write is fire-and-forget,
+ * and without a writable database the memory and JSONL sinks stay the record.
+ */
+function persistAuditEvent(event: AuditEvent): void {
+	if (!isAuditDecision(event)) {
+		return;
+	}
+	import("#/db/audit-repo.ts")
+		.then(async ({ insertAuditEvent }) => {
+			const { getDb } = await import("#/db/index.ts");
+			await insertAuditEvent(getDb(), event);
+		})
+		.catch(() => undefined);
 }
 
 function parseAllowlist(value: string | undefined): string[] {

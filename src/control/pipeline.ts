@@ -43,6 +43,12 @@ export interface ControlPipelineOptions {
 	audit?: AuditSink | undefined;
 	/** Over-budget mapping until budget state wires in (7.x). Default `block`. */
 	budgetVerdict?: Verdict | undefined;
+	/**
+	 * Live budget probe: when set, the policy path maps its answer instead of
+	 * the hardcoded allow. Absent, the pipeline allows (existing wiring and
+	 * tests stay green until budget state wires in).
+	 */
+	checkBudget?: (() => { overBudget: boolean }) | undefined;
 	controls: readonly Control[];
 	/** Verdict applied when a control errors, times out, or is unusable. Default `block`. */
 	failureVerdict?: Verdict | undefined;
@@ -121,6 +127,7 @@ export function createControlPipeline(options: ControlPipelineOptions): ControlP
 			}
 			return mapThroughPolicy({
 				budgetVerdict: options.budgetVerdict ?? "block",
+				checkBudget: options.checkBudget,
 				interaction,
 				profile: options.profile,
 				seen: attempt.seen,
@@ -234,6 +241,7 @@ function tierActionOf(result: ControlResult): TierEvidence["action"] {
 
 function mapThroughPolicy(input: {
 	budgetVerdict: Verdict;
+	checkBudget?: (() => { overBudget: boolean }) | undefined;
 	interaction: Interaction;
 	profile: ResolvedProfile;
 	seen: readonly SeenResult[];
@@ -266,7 +274,10 @@ function mapThroughPolicy(input: {
 		}
 	}
 	const decision = applyPolicy({
-		budget: { overBudget: false, overBudgetVerdict: input.budgetVerdict },
+		budget: {
+			overBudget: input.checkBudget?.().overBudget ?? false,
+			overBudgetVerdict: input.budgetVerdict,
+		},
 		detections,
 		direction: input.interaction.direction,
 		other,

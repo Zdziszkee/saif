@@ -18,6 +18,7 @@
  */
 
 import { type AuditEvent, filterAuditEvents, isAuditDecision } from "#/control/audit.ts";
+import { bucketStart } from "#/control/budget.ts";
 import type { PolicySnapshot } from "#/control/policy/loader.ts";
 import type { Policy } from "#/control/policy/schema.ts";
 import type { Direction, Verdict } from "#/control/types.ts";
@@ -25,6 +26,7 @@ import { summarizePolicy } from "#/dashboard/policy-view.ts";
 import {
 	ALL_CONSUMERS,
 	type BudgetMetric,
+	type BudgetPeriod,
 	type BudgetRuleView,
 	type BudgetSeriesPoint,
 	type ConsumerMetrics,
@@ -542,4 +544,121 @@ export function selectEscalations(data: DashboardData, consumer: string) {
 		return data.escalations;
 	}
 	return data.escalations.filter((row) => row.consumerKey === consumer);
+}
+
+/**
+ * Metrics queries over raw usage rows (task 10.2 remainder).
+ *
+ * These pure helpers live here rather than a new `queries.ts`: they share
+ * this module's merge-only role and reuse the ledger's window math
+ * (`bucketStart`) instead of duplicating it. Rows are plain objects — the
+ * caller projects whatever the usage store returns into this shape, so this
+ * seam never imports the store's modules.
+ */
+
+/** One metered call: priced when `costUsd` is a usable number, else unpriced. */
+export interface UsageRow {
+	costUsd?: number | null | undefined;
+	groupId?: string | undefined;
+	model?: string | undefined;
+	tokens?: number | null | undefined;
+	ts?: number | string | undefined;
+	userId?: string | undefined;
+}
+
+/** One configured limit evaluated against the usage rows in its window. */
+export interface SpendVsLimit {
+	consumerKey: string;
+	limit: number;
+	metric: BudgetMetric;
+	modelScope: string;
+	overBudget: boolean;
+	period: BudgetPeriod;
+	used: number;
+}
+
+function isPriced(costUsd: number | null | undefined): boolean {
+	return typeof costUsd === "number" && !Number.isNaN(costUsd);
+}
+
+/** Calls whose price is unknown (`costUsd` null, missing, or NaN). */
+export function countUnpricedCalls(rows: readonly UsageRow[]): number {
+	return rows.filter((row) => !isPriced(row.costUsd)).length;
+}
+
+function usageRowTimeMs(row: UsageRow): number | undefined {
+	const raw = row.ts;
+	if (typeof raw === "number") {
+		return Number.isFinite(raw) ? raw : undefined;
+	}
+	const parsed = typeof raw === "string" ? Date.parse(raw) : Number.NaN;
+	return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/**
+ * Whether a row accrues in the window ending at `nowMs`. Rows with a
+ * missing or unparseable timestamp cannot be proven outside the window, so
+ * they are included rather than silently dropped.
+ */
+function rowInWindow(row: UsageRow, period: BudgetPeriod, nowMs: number): boolean {
+	const at = usageRowTimeMs(row);
+	if (at === undefined) {
+		return true;
+	}
+	return at >= bucketStart(period, nowMs) && at <= nowMs;
+}
+
+function rowMatchesRule(row: UsageRow, rule: BudgetRuleView): boolean {
+	const consumerOk = row.groupId === rule.consumerKey || row.userId === rule.consumerKey;
+	const modelOk = rule.modelScope === "*" || row.model === rule.modelScope;
+	return consumerOk && modelOk;
+}
+
+function finiteAmount(value: number | null | undefined): number {
+	if (typeof value !== "number" || Number.isNaN(value) || value <= 0) {
+		return 0;
+	}
+	return value;
+}
+
+/** Spend for one metric: row count for requests, summed amounts otherwise. */
+function spendForMetric(rows: readonly UsageRow[], metric: BudgetMetric): number {
+	if (metric === "requests") {
+		return rows.length;
+	}
+	if (metric === "tokens") {
+		return rows.reduce((total, row) => total + finiteAmount(row.tokens), 0);
+	}
+	if (metric === "costUsd") {
+		return rows.reduce((total, row) => total + finiteAmount(row.costUsd), 0);
+	}
+	// Usage rows carry no compute-time signal; those rules evaluate to zero.
+	return 0;
+}
+
+/**
+ * Evaluate every configured limit against the rows in its own window: the
+ * rule's consumer (group or user id) and model scope select rows, the rule's
+ * period selects the window, and spend at or above the limit is over budget.
+ */
+export function evaluateSpendVsLimits(
+	rows: readonly UsageRow[],
+	rules: readonly BudgetRuleView[],
+	nowMs: number,
+): SpendVsLimit[] {
+	return rules.map((rule) => {
+		const scoped = rows.filter(
+			(row) => rowInWindow(row, rule.period, nowMs) && rowMatchesRule(row, rule),
+		);
+		const used = spendForMetric(scoped, rule.metric);
+		return {
+			consumerKey: rule.consumerKey,
+			limit: rule.limit,
+			metric: rule.metric,
+			modelScope: rule.modelScope,
+			overBudget: used >= rule.limit,
+			period: rule.period,
+			used,
+		};
+	});
 }

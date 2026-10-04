@@ -4,7 +4,9 @@
 
 Two tables back the reporting dashboard: `audit_events` records one row per governed AI
 interaction — who called, when, what the verdict was, and why — and `usage_records` records
-one row per forwarded model-provider call — which model ran and what it cost. They are sized
+one row per forwarded model-provider call — which model ran and what it cost. A third table,
+`mcp_tool_calls`, records one row per terminal MCP tool-call outcome for the hub's
+per-tool/per-group/per-verdict views. They are sized
 for reporting rather than completeness: a column exists only to serve a dashboard query, and
 everything derivable at query time is left out. Schema source is `src/db/schema.ts` (Drizzle
 over `bun:sqlite`), the generated migration is `drizzle/0000_natural_peter_parker.sql`, and the
@@ -47,6 +49,30 @@ cached LiteLLM price table; `cost_usd IS NULL` means "model not in the price tab
 | `completion_tokens` | integer | no | Token volume charts; with `prompt_tokens` forms the total (see Deliberate omissions). |
 | `cost_usd` | real | yes | Spend totals; `IS NULL` flags an unpriced model (and is skipped by `SUM`). |
 | `audit_event_id` | integer REFERENCES `audit_events`(`id`) ON DELETE SET NULL | yes | Join to the interaction's verdict/cause; null when the call produced no governed interaction (e.g. pre-flight). |
+
+## mcp_tool_calls
+
+One row per terminal MCP tool-call outcome (executed, refused,
+confirmation-required), reported by governance via `src/hub/tool-usage.ts`.
+Tool arguments and results are never stored. `estimated_tokens` is a chars/4
+heuristic over the inspected args + result — an estimate, never billed; model
+cost stays in `usage_records`.
+
+| Column | SQLite type | Nullable | Dashboard query it serves |
+| ------ | ----------- | -------- | ------------------------- |
+| `id` | integer PRIMARY KEY AUTOINCREMENT | no | Row identity. |
+| `ts` | integer (unix seconds, default `unixepoch()`) | no | Time filtering; the `since` bound on per-tool counts. |
+| `user_id` | text | yes | Per-user attribution (see Attribution caveat). |
+| `user_group_id` | text | no | Per-group reporting; the `groupId` filter on per-tool counts. |
+| `tool_name` | text | no | Calls per tool per verdict; the `toolName` filter. |
+| `tool_source` | text (`TOOL_SOURCES`) | no | Builtin vs connected split (`builtin`, `connected`). |
+| `verdict` | text (`VERDICTS`) | no | Per-verdict counts over tool calls. |
+| `control_id` | text | yes | Decisive control for non-allow verdicts (`tool-authorization`, `tool-confirmation`). |
+| `require_confirm` | integer (0/1, default `0`) | no | Whether the tool needed confirmation; feeds confirmation-request counts. |
+| `confirmed` | integer (1/0) | yes | Confirmation outcome; null when the tool needs no confirmation. |
+| `estimated_tokens` | integer | no | Volume heuristic over inspected args + result (estimate, never billed). |
+| `latency_ms` | integer | yes | Tool-call latency. |
+| `policy_version` | text | no | Correlate outcome shifts with tool-policy edits. |
 
 ## Enums
 
@@ -91,6 +117,11 @@ and ends with `ts`, so range scans serve the matching dashboard page.
 | `usage_records_user_ts_idx` | (`user_id`, `ts`) | Spend per user in a window. |
 | `usage_records_group_ts_idx` | (`user_group_id`, `ts`) | Spend per group in a window. |
 | `usage_records_audit_event_idx` | (`audit_event_id`) | Join usage rows to their audit event. |
+| `mcp_tool_calls_ts_idx` | (`ts`) | Time filtering over tool calls. |
+| `mcp_tool_calls_tool_ts_idx` | (`tool_name`, `ts`) | Calls per tool in a range. |
+| `mcp_tool_calls_user_ts_idx` | (`user_id`, `ts`) | Tool calls per user in a range. |
+| `mcp_tool_calls_group_ts_idx` | (`user_group_id`, `ts`) | Tool calls per group in a range. |
+| `mcp_tool_calls_verdict_ts_idx` | (`verdict`, `ts`) | Tool calls per verdict in a range. |
 
 ## Deliberate omissions
 
@@ -105,7 +136,7 @@ and ends with `ts`, so range scans serve the matching dashboard page.
 
 ## Attribution caveat
 
-`user_id` is nullable on **both** tables. It is null only at group-scoped surfaces that
+`user_id` is nullable on **all three** tables. It is null only at group-scoped surfaces that
 identify no individual — MCP hub tool calls and tool registration. The LLM gateway seam
 always sets it, so every gateway row is attributable to a user. Per-user views must treat
 null rows as group-scoped events, not as missing data.
