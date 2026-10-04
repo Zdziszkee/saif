@@ -88,8 +88,12 @@
 			"linter": {
 				"rules": {
 					"correctness": {
+						"noSolidDestructuredProps": "off",
 						"noUnresolvedImports": "off",
 						"useQwikValidLexicalScope": "off"
+					},
+					"performance": {
+						"useSolidForComponent": "off"
 					},
 					"style": {
 						"noJsxLiterals": "off",
@@ -129,6 +133,9 @@
 					"complexity": {
 						"noExcessiveLinesPerFunction": "off"
 					},
+					"security": {
+						"noSecrets": "off"
+					},
 					"style": {
 						"noMagicNumbers": "off"
 					}
@@ -137,6 +144,16 @@
 		},
 		{
 			"includes": ["**/src/hub/model.ts"],
+			"linter": {
+				"rules": {
+					"style": {
+						"useNamingConvention": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/scripts/build-signature-feed.ts", "**/tests/signature-feed-import.test.ts"],
 			"linter": {
 				"rules": {
 					"style": {
@@ -159,6 +176,9 @@
 			"includes": ["**/src/routes/__root.tsx"],
 			"linter": {
 				"rules": {
+					"correctness": {
+						"useUniqueElementIds": "off"
+					},
 					"style": {
 						"noHeadElement": "off"
 					}
@@ -191,6 +211,25 @@
 					},
 					"suspicious": {
 						"noConsole": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/src/components/ui/**"],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noExcessiveCognitiveComplexity": "off",
+						"noExcessiveLinesPerFunction": "off"
+					},
+					"security": {
+						"noDangerouslySetInnerHtml": "off",
+						"noSecrets": "off"
+					},
+					"style": {
+						"useComponentExportOnlyModules": "off",
+						"useNamingConvention": "off"
 					}
 				}
 			}

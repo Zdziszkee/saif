@@ -2,9 +2,9 @@
  * Minimal chat seam (tasks 11.2, re-scoped): the pipeline wired over prompt
  * and answer around a model-reaching `ask` callback, via `guardInteraction()`.
  *
- * The seam is deliberately not dependent on the hub — `ask` is injected. In
- * the product wiring `ask` is the hub's `askModel`, keeping the hub's MCP
- * surface the only model-reaching interface.
+ * The seam is deliberately not dependent on the gateway — `ask` is injected.
+ * In the product wiring `ask` is the prompt-plane gateway's ask (design D10);
+ * the hub's MCP surface is tools-only.
  */
 
 import type { AuditSink } from "./audit.ts";

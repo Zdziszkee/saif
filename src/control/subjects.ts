@@ -94,3 +94,26 @@ export function identityFromRequest(request: Request): {
 		userId: userId === null || userId.length === 0 ? undefined : userId,
 	};
 }
+
+/**
+ * Derive the identity policy from the policy document's `groups` map: every
+ * policy-defined user group is a policy subject of the same name. Unknown
+ * groups are rejected and never inherit a known group's configuration.
+ */
+export function identityPolicyFromDocument(
+	groups: Readonly<Record<string, unknown>>,
+): IdentityPolicy {
+	return { knownGroups: Object.keys(groups).sort() };
+}
+
+/**
+ * Resolve the caller of a request in one step, for routes that only need to
+ * know whether the caller is a known user in a known group.
+ */
+export function requireKnownGroup(
+	request: Request,
+	resolver: IdentityResolver,
+): IdentityResolution {
+	const { groupId, userId } = identityFromRequest(request);
+	return resolver.resolve(userId, groupId);
+}

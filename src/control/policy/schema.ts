@@ -82,6 +82,7 @@ export const detectionConfigSchema = z.strictObject({
 	rules: z.array(detectionRuleSchema),
 });
 
+export type DetectionConfig = z.infer<typeof detectionConfigSchema>;
 /** Structural-suspicion configuration for the signature engine. */
 export const suspectConfigSchema = z.strictObject({
 	action: verdictSchema,
@@ -207,6 +208,12 @@ export const policySchema = z
 		}),
 		defaults: z.strictObject({
 			failureVerdict: verdictSchema,
+			/**
+			 * Baseline profile whose enabled-control set assembles the shared
+			 * control stages. Per-group profiles select thresholds at verdict
+			 * mapping; a group's own profile always wins for its traffic.
+			 */
+			profile: profileNameSchema,
 		}),
 		groups: z.record(z.string(), groupSchema),
 		profiles: z.strictObject({

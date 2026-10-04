@@ -83,9 +83,7 @@
     },
     "signatures": {
       "enabled": true,
-      "perSignatureActions": {
-        "atlas-sig-001": "block"
-      },
+      "perSignatureActions": {},
       "severityActions": {
         "critical": "block",
         "high": "block",
@@ -99,7 +97,8 @@
     }
   },
   "defaults": {
-    "failureVerdict": "block"
+    "failureVerdict": "block",
+    "profile": "strict"
   },
   "profiles": {
     "permissive": {

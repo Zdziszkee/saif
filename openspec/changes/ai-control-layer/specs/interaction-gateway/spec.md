@@ -42,6 +42,17 @@ The control pipeline MUST fail closed: when any enabled control errors, times ou
 - **WHEN** the semantic tier is enabled but its decision model is unreachable or times out
 - **THEN** the interaction is not forwarded and the failure is recorded in the audit log
 
+### Requirement: Tools-only MCP hub
+The MCP surface SHALL serve the governed tool catalog only: hub-hosted tools and tools from connected external MCP servers. Model access MUST NOT be exposed as an MCP tool; AI prompt and answer traffic is governed at the chat seam on the TanStack AI gateway. Every tool call on the MCP surface, including calls to tools served by connected external MCP servers, MUST pass through tool-call governance before execution.
+
+#### Scenario: No model-reaching tool in the catalog
+- **WHEN** a client enumerates the MCP tool catalog
+- **THEN** it contains only tool entries and no model-reaching entry such as an `askModel` tool
+
+#### Scenario: Connected MCP tool call governed
+- **WHEN** a tool call targets a tool served by a connected external MCP server
+- **THEN** the call passes through tool-call governance and is forwarded only under an allow verdict, with the outcome recorded in the audit log
+
 ### Requirement: Request shape validation
 The system MUST validate the structure of incoming requests against the expected interaction schema and reject malformed requests before any control evaluation.
 

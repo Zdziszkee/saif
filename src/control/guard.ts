@@ -10,7 +10,13 @@
 
 import { type AuditSink, auditEvent, noopAuditSink } from "./audit.ts";
 import { applyRedactions, redactJson } from "./redact.ts";
-import type { ControlPipeline, InspectionResult, Interaction, Verdict } from "./types.ts";
+import {
+	type ControlPipeline,
+	type InspectionResult,
+	type Interaction,
+	isBlockingVerdict,
+	type Verdict,
+} from "./types.ts";
 
 export interface GuardRejection {
 	/** Control responsible for the rejection (or `pipeline` for failures). */
@@ -84,7 +90,7 @@ function enforce(
 	jsonContent: boolean,
 ): GuardOutcome {
 	const verdict = inspection.verdict;
-	if (verdict === "block" || verdict === "escalate") {
+	if (isBlockingVerdict(verdict)) {
 		return {
 			inspection,
 			rejection: {

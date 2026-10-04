@@ -96,6 +96,6 @@ export async function main(): Promise<void> {
 	console.log(`forenames: ${payload.forenames.length}, surnames: ${payload.surnames.length}`);
 }
 
-if (process.argv[1]?.endsWith("build-name-data.ts") ?? false) {
+if (process.argv[1]?.endsWith("build-name-data.ts")) {
 	await main();
 }

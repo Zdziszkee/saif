@@ -86,7 +86,7 @@ export function escalateOn(marker: string): Control {
 	};
 }
 
-/** Control whose verdict depends on the policy subject (per-consumer divergence). */
+/** Control whose verdict depends on the policy subject (per-group divergence). */
 export function blockSubject(groupId: string, marker: string): Control {
 	return {
 		id: "fixture-groupId",

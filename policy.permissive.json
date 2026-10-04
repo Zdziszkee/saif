@@ -83,7 +83,8 @@
     }
   },
   "defaults": {
-    "failureVerdict": "escalate"
+    "failureVerdict": "escalate",
+    "profile": "permissive"
   },
   "profiles": {
     "permissive": {

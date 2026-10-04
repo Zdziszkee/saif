@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import { handleGuardRequest } from "#/control/guard-api.ts";
-import { type CallerIdentity, USER_GROUP_ID_HEADER, USER_ID_HEADER } from "#/control/subjects.ts";
+import {
+	type CallerIdentity,
+	requireKnownGroup,
+	USER_GROUP_ID_HEADER,
+	USER_ID_HEADER,
+} from "#/control/subjects.ts";
 import type { ControlPipeline, Interaction } from "#/control/types.ts";
 import {
 	auditSink,
@@ -143,6 +148,41 @@ describe("guard API", () => {
 		expect(audit.events.some((event) => event.kind === "failure")).toBe(true);
 	});
 
+	it("keeps an earlier block when a later control fails", async () => {
+		const audit = auditSink();
+		const response = await handleGuardRequest(
+			guardRequest({ ...envelope, content: "MARKER please block" }, alice),
+			{
+				audit,
+				identity: identityResolver(),
+				pipeline: pipelineWith(
+					[
+						{
+							id: "fixture-blocker",
+							inspect: (interaction: Interaction) =>
+								interaction.content.includes("MARKER")
+									? {
+											hit: {
+												controlId: "fixture-blocker",
+												kind: "fixture",
+												verdict: "block",
+											},
+											verdict: "block",
+										}
+									: { verdict: "allow" },
+						},
+						failingControl("boom"),
+					],
+					{ audit, failureVerdict: "escalate" },
+				),
+			},
+		);
+		expect(response.status).toBe(403);
+		const body = await jsonOf(response);
+		expect(body.verdict).toBe("block");
+		expect(body.control).toBe("fixture-blocker");
+	});
+
 	it("governs concurrent consumers in isolation", async () => {
 		const audit = auditSink();
 		const deps = {
@@ -222,5 +262,52 @@ describe("guard API", () => {
 		const event = audit.events.find((entry) => entry.kind === "interaction");
 		expect(event?.userId).toBe("alice");
 		expect(event?.groupId).toBe("hr");
+	});
+});
+
+describe("known-consumer gate", () => {
+	function keyedRequest(groupId?: string): Request {
+		const headers = new Headers();
+		if (groupId !== undefined) {
+			headers.set(USER_GROUP_ID_HEADER, groupId);
+			headers.set(USER_ID_HEADER, `user-${groupId}`);
+		}
+		return new Request("http://test.local/api/audit/export?format=jsonl", { headers });
+	}
+
+	it("passes a user in a known group", () => {
+		const access = requireKnownGroup(keyedRequest("hr"), identityResolver());
+		expect(access.ok).toBe(true);
+	});
+
+	it("rejects a missing key", () => {
+		const access = requireKnownGroup(keyedRequest(), identityResolver());
+		expect(access.ok).toBe(false);
+	});
+
+	it("rejects an unknown group", () => {
+		const access = requireKnownGroup(keyedRequest("ghost"), identityResolver());
+		expect(access.ok).toBe(false);
+	});
+});
+
+describe("decision logging", () => {
+	it("writes one line per guard decision to stdout", async () => {
+		const lines: string[] = [];
+		const original = process.stdout.write;
+		process.stdout.write = ((chunk: unknown): boolean => {
+			lines.push(String(chunk));
+			return true;
+		}) as typeof process.stdout.write;
+		try {
+			const response = await handleGuardRequest(guardRequest(envelope, alice), {
+				identity: identityResolver(),
+				pipeline: pipelineWith([]),
+			});
+			expect(response.status).toBe(200);
+		} finally {
+			process.stdout.write = original;
+		}
+		expect(lines.some((line) => line.includes("[guard]") && line.includes("allow"))).toBe(true);
 	});
 });
