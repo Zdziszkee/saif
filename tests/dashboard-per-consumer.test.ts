@@ -10,9 +10,10 @@ import { type AuditEvent, auditEvent, summarizeAuditDecisions } from "#/control/
 function decision(input: {
 	readonly consumerKey?: string;
 	readonly controlId?: string;
+	readonly groupId?: string;
 	readonly kind?: AuditEvent["kind"];
-	readonly subject?: string;
 	readonly timestamp: string;
+	readonly userId?: string;
 	readonly verdict?: AuditEvent["verdict"];
 }): AuditEvent {
 	const { kind, timestamp, ...fields } = input;
@@ -22,70 +23,96 @@ function decision(input: {
 const SEED: readonly AuditEvent[] = [
 	decision({
 		controlId: "deterministic",
-		subject: "alice",
+		groupId: "alice",
 		timestamp: "2026-03-01T00:00:00.000Z",
+		userId: "alice",
 		verdict: "allow",
 	}),
 	decision({
 		controlId: "signatures",
-		subject: "alice",
+		groupId: "alice",
 		timestamp: "2026-03-02T00:00:00.000Z",
+		userId: "alice",
 		verdict: "block",
 	}),
 	decision({
 		controlId: "deterministic",
-		subject: "bob",
+		groupId: "bob",
 		timestamp: "2026-03-03T00:00:00.000Z",
+		userId: "bob",
 		verdict: "redact",
 	}),
 	// Noise the per-consumer summary must ignore: a verdict-less note, a
 	// registration admission, and a control failure.
-	decision({ subject: "alice", timestamp: "2026-03-04T00:00:00.000Z" }),
+	decision({ groupId: "alice", timestamp: "2026-03-04T00:00:00.000Z", userId: "alice" }),
 	decision({
+		groupId: "bob",
 		kind: "registration",
-		subject: "bob",
 		timestamp: "2026-03-05T00:00:00.000Z",
+		userId: "bob",
 		verdict: "allow",
 	}),
 	decision({
+		groupId: "alice",
 		kind: "failure",
-		subject: "alice",
 		timestamp: "2026-03-06T00:00:00.000Z",
+		userId: "alice",
 		verdict: "escalate",
 	}),
 ];
 
 describe("consumerKeyOf", () => {
-	it("prefers the dedicated consumerKey over subject", () => {
+	it("prefers the dedicated consumerKey over groupId and userId", () => {
 		const event = decision({
 			consumerKey: "alice-key",
-			subject: "alice",
+			groupId: "alice",
 			timestamp: "2026-03-07T00:00:00.000Z",
+			userId: "alice",
 			verdict: "allow",
 		});
 		expect(consumerKeyOf(event)).toBe("alice-key");
 	});
 
-	it("falls back to subject when consumerKey is missing", () => {
+	it("falls back to groupId when consumerKey is missing", () => {
 		const event = decision({
-			subject: "alice",
+			groupId: "alice",
 			timestamp: "2026-03-07T00:00:00.000Z",
+			userId: "alice",
 			verdict: "allow",
 		});
 		expect(consumerKeyOf(event)).toBe("alice");
 	});
 
-	it("falls back to subject when consumerKey is empty", () => {
+	it("falls back to groupId when consumerKey is empty", () => {
 		const event = decision({
 			consumerKey: "",
-			subject: "alice",
+			groupId: "alice",
 			timestamp: "2026-03-07T00:00:00.000Z",
+			userId: "alice",
 			verdict: "allow",
 		});
 		expect(consumerKeyOf(event)).toBe("alice");
 	});
 
-	it("returns the unknown marker when subject is missing", () => {
+	it("aggregates distinct users of one group under the groupId", () => {
+		const events: readonly AuditEvent[] = [
+			decision({
+				groupId: "alice",
+				timestamp: "2026-03-01T00:00:00.000Z",
+				userId: "alice-one",
+				verdict: "allow",
+			}),
+			decision({
+				groupId: "alice",
+				timestamp: "2026-03-02T00:00:00.000Z",
+				userId: "alice-two",
+				verdict: "block",
+			}),
+		];
+		expect(summarizeByConsumer(events)).toEqual([["alice", 2]]);
+	});
+
+	it("returns the unknown marker when groupId is missing", () => {
 		const event = decision({
 			timestamp: "2026-03-07T00:00:00.000Z",
 			verdict: "allow",
@@ -129,22 +156,22 @@ describe("summarizeByConsumer", () => {
 	it("sorts consumers by decision count descending", () => {
 		const skewed: readonly AuditEvent[] = [
 			decision({
-				subject: "alice",
+				groupId: "alice",
 				timestamp: "2026-03-01T00:00:00.000Z",
 				verdict: "allow",
 			}),
 			decision({
-				subject: "bob",
+				groupId: "bob",
 				timestamp: "2026-03-02T00:00:00.000Z",
 				verdict: "allow",
 			}),
 			decision({
-				subject: "bob",
+				groupId: "bob",
 				timestamp: "2026-03-03T00:00:00.000Z",
 				verdict: "block",
 			}),
 			decision({
-				subject: "bob",
+				groupId: "bob",
 				timestamp: "2026-03-04T00:00:00.000Z",
 				verdict: "redact",
 			}),
@@ -157,16 +184,16 @@ describe("summarizeByConsumer", () => {
 
 	it("returns empty when nothing is a decision", () => {
 		const noise: readonly AuditEvent[] = [
-			decision({ subject: "alice", timestamp: "2026-03-04T00:00:00.000Z" }),
+			decision({ groupId: "alice", timestamp: "2026-03-04T00:00:00.000Z" }),
 			decision({
+				groupId: "bob",
 				kind: "registration",
-				subject: "bob",
 				timestamp: "2026-03-05T00:00:00.000Z",
 				verdict: "allow",
 			}),
 			decision({
+				groupId: "alice",
 				kind: "failure",
-				subject: "alice",
 				timestamp: "2026-03-06T00:00:00.000Z",
 				verdict: "escalate",
 			}),

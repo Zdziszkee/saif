@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { Dashboard } from "#/components/dashboard/dashboard.tsx";
 import {
@@ -19,7 +19,7 @@ import {
 import { selectEscalations } from "#/dashboard/data.ts";
 import { formatCount, formatTimestamp } from "#/dashboard/format.ts";
 import { getDashboardData } from "#/dashboard/server.ts";
-import { ALL_CONSUMERS } from "#/dashboard/types.ts";
+import { ALL_CONSUMERS, type DashboardData } from "#/dashboard/types.ts";
 
 function validateDashboardSearch(search: Record<string, unknown>): {
 	consumer: string | undefined;
@@ -41,17 +41,21 @@ export const Route = createFileRoute("/dashboard")({
  * tracking below it: the `?consumer=` search param scopes the by-consumer
  * breakdown and the attribution rows, so each consumer link deep-links to
  * that consumer in isolation. Counts come from the loader summary's
- * `byConsumer` record (no second audit read); the dashboard's own scope
- * selector above keeps working on its local state.
+ * `byConsumer` record (no second audit read); the dashboard's scope
+ * selector is driven by the same `?consumer=` param via
+ * `initialConsumer`/`onConsumerChange`, so URL is the source of truth.
  */
-function DashboardPage() {
-	const data = Route.useLoaderData();
-	const { consumer } = Route.useSearch();
-	const onRefresh = useCallback(() => getDashboardData(), []);
+interface ByConsumerRow {
+	allow: number;
+	block: number;
+	escalate: number;
+	key: string;
+	redact: number;
+	total: number;
+}
 
-	const scope = consumer ?? ALL_CONSUMERS;
-	const escalations = selectEscalations(data, scope);
-	const byConsumer = Object.entries(data.byConsumer)
+function toByConsumerRows(byConsumer: DashboardData["byConsumer"]): ByConsumerRow[] {
+	return Object.entries(byConsumer)
 		.map(([key, metrics]) => ({
 			allow: metrics.verdicts.allow,
 			block: metrics.verdicts.block,
@@ -65,10 +69,42 @@ function DashboardPage() {
 				metrics.verdicts.escalate,
 		}))
 		.sort((left, right) => right.total - left.total);
+}
+
+const ALL_CONSUMERS_ESCALATIONS_TITLE = "Escalations with consumer attribution";
+const BY_CONSUMER_DESCRIPTION = "Decisions per consumer. Select one to view it in isolation.";
+const BY_CONSUMER_TITLE = "By consumer key";
+const ESCALATIONS_DESCRIPTION =
+	"Newest first. Each row carries the consumer key it was recorded under.";
+
+/** Muted empty state shown in place of an empty table body. */
+const EMPTY_STATE_MESSAGE = "No activity in this window";
+
+function DashboardPage() {
+	const data = Route.useLoaderData();
+	const { consumer } = Route.useSearch();
+	const navigate = useNavigate({ from: "/dashboard" });
+	const onRefresh = useCallback(() => getDashboardData(), []);
+
+	const scope = consumer ?? ALL_CONSUMERS;
+	const escalations = selectEscalations(data, scope);
+	const byConsumer = toByConsumerRows(data.byConsumer);
+	const escalationsTitle =
+		consumer === undefined ? ALL_CONSUMERS_ESCALATIONS_TITLE : `Escalations for ${consumer}`;
 
 	return (
 		<>
-			<Dashboard initialData={data} onRefresh={onRefresh} />
+			<Dashboard
+				initialConsumer={consumer}
+				initialData={data}
+				onConsumerChange={(next) => {
+					navigate({
+						search: { consumer: next === ALL_CONSUMERS ? undefined : next },
+						to: "/dashboard",
+					}).catch(() => undefined);
+				}}
+				onRefresh={onRefresh}
+			/>
 			<div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 pb-6">
 				{consumer === undefined ? null : (
 					<p className="text-muted-foreground text-sm">
@@ -81,17 +117,13 @@ function DashboardPage() {
 				)}
 				<div className="flex flex-col gap-3">
 					<div className="flex flex-col gap-1">
-						<h2 className="font-semibold text-lg tracking-tight">By consumer key</h2>
-						<p className="text-muted-foreground text-sm">
-							Decisions per consumer. Select one to view it in isolation.
-						</p>
+						<h2 className="font-semibold text-lg tracking-tight">{BY_CONSUMER_TITLE}</h2>
+						<p className="text-muted-foreground text-sm">{BY_CONSUMER_DESCRIPTION}</p>
 					</div>
 					<Card>
 						<CardHeader>
-							<CardTitle>By consumer key</CardTitle>
-							<CardDescription>
-								Decisions per consumer. Select one to view it in isolation.
-							</CardDescription>
+							<CardTitle>{BY_CONSUMER_TITLE}</CardTitle>
+							<CardDescription>{BY_CONSUMER_DESCRIPTION}</CardDescription>
 						</CardHeader>
 						<CardContent>
 							{byConsumer.length > 0 ? (
@@ -138,32 +170,20 @@ function DashboardPage() {
 									</TableBody>
 								</Table>
 							) : (
-								<p className="text-muted-foreground text-sm">No activity in this window</p>
+								<p className="text-muted-foreground text-sm">{EMPTY_STATE_MESSAGE}</p>
 							)}
 						</CardContent>
 					</Card>
 				</div>
 				<div className="flex flex-col gap-3">
 					<div className="flex flex-col gap-1">
-						<h2 className="font-semibold text-lg tracking-tight">
-							{consumer === undefined
-								? "Escalations with consumer attribution"
-								: `Escalations for ${consumer}`}
-						</h2>
-						<p className="text-muted-foreground text-sm">
-							Newest first. Each row carries the consumer key it was recorded under.
-						</p>
+						<h2 className="font-semibold text-lg tracking-tight">{escalationsTitle}</h2>
+						<p className="text-muted-foreground text-sm">{ESCALATIONS_DESCRIPTION}</p>
 					</div>
 					<Card>
 						<CardHeader>
-							<CardTitle>
-								{consumer === undefined
-									? "Escalations with consumer attribution"
-									: `Escalations for ${consumer}`}
-							</CardTitle>
-							<CardDescription>
-								Newest first. Each row carries the consumer key it was recorded under.
-							</CardDescription>
+							<CardTitle>{escalationsTitle}</CardTitle>
+							<CardDescription>{ESCALATIONS_DESCRIPTION}</CardDescription>
 						</CardHeader>
 						<CardContent>
 							{escalations.length > 0 ? (
@@ -194,7 +214,7 @@ function DashboardPage() {
 									</TableBody>
 								</Table>
 							) : (
-								<p className="text-muted-foreground text-sm">No activity in this window</p>
+								<p className="text-muted-foreground text-sm">{EMPTY_STATE_MESSAGE}</p>
 							)}
 						</CardContent>
 					</Card>

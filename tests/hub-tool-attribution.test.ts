@@ -33,7 +33,7 @@ describe("hub tool-call attribution", () => {
 		const unknown = audit.events.find((event) => event.detail?.includes("unknown tool"));
 		expect(unknown).toBeDefined();
 		expect(unknown?.consumerKey).toBe("(none)");
-		expect(unknown?.subject).toBe("alice");
+		expect(unknown?.groupId).toBe("alice");
 	});
 
 	it("granted invokeTool path forwards consumerKey to governed audit", async () => {
@@ -44,7 +44,7 @@ describe("hub tool-call attribution", () => {
 
 		expect(outcome.kind).toBe("executed");
 		const calls = audit.events.filter(
-			(event) => event.seam === "mcp-tool" && event.subject === "alice",
+			(event) => event.seam === "mcp-tool" && event.groupId === "alice",
 		);
 		expect(calls.length).toBeGreaterThan(0);
 		for (const event of calls) {
@@ -52,7 +52,7 @@ describe("hub tool-call attribution", () => {
 		}
 	});
 
-	it("served surface forwards subject and consumerKey to governed audit", async () => {
+	it("served surface forwards groupId and consumerKey to governed audit", async () => {
 		const audit = auditSink();
 		const hub = await createHub({ audit, pipeline: pipelineWith([blockOn("BLOCKME")]) });
 		const client = await createMCPClient({
@@ -68,14 +68,14 @@ describe("hub tool-call attribution", () => {
 		expect(blocked.isError ?? false).toBe(true);
 		const denial = audit.events.find(
 			(event) =>
-				event.kind === "interaction" && event.verdict === "block" && event.subject === "alice",
+				event.kind === "interaction" && event.verdict === "block" && event.groupId === "alice",
 		);
 		expect(denial).toBeDefined();
 		expect(denial?.consumerKey).toBe("alice-key");
 		await client.close();
 	});
 
-	it("served surface defaults to anonymous subject and (none) consumerKey", async () => {
+	it("served surface defaults to anonymous group and (none) consumerKey", async () => {
 		const audit = auditSink();
 		const hub = await createHub({ audit, pipeline: pipelineWith([]) });
 		const client = await createMCPClient({
@@ -92,7 +92,7 @@ describe("hub tool-call attribution", () => {
 		const calls = audit.events.filter((event) => event.seam === "mcp-tool");
 		expect(calls.length).toBeGreaterThan(0);
 		for (const event of calls) {
-			expect(event.subject).toBe("anonymous");
+			expect(event.groupId).toBe("anonymous");
 			expect(event.consumerKey).toBe("(none)");
 		}
 		await client.close();
@@ -119,15 +119,15 @@ describe("hub tool-call attribution", () => {
 		expect(audit.events.length).toBeGreaterThan(0);
 		for (const event of audit.events) {
 			expect(
-				(event.consumerKey === "alice-key" && event.subject === "alice") ||
-					(event.consumerKey === "bob-key" && event.subject === "bob"),
+				(event.consumerKey === "alice-key" && event.groupId === "alice") ||
+					(event.consumerKey === "bob-key" && event.groupId === "bob"),
 			).toBe(true);
 		}
 		expect(
-			audit.events.some((event) => event.consumerKey === "alice-key" && event.subject === "alice"),
+			audit.events.some((event) => event.consumerKey === "alice-key" && event.groupId === "alice"),
 		).toBe(true);
 		expect(
-			audit.events.some((event) => event.consumerKey === "bob-key" && event.subject === "bob"),
+			audit.events.some((event) => event.consumerKey === "bob-key" && event.groupId === "bob"),
 		).toBe(true);
 	});
 });

@@ -1,24 +1,28 @@
 /**
  * Dashboard gap helpers: policy/signature versions, escalation queue, and
- * controls in force. Pure shaping lives here so the dashboard route stays
- * thin; the server sketch at the bottom follows the hub runtime's
- * lazy-singleton pattern (no file watches at import).
+ * controls in force.
+ *
+ * Audit-layer pure shaping over raw `AuditEvent[]` plus a compact
+ * policy summary. The dashboard route does NOT use this module: it renders
+ * master's shaped `DashboardData` via `src/dashboard/data.ts`
+ * (`buildDashboardData`, `selectMetrics`, `selectEscalations`) fed by
+ * `getDashboardData` in `src/dashboard/server.ts`. Everything kept here
+ * differs from master's equivalents (see per-export notes) and is pinned by
+ * `tests/dashboard-meta.test.ts`, so it stays as documented audit-layer
+ * utilities. Server reads are owned by `src/dashboard/server.ts`; this
+ * module holds no loader, feed store, or singleton.
  */
 
 import { filterByConsumerKey } from "#/components/dashboard-consumers.ts";
 import { type AuditEvent, filterAuditEvents, isAuditDecision } from "#/control/audit.ts";
-import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
 import type { Policy } from "#/control/policy/schema.ts";
-import { createSignatureFeedStore, type SignatureFeedStore } from "#/control/signatures/feed.ts";
 
 export const DEFAULT_ESCALATION_LIMIT = 20;
 export const UNKNOWN_PROFILE = "unknown";
 export const UNKNOWN_VERSION = "unknown";
 
 const FULL_SHA256 = /^[0-9a-f]{64}$/;
-const POLICY_PATH = "policy.json";
 const SHORT_HASH_LENGTH = 12;
-const SIGNATURES_PATH = "signatures.json";
 
 /** Policy + signature feed versions in dashboard display form. */
 export interface DashboardVersions {
@@ -32,25 +36,18 @@ export interface ControlsInForce {
 	readonly profile: string;
 }
 
-/** Loader input: audit events plus dashboard scoping. */
-export interface LoadDashboardMetaInput {
-	readonly consumer?: string | undefined;
-	readonly escalationLimit?: number | undefined;
-	readonly events?: readonly AuditEvent[] | undefined;
-}
-
-/** Shaped meta for the Versions + Escalations + Controls cards. */
-export interface DashboardMeta {
-	readonly controls: ControlsInForce;
-	readonly escalations: readonly AuditEvent[];
-	readonly versions: DashboardVersions;
-}
-
 /**
- * Escalation queue: `escalate`-verdict decisions, newest first, capped at
- * `limit`. Applies the dashboard `?consumer=` scoping when set (same
- * `filterByConsumerKey` the loader uses), so a scoped dashboard shows only
- * that consumer's escalations.
+ * Escalation queue over raw audit events: `escalate`-verdict decisions,
+ * newest first, capped at `limit`. Applies the dashboard `?consumer=`
+ * scoping when set (same `filterByConsumerKey` the audit layer uses), so a
+ * scoped dashboard shows only that consumer's escalations.
+ *
+ * Audit-layer utility, not master's view selector: master's
+ * `selectEscalations` in `src/dashboard/data.ts` takes a shaped
+ * `DashboardData` plus an `"all"` scope and returns `EscalationRow[]`,
+ * while this takes raw `AuditEvent[]` plus a numeric limit and returns
+ * `AuditEvent[]`. Pinned by `tests/dashboard-meta.test.ts` and also
+ * consumed by `tests/dashboard-gaps-per-consumer.test.ts`.
  */
 export function selectEscalations(
 	events: readonly AuditEvent[] | undefined,
@@ -84,6 +81,12 @@ function displayVersion(value: string | undefined): string {
  * Version chips: full SHA-256 stamps shorten to 12 hex chars, short labels
  * (e.g. the feed store's `"unavailable"` state) pass through, and
  * missing/blank reads as unknown.
+ *
+ * Audit-layer utility with no master equivalent: master's dashboard trims
+ * inline (`policyVersion.slice(0, 12)` in
+ * `src/components/dashboard/dashboard.tsx`) and passes the feed version
+ * through raw, with no blank-to-unknown mapping. Pinned by
+ * `tests/dashboard-meta.test.ts`.
  */
 export function formatVersions(
 	policyVersion?: string | undefined,
@@ -96,6 +99,12 @@ export function formatVersions(
  * Controls in force: the default profile's enabled-control flags in pipeline
  * order (allowlist always runs; see `buildControls` in hub/runtime.ts).
  * Unknown with no controls when no valid policy is loaded.
+ *
+ * Audit-layer utility with no master equivalent: master's
+ * `summarizePolicy` in `src/dashboard/policy-view.ts` projects the full
+ * `PolicyView` (seven `ControlSummary` rows plus `ProfileSummary` rows),
+ * while this returns the compact `{ enabled, profile }` flag list. Pinned
+ * by `tests/dashboard-meta.test.ts`.
  */
 export function summarizeControlsInForce(policy: Policy | undefined): ControlsInForce {
 	if (policy === undefined) {
@@ -114,42 +123,4 @@ export function summarizeControlsInForce(policy: Policy | undefined): ControlsIn
 		enabled.push("semantic");
 	}
 	return { enabled, profile };
-}
-
-let policyLoader: PolicyLoader | undefined;
-let policyStarted = false;
-let feedStore: SignatureFeedStore | undefined;
-
-/** Lazy singleton: constructing the loader is cheap, starting it watches. */
-function getPolicyLoader(): PolicyLoader {
-	policyLoader ??= new PolicyLoader(new FilePolicySource(POLICY_PATH));
-	return policyLoader;
-}
-
-/** Lazy singleton: mirrors `getSignatureFeedStore` in hub/runtime.ts. */
-function getFeedStore(): SignatureFeedStore {
-	feedStore ??= createSignatureFeedStore(SIGNATURES_PATH);
-	return feedStore;
-}
-
-/**
- * Server-only sketch: reads the PolicyLoader snapshot + feed store without
- * import-time side effects and shapes the cards from caller-supplied audit
- * events (the dashboard loader already holds them from the sink).
- */
-export async function loadDashboardMeta(
-	input: LoadDashboardMetaInput = {},
-): Promise<DashboardMeta> {
-	const loader = getPolicyLoader();
-	if (!policyStarted) {
-		await loader.start();
-		policyStarted = true;
-	}
-	const snapshot = loader.snapshot;
-	const feed = getFeedStore().snapshot();
-	return {
-		controls: summarizeControlsInForce(snapshot?.policy),
-		escalations: selectEscalations(input.events, input.escalationLimit, input.consumer),
-		versions: formatVersions(snapshot?.policyVersion, feed.feed.version),
-	};
 }

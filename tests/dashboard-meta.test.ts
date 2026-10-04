@@ -34,8 +34,8 @@ function escalation(
 		...auditEvent("interaction", {
 			consumerKey,
 			controlId,
+			groupId: consumerKey,
 			interactionId,
-			subject: consumerKey,
 			verdict: "escalate",
 		}),
 		timestamp: stamp(day),
@@ -52,8 +52,8 @@ function decision(
 		...auditEvent("interaction", {
 			consumerKey,
 			controlId: "deterministic",
+			groupId: consumerKey,
 			interactionId,
-			subject: consumerKey,
 			verdict,
 		}),
 		timestamp: stamp(day),
@@ -64,8 +64,8 @@ function note(interactionId: string, consumerKey: string, day: number): AuditEve
 	return {
 		...auditEvent("interaction", {
 			consumerKey,
+			groupId: consumerKey,
 			interactionId,
-			subject: consumerKey,
 		}),
 		timestamp: stamp(day),
 	};
@@ -75,8 +75,8 @@ function admission(interactionId: string, consumerKey: string, day: number): Aud
 	return {
 		...auditEvent("registration", {
 			consumerKey,
+			groupId: consumerKey,
 			interactionId,
-			subject: consumerKey,
 			verdict: "escalate",
 		}),
 		timestamp: stamp(day),
@@ -87,8 +87,8 @@ function failure(interactionId: string, consumerKey: string, day: number): Audit
 	return {
 		...auditEvent("failure", {
 			consumerKey,
+			groupId: consumerKey,
 			interactionId,
-			subject: consumerKey,
 			verdict: "escalate",
 		}),
 		timestamp: stamp(day),

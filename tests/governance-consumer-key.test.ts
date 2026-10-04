@@ -39,7 +39,7 @@ describe("governance consumer-key plumbing", () => {
 		const denial = audit.events.find((event) => event.detail?.includes("ungranted"));
 		expect(denial).toBeDefined();
 		expect(denial?.consumerKey).toBe("alice-key");
-		expect(denial?.subject).toBe("alice");
+		expect(denial?.groupId).toBe("alice");
 	});
 
 	it("records consumerKey on args-inspection block", async () => {
@@ -70,7 +70,7 @@ describe("governance consumer-key plumbing", () => {
 		);
 		expect(blocked).toBeDefined();
 		expect(blocked?.consumerKey).toBe("bob-key");
-		expect(blocked?.subject).toBe("alice");
+		expect(blocked?.groupId).toBe("alice");
 	});
 
 	it("records consumerKey on result-inspection block", async () => {
@@ -99,7 +99,7 @@ describe("governance consumer-key plumbing", () => {
 		);
 		expect(blocked).toBeDefined();
 		expect(blocked?.consumerKey).toBe("carol-key");
-		expect(blocked?.subject).toBe("alice");
+		expect(blocked?.groupId).toBe("alice");
 	});
 
 	it("records consumerKey on unknown-tool path", async () => {
@@ -115,7 +115,7 @@ describe("governance consumer-key plumbing", () => {
 		const unknown = audit.events.find((event) => event.detail?.includes("unknown tool"));
 		expect(unknown).toBeDefined();
 		expect(unknown?.consumerKey).toBe("dave-key");
-		expect(unknown?.subject).toBe("alice");
+		expect(unknown?.groupId).toBe("alice");
 	});
 
 	it("records consumerKey on tool-execution failure", async () => {
@@ -141,7 +141,7 @@ describe("governance consumer-key plumbing", () => {
 		const failure = audit.events.find((event) => event.kind === "failure");
 		expect(failure).toBeDefined();
 		expect(failure?.consumerKey).toBe("erin-key");
-		expect(failure?.subject).toBe("alice");
+		expect(failure?.groupId).toBe("alice");
 	});
 
 	it("defaults consumerKey to (none) when omitted", async () => {
@@ -160,6 +160,6 @@ describe("governance consumer-key plumbing", () => {
 		const denial = audit.events.find((event) => event.detail?.includes("ungranted"));
 		expect(denial).toBeDefined();
 		expect(denial?.consumerKey).toBe("(none)");
-		expect(denial?.subject).toBe("alice");
+		expect(denial?.groupId).toBe("alice");
 	});
 });

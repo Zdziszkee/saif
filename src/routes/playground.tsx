@@ -129,6 +129,12 @@ function asString(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined;
 }
 
+function asStringArray(value: unknown): string[] | undefined {
+	return Array.isArray(value)
+		? value.filter((entry): entry is string => typeof entry === "string")
+		: undefined;
+}
+
 function normalizeResult(value: unknown): GuardView {
 	const fallback: GuardView = { error: "invalid_response" };
 	if (typeof value !== "object" || value === null) {
@@ -155,11 +161,13 @@ function normalizeResult(value: unknown): GuardView {
 	if (typeof record.flagged === "boolean") {
 		view.flagged = record.flagged;
 	}
-	if (Array.isArray(record.details)) {
-		view.details = record.details.filter((entry): entry is string => typeof entry === "string");
+	const details = asStringArray(record.details);
+	if (details !== undefined) {
+		view.details = details;
 	}
-	if (Array.isArray(record.reasons)) {
-		view.reasons = record.reasons.filter((entry): entry is string => typeof entry === "string");
+	const reasons = asStringArray(record.reasons);
+	if (reasons !== undefined) {
+		view.reasons = reasons;
 	}
 	if (Array.isArray(record.hits)) {
 		view.hits = record.hits.filter((entry): entry is GuardHit => isHit(entry));

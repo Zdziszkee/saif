@@ -2,7 +2,12 @@ import { describe, expect, it } from "bun:test";
 
 import type { DetectionType } from "#/control/deterministic/detectors.ts";
 import { customPlaceholder, placeholderFor } from "#/control/deterministic/placeholders.ts";
-import { applyRedactions, redactJson } from "#/control/redact.ts";
+import {
+	applyRedactions,
+	type RedactableFinding,
+	redactionsFromFindings,
+	redactJson,
+} from "#/control/redact.ts";
 import type { RedactionSpan } from "#/control/types.ts";
 
 function span(start: number, end: number, placeholder: string): RedactionSpan {
@@ -171,7 +176,62 @@ describe("redactJson", () => {
 		expect(actual).toBe(`"[REDACTED]"`);
 	});
 
-	it("throws when the content is not JSON", () => {
-		expect(() => redactJson("not json", [])).toThrow(SyntaxError);
+	it("fails closed to a placeholder when the content is not JSON", () => {
+		// Enforcement runs outside the inspection try, so unparseable input
+		// must never throw out of `guardInteraction`.
+		expect(redactJson("not json", [])).toBe('"[REDACTED]"');
+	});
+});
+
+describe("redactionsFromFindings", () => {
+	function finding(overrides: Partial<RedactableFinding> = {}): RedactableFinding {
+		return {
+			action: "redact",
+			detectorId: "test.email",
+			kind: "pii.email",
+			placeholder: "[EMAIL]",
+			span: { end: 17, start: 0 },
+			...overrides,
+		};
+	}
+
+	it("maps a redact finding with a placeholder and span", () => {
+		const actual = redactionsFromFindings([finding()]);
+
+		expect(actual).toEqual([
+			{ detectorId: "test.email", end: 17, kind: "pii.email", placeholder: "[EMAIL]", start: 0 },
+		]);
+	});
+
+	it("skips findings whose action is not redact", () => {
+		const actual = redactionsFromFindings([finding({ action: "allow" })]);
+
+		expect(actual).toEqual([]);
+	});
+
+	it("skips findings with a null placeholder", () => {
+		const actual = redactionsFromFindings([finding({ placeholder: null })]);
+
+		expect(actual).toEqual([]);
+	});
+
+	it("skips findings with a null span", () => {
+		const actual = redactionsFromFindings([finding({ span: null })]);
+
+		expect(actual).toEqual([]);
+	});
+
+	it("keeps only the redactable findings in a mixed batch", () => {
+		const keep = finding();
+		const actual = redactionsFromFindings([
+			finding({ action: "block" }),
+			keep,
+			finding({ placeholder: null }),
+			finding({ span: null }),
+		]);
+
+		expect(actual).toEqual([
+			{ detectorId: "test.email", end: 17, kind: "pii.email", placeholder: "[EMAIL]", start: 0 },
+		]);
 	});
 });

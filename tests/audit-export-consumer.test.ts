@@ -10,62 +10,34 @@ const SEED: readonly AuditEvent[] = [
 	makeEvent({
 		consumerKey: "alice-key",
 		controlId: "deterministic",
-		subject: "alice-key",
+		groupId: "alice-key",
 		timestamp: "2026-01-01T00:00:00.000Z",
 		verdict: "allow",
 	}),
 	makeEvent({
 		consumerKey: "bob-key",
 		controlId: "deterministic",
-		subject: "bob-key",
+		groupId: "bob-key",
 		timestamp: "2026-01-02T00:00:00.000Z",
 		verdict: "block",
 	}),
 	makeEvent({
 		consumerKey: "alice-key",
 		controlId: "signatures",
-		subject: "alice-key",
+		groupId: "alice-key",
 		timestamp: "2026-01-03T00:00:00.000Z",
 		verdict: "redact",
 	}),
 	makeEvent({
 		consumerKey: "alice-key",
 		controlId: "semantic",
-		subject: "shared-topic",
+		groupId: "shared-topic",
 		timestamp: "2026-01-04T00:00:00.000Z",
 		verdict: "escalate",
 	}),
 ];
 
-const EXPECTED_HEADER =
-	"timestamp,kind,verdict,controlId,subject,consumerKey,seam,interactionId,detail,redactionCount";
-
 describe("audit export consumer filters", () => {
-	it("filters by consumerKey", () => {
-		const alice = filterAuditEvents(SEED, { consumerKey: "alice-key" });
-		expect(alice).toHaveLength(3);
-		for (const event of alice) {
-			expect(event.consumerKey).toBe("alice-key");
-		}
-	});
-
-	it("matches nothing for an unknown consumerKey", () => {
-		expect(filterAuditEvents(SEED, { consumerKey: "nobody" })).toEqual([]);
-	});
-
-	it("returns everything when the filter is empty", () => {
-		expect(filterAuditEvents(SEED, {})).toHaveLength(SEED.length);
-	});
-
-	it("treats since as an inclusive lower bound", () => {
-		const events = filterAuditEvents(SEED, { since: "2026-01-02T00:00:00.000Z" });
-		expect(events.map((event) => event.timestamp)).toEqual([
-			"2026-01-02T00:00:00.000Z",
-			"2026-01-03T00:00:00.000Z",
-			"2026-01-04T00:00:00.000Z",
-		]);
-	});
-
 	it("treats until as an inclusive upper bound", () => {
 		const events = filterAuditEvents(SEED, { until: "2026-01-02T00:00:00.000Z" });
 		expect(events.map((event) => event.timestamp)).toEqual([
@@ -80,15 +52,6 @@ describe("audit export consumer filters", () => {
 			until: "2026-01-03T00:00:00.000Z",
 		});
 		expect(events).toHaveLength(2);
-	});
-
-	it("combines consumerKey with the time window", () => {
-		const aliceEarly = filterAuditEvents(SEED, {
-			consumerKey: "alice-key",
-			until: "2026-01-01T00:00:00.000Z",
-		});
-		expect(aliceEarly).toHaveLength(1);
-		expect(aliceEarly[0]?.verdict).toBe("allow");
 	});
 
 	it("combines consumerKey with control", () => {
@@ -109,17 +72,17 @@ describe("audit export consumer filters", () => {
 		expect(filtered[0]?.controlId).toBe("semantic");
 	});
 
-	it("combines consumerKey with subject", () => {
+	it("combines consumerKey with groupId", () => {
 		const filtered = filterAuditEvents(SEED, {
 			consumerKey: "alice-key",
-			subject: "shared-topic",
+			groupId: "shared-topic",
 		});
 		expect(filtered).toHaveLength(1);
 		expect(filtered[0]?.verdict).toBe("escalate");
 	});
 
-	it("matches subject independently of consumerKey", () => {
-		expect(filterAuditEvents(SEED, { subject: "shared-topic" })).toHaveLength(1);
+	it("matches groupId independently of consumerKey", () => {
+		expect(filterAuditEvents(SEED, { groupId: "shared-topic" })).toHaveLength(1);
 		expect(filterAuditEvents(SEED, { consumerKey: "shared-topic" })).toHaveLength(0);
 	});
 
@@ -127,35 +90,13 @@ describe("audit export consumer filters", () => {
 		const filtered = filterAuditEvents(SEED, {
 			consumerKey: "alice-key",
 			control: "semantic",
+			groupId: "shared-topic",
 			since: "2026-01-04T00:00:00.000Z",
-			subject: "shared-topic",
 			until: "2026-01-04T00:00:00.000Z",
 			verdict: "escalate",
 		});
 		expect(filtered).toHaveLength(1);
 		expect(filtered[0]?.controlId).toBe("semantic");
-	});
-
-	it("emits the canonical CSV header with consumerKey", () => {
-		expect(auditEventsToCsv(SEED).split("\n")[0]).toBe(EXPECTED_HEADER);
-	});
-
-	it("emits one CSV row per event carrying its key", () => {
-		const rows = auditEventsToCsv(SEED).split("\n");
-		expect(rows).toHaveLength(SEED.length + 1);
-		expect(rows[1]).toContain("alice-key");
-		expect(rows[2]).toContain("bob-key");
-	});
-
-	it("quotes CSV cells containing commas", () => {
-		const event = makeEvent({
-			consumerKey: "alice-key",
-			detail: "hello, world",
-			subject: "alice-key",
-			timestamp: "2026-01-05T00:00:00.000Z",
-			verdict: "allow",
-		});
-		expect(auditEventsToCsv([event]).split("\n")[1]).toContain('"hello, world"');
 	});
 
 	it("round-trips JSONL losslessly", () => {

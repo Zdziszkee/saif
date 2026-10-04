@@ -1,31 +1,44 @@
 /**
  * Per-consumer shaping for the security dashboard.
  *
- * The audit sink is append-only and its event schema is owned by
- * `#/control/audit.ts`, which may or may not carry a dedicated `consumerKey`
- * field yet (concurrent agents are adding it). Everything here reads the key
- * defensively — preferring `consumerKey` when present and falling back to the
- * policy subject (known consumer keys govern as a subject of the same name,
- * see `#/control/subjects.ts`) and finally `"(none)"` — so the dashboard
- * keeps working whatever the schema state is.
+ * Audit-layer utilities over raw `AuditEvent[]`. The dashboard route does NOT
+ * use this module: it renders master's shaped `DashboardData`
+ * (`src/dashboard/data.ts` `byConsumer` record + `selectMetrics`, fed by
+ * `getDashboardData` in `src/dashboard/server.ts`). Everything here stays
+ * because its key semantics differ from master's and are pinned by
+ * `tests/dashboard-per-consumer.test.ts`:
+ * - `consumerKeyOf` prefers the dedicated `consumerKey` (the raw presented
+ *   key), falls back to the policy subject `groupId` (the user group that
+ *   selects the profile and the applicable checks, see
+ *   `#/control/subjects.ts`), then `"none"`-distinct `"(none)"`. Master's
+ *   closest equivalents (`summarizeAuditDecisions().byConsumer` with
+ *   `consumerKey ?? "none"`, `consumerDecisions` with an exact `groupId`
+ *   match) cover neither the fallback chain nor the explicit unknown marker.
+ * - `filterByConsumerKey` matches on that fallback key (not an exact-field
+ *   match like `filterAuditEvents`) and passes everything through when no
+ *   consumer is selected. Production import: `selectEscalations` in
+ *   `#/components/dashboard-meta.ts`.
+ * - `summarizeByConsumer` counts decisions per fallback key, sorted by count
+ *   descending. Test-only import, kept as the audited contract for
+ *   keyless/group-scoped aggregation.
  */
 
 import { type AuditEvent, isAuditDecision } from "#/control/audit.ts";
 
 export const UNKNOWN_CONSUMER = "(none)";
 
-type MaybeKeyedEvent = AuditEvent & { consumerKey?: unknown };
-
 /**
  * Consumer key for one audit event: the dedicated field when present,
- * otherwise the policy subject, otherwise the explicit unknown marker.
+ * otherwise the policy subject group, otherwise the explicit unknown marker.
  */
 export function consumerKeyOf(event: AuditEvent): string {
-	const key = (event as MaybeKeyedEvent).consumerKey;
-	if (typeof key === "string" && key.length > 0) {
-		return key;
+	if (event.consumerKey !== undefined && event.consumerKey.length > 0) {
+		return event.consumerKey;
 	}
-	return event.subject ?? UNKNOWN_CONSUMER;
+	if (event.groupId !== undefined && event.groupId.length > 0) {
+		return event.groupId;
+	}
+	return UNKNOWN_CONSUMER;
 }
 
 /** Decisions-only events attributable to one consumer key. */

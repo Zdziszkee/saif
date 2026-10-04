@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	BudgetSection,
 	LatencySection,
@@ -66,19 +66,59 @@ function ConsumerSelect({
 }
 
 /**
+ * Consumer scope state for the dashboard dropdown. The route's `?consumer=`
+ * search param is the source of truth: `initialConsumer` seeds the state and
+ * resyncs it whenever the route selection changes, while dropdown changes
+ * update local state immediately and report through `onConsumerChange` so the
+ * route can navigate (set or clear `?consumer=`).
+ */
+function useConsumerScope(
+	initialConsumer: string | undefined,
+	onConsumerChange: ((next: string) => void) | undefined,
+): { consumer: string; handleConsumerChange: (next: string) => void } {
+	const [consumer, setConsumer] = useState<string>(initialConsumer ?? ALL_CONSUMERS);
+
+	useEffect(() => {
+		if (initialConsumer !== undefined) {
+			setConsumer(initialConsumer);
+		}
+	}, [initialConsumer]);
+
+	const handleConsumerChange = useCallback(
+		(next: string) => {
+			setConsumer(next);
+			onConsumerChange?.(next);
+		},
+		[onConsumerChange],
+	);
+
+	return { consumer, handleConsumerChange };
+}
+
+/**
  * Interactive dashboard (security-observability spec): controls and profiles
  * in force, posture, threats by control/category, budget vs limits, latency
  * percentiles, escalations, versions in force, per-consumer breakdown, and
  * live refresh via polling.
+ *
+ * `initialConsumer` seeds the consumer scope dropdown from the route's
+ * `?consumer=` search param (URL is the source of truth: the effect below
+ * resyncs local state whenever the route selection changes). `onConsumerChange`
+ * reports dropdown changes so the route can navigate to `?consumer=` (or clear
+ * it for the aggregate scope); without it the dropdown stays purely local.
  */
 export function Dashboard({
+	initialConsumer,
 	initialData,
+	onConsumerChange,
 	onRefresh,
 }: {
+	initialConsumer?: string | undefined;
 	initialData: DashboardData;
+	onConsumerChange?: ((next: string) => void) | undefined;
 	onRefresh: () => Promise<DashboardData>;
 }) {
-	const [consumer, setConsumer] = useState<string>(ALL_CONSUMERS);
+	const { consumer, handleConsumerChange } = useConsumerScope(initialConsumer, onConsumerChange);
 	const [data, setData] = useState<DashboardData>(initialData);
 
 	useEffect(() => {
@@ -120,7 +160,7 @@ export function Dashboard({
 				<div className="flex items-center gap-2">
 					<ConsumerSelect
 						consumerKeys={data.consumerKeys}
-						onChange={setConsumer}
+						onChange={handleConsumerChange}
 						value={consumer}
 					/>
 					<ThemeSwitcher />

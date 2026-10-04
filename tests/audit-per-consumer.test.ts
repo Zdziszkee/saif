@@ -16,57 +16,57 @@ const seed: AuditEvent[] = [
 	{
 		consumerKey: "alice-key",
 		controlId: "deterministic",
+		groupId: "alice-key",
 		kind: "interaction",
-		subject: "alice-key",
 		timestamp: "2026-01-01T00:00:00.000Z",
 		verdict: "allow",
 	},
 	{
 		consumerKey: "bob-key",
 		controlId: "deterministic",
+		groupId: "bob-key",
 		kind: "interaction",
-		subject: "bob-key",
 		timestamp: "2026-01-02T00:00:00.000Z",
 		verdict: "block",
 	},
 	{
 		consumerKey: "carol-key",
 		controlId: "signatures",
+		groupId: "carol-key",
 		kind: "interaction",
-		subject: "carol-key",
 		timestamp: "2026-01-03T00:00:00.000Z",
 		verdict: "redact",
 	},
 	{
-		// No consumer key presented: subject falls back to the policy default
+		// No consumer key presented: groupId falls back to the policy default
 		// while consumerKey stays missing.
 		controlId: "deterministic",
+		groupId: "default",
 		kind: "interaction",
-		subject: "default",
 		timestamp: "2026-01-04T00:00:00.000Z",
 		verdict: "allow",
 	},
 	{
 		consumerKey: "alice-key",
 		controlId: "signatures",
+		groupId: "alice-key",
 		kind: "interaction",
-		subject: "alice-key",
 		timestamp: "2026-01-05T00:00:00.000Z",
 		verdict: "escalate",
 	},
 	{
 		// Verdict-less note: visible to raw filters, excluded from summaries.
 		consumerKey: "alice-key",
+		groupId: "alice-key",
 		kind: "interaction",
-		subject: "alice-key",
 		timestamp: "2026-01-06T00:00:00.000Z",
 	},
 	{
 		// Non-interaction history: carries a verdict but is not a decision.
 		consumerKey: "bob-key",
 		controlId: "deterministic",
+		groupId: "bob-key",
 		kind: "registration",
-		subject: "bob-key",
 		timestamp: "2026-01-07T00:00:00.000Z",
 		verdict: "allow",
 	},
@@ -279,9 +279,9 @@ describe("filterAuditEvents", () => {
 		}
 	});
 
-	test("filters decisions by subject", () => {
+	test("filters decisions by groupId", () => {
 		// Arrange
-		const filter = { subject: "carol-key" };
+		const filter = { groupId: "carol-key" };
 
 		// Act
 		const filtered = filterAuditEvents(seed, filter);
@@ -442,14 +442,14 @@ describe("summarizeAuditDecisions", () => {
 		}
 	});
 
-	test("keeps policy subject separate from the raw consumer key", () => {
+	test("keeps policy group separate from the raw consumer key", () => {
 		// Arrange
 		// Act
 		const keyless = seed.at(3);
 
 		// Assert
 		expect(keyless?.consumerKey).toBeUndefined();
-		expect(keyless?.subject).toBe("default");
+		expect(keyless?.groupId).toBe("default");
 	});
 });
 
@@ -493,7 +493,7 @@ describe("auditEventsToCsv", () => {
 
 		// Assert
 		expect(rows[0]).toBe(
-			"timestamp,kind,verdict,controlId,subject,consumerKey,seam,interactionId,detail,redactionCount",
+			"timestamp,kind,verdict,controlId,groupId,consumerKey,seam,interactionId,detail,redactionCount",
 		);
 		expect(rows).toHaveLength(8);
 	});

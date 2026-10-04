@@ -151,7 +151,7 @@ async function inspectArgs(
 	if (outcome.rejection) {
 		return { rejection: toToolRejection(outcome.rejection) };
 	}
-	return { value: parseArgs(outcome.content ?? serializedArgs) };
+	return { value: parseJsonOrEmpty(outcome.content ?? serializedArgs) };
 }
 
 // biome-ignore lint/complexity/useMaxParams: governance phases share (entry, args, groupId, deps, consumerKey) positionally
@@ -231,10 +231,6 @@ let toolSequence = 0;
 function nextToolInteractionId(toolName: string): string {
 	toolSequence += 1;
 	return `tool_${toolName}_${Date.now()}_${toolSequence}`;
-}
-
-function parseArgs(serialized: string): unknown {
-	return parseJsonOrEmpty(serialized);
 }
 
 function serializeResult(result: unknown): string {

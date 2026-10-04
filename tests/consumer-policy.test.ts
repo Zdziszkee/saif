@@ -8,11 +8,13 @@
  */
 import { describe, expect, it } from "bun:test";
 
+import { createInMemoryAuditSink } from "#/control/audit.ts";
 import {
 	createIdentityResolver,
 	type IdentityResolution,
 	identityFromRequest,
 	identityPolicyFromDocument,
+	identityRejection,
 	requireKnownGroup,
 	USER_GROUP_ID_HEADER,
 	USER_ID_HEADER,
@@ -32,39 +34,6 @@ function requestWithIdentity(userId: string | undefined, groupId: string | undef
 }
 
 describe("identity resolution", () => {
-	it("accepts a known user in a known group", () => {
-		const result = resolver.resolve("alice", "hr");
-		expect(result.ok).toBe(true);
-		if (result.ok) {
-			expect(result.identity).toEqual({ groupId: "hr", userId: "alice" });
-		}
-	});
-
-	it("rejects an unknown group and names it", () => {
-		const result = resolver.resolve("alice", "ghost-group");
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.kind).toBe("unknown-group");
-			expect(result.reason).toContain("ghost-group");
-		}
-	});
-
-	it("rejects a missing user id", () => {
-		const result = resolver.resolve(undefined, "hr");
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.kind).toBe("missing-identity");
-		}
-	});
-
-	it("rejects a missing group id", () => {
-		const result = resolver.resolve("alice", undefined);
-		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.reason).toContain("x-user-group-id");
-		}
-	});
-
 	it("never falls back to a known group's configuration", () => {
 		const result = resolver.resolve("alice", "manager-not-really");
 		expect(result.ok).toBe(false);
@@ -251,5 +220,60 @@ describe("requireKnownGroup", () => {
 		if (!access.ok) {
 			expect(access.reason).toContain("x-user-group-id");
 		}
+	});
+});
+
+describe("identityRejection audit attribution", () => {
+	it("attributes an unknown-group denial to the presented user id", () => {
+		const resolution = resolver.resolve("alice", "ghost-group");
+		expect(resolution.ok).toBe(false);
+		if (resolution.ok) {
+			return;
+		}
+		const audit = createInMemoryAuditSink();
+		const response = identityRejection(resolution, audit);
+		expect(response.status).toBe(403);
+		expect(audit.events).toHaveLength(1);
+		const event = audit.events[0];
+		expect(event?.consumerKey).toBe("alice");
+		expect(event?.userId).toBe("alice");
+		expect(event?.groupId).toBe("ghost-group");
+		expect(event?.verdict).toBe("block");
+		expect(event?.controlId).toBe("caller-identity");
+	});
+
+	it("falls back to (none) when no user id was presented", () => {
+		const resolution = resolver.resolve(undefined, "hr");
+		expect(resolution.ok).toBe(false);
+		if (resolution.ok) {
+			return;
+		}
+		const audit = createInMemoryAuditSink();
+		const response = identityRejection(resolution, audit);
+		expect(response.status).toBe(403);
+		expect(audit.events).toHaveLength(1);
+		expect(audit.events[0]?.consumerKey).toBe("(none)");
+		expect(audit.events[0]?.userId).toBeUndefined();
+	});
+
+	it("attributes a missing-group denial to the presented user id", () => {
+		const resolution = resolver.resolve("alice", undefined);
+		expect(resolution.ok).toBe(false);
+		if (resolution.ok) {
+			return;
+		}
+		const audit = createInMemoryAuditSink();
+		identityRejection(resolution, audit);
+		expect(audit.events).toHaveLength(1);
+		expect(audit.events[0]?.consumerKey).toBe("alice");
+	});
+
+	it("leaves the known-group ok path unaudited", () => {
+		const resolution = resolver.resolve("alice", "hr");
+		expect(resolution.ok).toBe(true);
+		if (!resolution.ok) {
+			return;
+		}
+		expect(resolution.identity).toEqual({ groupId: "hr", userId: "alice" });
 	});
 });

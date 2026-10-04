@@ -200,15 +200,15 @@ describe("hub connections edges", () => {
 		});
 		const first = await hub.addConnection({
 			endpoint: "https://ext.test/mcp",
+			groupId: "alice",
 			name: "ext",
-			subject: "alice",
 		});
 		expect(first.ok).toBe(true);
 
 		const second = await hub.addConnection({
 			endpoint: "https://ext.test/mcp",
+			groupId: "alice",
 			name: "ext",
-			subject: "alice",
 		});
 
 		expect(second.ok).toBe(false);
@@ -230,8 +230,8 @@ describe("hub connections edges", () => {
 
 		const outcome = await connections.connect({
 			endpoint: "https://ext.test/mcp",
+			groupId: "alice",
 			name: "ext",
-			subject: "alice",
 		});
 
 		expect(outcome.ok).toBe(false);
@@ -253,8 +253,8 @@ describe("hub connections edges", () => {
 
 		const outcome = await connections.connect({
 			endpoint: "https://ext.test/mcp",
+			groupId: "alice",
 			name: "ext",
-			subject: "alice",
 		});
 
 		expect(outcome.ok).toBe(false);
@@ -273,8 +273,8 @@ describe("hub connections edges", () => {
 		});
 
 		const outcomes = await hub.addConnections([
-			{ endpoint: "https://nope.test/mcp", name: "a", subject: "alice" },
-			{ endpoint: "https://alsono.test/mcp", name: "b", subject: "alice" },
+			{ endpoint: "https://nope.test/mcp", groupId: "alice", name: "a" },
+			{ endpoint: "https://alsono.test/mcp", groupId: "alice", name: "b" },
 		]);
 
 		expect(outcomes).toHaveLength(2);
@@ -292,8 +292,8 @@ describe("hub connections edges", () => {
 		});
 
 		const outcomes = await hub.addConnections([
-			{ endpoint: "https://blocked.test/mcp", name: "blocked", subject: "alice" },
-			{ endpoint: "https://ext.test/mcp", name: "ext", subject: "alice" },
+			{ endpoint: "https://blocked.test/mcp", groupId: "alice", name: "blocked" },
+			{ endpoint: "https://ext.test/mcp", groupId: "alice", name: "ext" },
 		]);
 
 		expect(outcomes).toHaveLength(2);
@@ -310,7 +310,7 @@ describe("hub connections edges", () => {
 			fetch: external.fetch,
 			pipeline: pipelineWith([]),
 		});
-		await hub.addConnection({ endpoint: "https://ext.test/mcp", name: "ext", subject: "alice" });
+		await hub.addConnection({ endpoint: "https://ext.test/mcp", groupId: "alice", name: "ext" });
 		expect(hub.connections.list()).toHaveLength(1);
 
 		await hub.connections.remove("ext");
@@ -352,8 +352,8 @@ describe("hub connections edges", () => {
 		});
 		const connected = await hub.addConnection({
 			endpoint: "https://json.test/mcp",
+			groupId: "alice",
 			name: "j",
-			subject: "alice",
 		});
 		expect(connected.ok).toBe(true);
 		hub.grant("alice", "j_jsontext");
@@ -384,7 +384,7 @@ describe("hub connections edges", () => {
 			fetch: shimFetch((request) => server.fetch(request)),
 			pipeline: pipelineWith([]),
 		});
-		await hub.addConnection({ endpoint: "https://plain.test/mcp", name: "p", subject: "alice" });
+		await hub.addConnection({ endpoint: "https://plain.test/mcp", groupId: "alice", name: "p" });
 		hub.grant("alice", "p_plain");
 
 		const outcome = await hub.invokeTool("p_plain", {}, "alice");
@@ -418,7 +418,7 @@ describe("hub connections edges", () => {
 			fetch: shimFetch((request) => server.fetch(request)),
 			pipeline: pipelineWith([]),
 		});
-		await hub.addConnection({ endpoint: "https://multi.test/mcp", name: "m", subject: "alice" });
+		await hub.addConnection({ endpoint: "https://multi.test/mcp", groupId: "alice", name: "m" });
 		hub.grant("alice", "m_multi");
 
 		const outcome = await hub.invokeTool("m_multi", {}, "alice");
@@ -438,7 +438,7 @@ describe("hub connections edges", () => {
 			pipeline: pipelineWith([]),
 		});
 		const outcomes = await hub.addConnections([
-			{ endpoint: "https://ext.test/mcp", name: "ext", subject: "alice" },
+			{ endpoint: "https://ext.test/mcp", groupId: "alice", name: "ext" },
 		]);
 		expect(outcomes[0]?.ok).toBe(true);
 		hub.grant("alice", "ext_echo");

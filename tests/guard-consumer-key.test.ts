@@ -3,16 +3,24 @@ import { describe, expect, it } from "bun:test";
 import { createInMemoryAuditSink, readAuditEvents } from "#/control/audit.ts";
 import { guardInteraction } from "#/control/guard.ts";
 import { handleGuardRequest } from "#/control/guard-api.ts";
-import { CONSUMER_KEY_HEADER, createConsumerResolver } from "#/control/subjects.ts";
+import { type CallerIdentity, createIdentityResolver } from "#/control/subjects.ts";
 import type { ControlPipeline, Interaction } from "#/control/types.ts";
 
 /**
- * Guard consumer-key propagation: every `handleGuardRequest` outcome is
- * recorded against the raw consumer key (`"(none)"` when absent) with the
- * resolved policy subject alongside it. Known keys govern as a subject of the
- * same name; missing/unknown keys follow the policy's default-subject or
- * reject behavior. `guardInteraction` defaults an absent key to `"(none)"`.
+ * Guard identity attribution: every `handleGuardRequest` outcome is recorded
+ * against the calling user (`consumerKey` carries the `userId` value,
+ * `"(none)"` only when no user was presented) with the policy subject
+ * (`groupId`) and the individual (`userId`) alongside it. A known user in a
+ * known group governs normally; a missing identity or an unknown group is
+ * rejected with no fallback to another caller's configuration.
+ * `guardInteraction` defaults an absent `consumerKey` option to `"(none)"`.
  */
+
+const resolver = createIdentityResolver({ knownGroups: ["hr", "manager"] });
+
+const alice: CallerIdentity = { groupId: "hr", userId: "alice" };
+const bob: CallerIdentity = { groupId: "manager", userId: "bob" };
+const ghost: CallerIdentity = { groupId: "ghost-group", userId: "ghost" };
 
 const envelope = { content: "hello world", direction: "inbound", seam: "guard-api" };
 
@@ -27,10 +35,13 @@ const allowPipeline: ControlPipeline = {
 		}),
 };
 
-function guardRequest(body: unknown, consumerKey?: string): Request {
+function guardRequest(body: unknown, identity?: Partial<CallerIdentity>): Request {
 	const headers = new Headers({ "content-type": "application/json" });
-	if (consumerKey !== undefined) {
-		headers.set(CONSUMER_KEY_HEADER, consumerKey);
+	if (identity?.userId !== undefined) {
+		headers.set("x-user-id", identity.userId);
+	}
+	if (identity?.groupId !== undefined) {
+		headers.set("x-user-group-id", identity.groupId);
 	}
 	return new Request("http://test.local/api/guard", {
 		body: JSON.stringify(body),
@@ -39,8 +50,20 @@ function guardRequest(body: unknown, consumerKey?: string): Request {
 	});
 }
 
-describe("guard consumer-key recording", () => {
-	it("known key records consumerKey and subject", async () => {
+interface GuardBody {
+	content?: string;
+	control?: string;
+	error?: string;
+	reason?: string;
+	verdict?: string;
+}
+
+async function jsonOf(response: Response): Promise<GuardBody> {
+	return (await response.json()) as GuardBody;
+}
+
+describe("guard identity recording", () => {
+	it("known identity records consumerKey, groupId, and userId", async () => {
 		const sink = createInMemoryAuditSink();
 		const seen: Interaction[] = [];
 		const spy: ControlPipeline = {
@@ -50,80 +73,26 @@ describe("guard consumer-key recording", () => {
 			},
 		};
 
-		const response = await handleGuardRequest(guardRequest(envelope, "alice"), {
+		const response = await handleGuardRequest(guardRequest(envelope, alice), {
 			audit: sink,
-			consumers: createConsumerResolver({
-				defaultSubject: "default",
-				knownKeys: ["alice", "bob"],
-				unknownKey: "default-subject",
-			}),
+			identity: resolver,
 			pipeline: spy,
 		});
 
 		expect(response.status).toBe(200);
 		expect(seen).toHaveLength(1);
-		expect(seen[0]?.subject).toBe("alice");
+		expect(seen[0]?.groupId).toBe("hr");
+		expect(seen[0]?.userId).toBe("alice");
 		const decisions = readAuditEvents(sink).filter(
 			(event) => event.kind === "interaction" && event.verdict !== undefined,
 		);
 		expect(decisions).toHaveLength(1);
 		expect(decisions[0]?.consumerKey).toBe("alice");
-		expect(decisions[0]?.subject).toBe("alice");
+		expect(decisions[0]?.groupId).toBe("hr");
+		expect(decisions[0]?.userId).toBe("alice");
 	});
 
-	it("unknown key falls back to default subject with presented key", async () => {
-		const sink = createInMemoryAuditSink();
-
-		const response = await handleGuardRequest(guardRequest(envelope, "ghost"), {
-			audit: sink,
-			consumers: createConsumerResolver({
-				defaultSubject: "default",
-				knownKeys: ["alice", "bob"],
-				unknownKey: "default-subject",
-			}),
-			pipeline: allowPipeline,
-		});
-
-		expect(response.status).toBe(200);
-		const events = readAuditEvents(sink);
-		const note = events.find((event) => event.detail?.includes("resolved to default subject"));
-		expect(note?.consumerKey).toBe("ghost");
-		expect(note?.subject).toBe("default");
-		const decisions = events.filter(
-			(event) => event.kind === "interaction" && event.verdict !== undefined,
-		);
-		expect(decisions).toHaveLength(1);
-		expect(decisions[0]?.consumerKey).toBe("ghost");
-		expect(decisions[0]?.subject).toBe("default");
-	});
-
-	it("missing key records (none) under the default subject", async () => {
-		const sink = createInMemoryAuditSink();
-
-		const response = await handleGuardRequest(guardRequest(envelope), {
-			audit: sink,
-			consumers: createConsumerResolver({
-				defaultSubject: "default",
-				knownKeys: ["alice", "bob"],
-				unknownKey: "default-subject",
-			}),
-			pipeline: allowPipeline,
-		});
-
-		expect(response.status).toBe(200);
-		const events = readAuditEvents(sink);
-		const note = events.find((event) => event.detail?.includes("resolved to default subject"));
-		expect(note?.consumerKey).toBe("(none)");
-		expect(note?.subject).toBe("default");
-		const decisions = events.filter(
-			(event) => event.kind === "interaction" && event.verdict !== undefined,
-		);
-		expect(decisions).toHaveLength(1);
-		expect(decisions[0]?.consumerKey).toBe("(none)");
-		expect(decisions[0]?.subject).toBe("default");
-	});
-
-	it("reject policy blocks unknown key without invoking pipeline", async () => {
+	it("unknown group is rejected without falling back to a known group", async () => {
 		const sink = createInMemoryAuditSink();
 		const seen: Interaction[] = [];
 		const spy: ControlPipeline = {
@@ -133,26 +102,27 @@ describe("guard consumer-key recording", () => {
 			},
 		};
 
-		const response = await handleGuardRequest(guardRequest(envelope, "ghost"), {
+		const response = await handleGuardRequest(guardRequest(envelope, ghost), {
 			audit: sink,
-			consumers: createConsumerResolver({
-				defaultSubject: "default",
-				knownKeys: ["alice", "bob"],
-				unknownKey: "reject",
-			}),
+			identity: resolver,
 			pipeline: spy,
 		});
 
 		expect(response.status).toBe(403);
 		expect(seen).toHaveLength(0);
+		const body = await jsonOf(response);
+		expect(body.control).toBe("caller-identity");
+		expect(body.error).toBe("rejected");
+		expect(body.reason).toContain("ghost-group");
 		const events = readAuditEvents(sink);
 		expect(events).toHaveLength(1);
-		expect(events[0]?.consumerKey).toBe("ghost");
-		expect(events[0]?.controlId).toBe("consumer-key");
+		expect(events[0]?.controlId).toBe("caller-identity");
+		expect(events[0]?.groupId).toBe("ghost-group");
+		expect(events[0]?.userId).toBe("ghost");
 		expect(events[0]?.verdict).toBe("block");
 	});
 
-	it("reject policy blocks missing key without invoking pipeline", async () => {
+	it("missing identity is rejected without invoking the pipeline", async () => {
 		const sink = createInMemoryAuditSink();
 		const seen: Interaction[] = [];
 		const spy: ControlPipeline = {
@@ -164,24 +134,23 @@ describe("guard consumer-key recording", () => {
 
 		const response = await handleGuardRequest(guardRequest(envelope), {
 			audit: sink,
-			consumers: createConsumerResolver({
-				defaultSubject: "default",
-				knownKeys: ["alice", "bob"],
-				unknownKey: "reject",
-			}),
+			identity: resolver,
 			pipeline: spy,
 		});
 
 		expect(response.status).toBe(403);
 		expect(seen).toHaveLength(0);
+		const body = await jsonOf(response);
+		expect(body.control).toBe("caller-identity");
+		expect(body.reason).toContain("x-user-id");
 		const events = readAuditEvents(sink);
 		expect(events).toHaveLength(1);
-		expect(events[0]?.consumerKey).toBe("(none)");
-		expect(events[0]?.controlId).toBe("consumer-key");
+		expect(events[0]?.groupId).toBeUndefined();
+		expect(events[0]?.userId).toBeUndefined();
 		expect(events[0]?.verdict).toBe("block");
 	});
 
-	it("malformed request records consumerKey without invoking pipeline", async () => {
+	it("user id without a group is rejected without invoking the pipeline", async () => {
 		const sink = createInMemoryAuditSink();
 		const seen: Interaction[] = [];
 		const spy: ControlPipeline = {
@@ -191,13 +160,31 @@ describe("guard consumer-key recording", () => {
 			},
 		};
 
-		const response = await handleGuardRequest(guardRequest({ direction: "inbound" }, "bob"), {
+		const response = await handleGuardRequest(guardRequest(envelope, { userId: "alice" }), {
 			audit: sink,
-			consumers: createConsumerResolver({
-				defaultSubject: "default",
-				knownKeys: ["alice", "bob"],
-				unknownKey: "default-subject",
-			}),
+			identity: resolver,
+			pipeline: spy,
+		});
+
+		expect(response.status).toBe(403);
+		expect(seen).toHaveLength(0);
+		const body = await jsonOf(response);
+		expect(body.reason).toContain("x-user-group-id");
+	});
+
+	it("malformed request records consumerKey, groupId, and userId without invoking the pipeline", async () => {
+		const sink = createInMemoryAuditSink();
+		const seen: Interaction[] = [];
+		const spy: ControlPipeline = {
+			inspect: (interaction) => {
+				seen.push(interaction);
+				return allowPipeline.inspect(interaction);
+			},
+		};
+
+		const response = await handleGuardRequest(guardRequest({ direction: "inbound" }, bob), {
+			audit: sink,
+			identity: resolver,
 			pipeline: spy,
 		});
 
@@ -206,53 +193,58 @@ describe("guard consumer-key recording", () => {
 		const events = readAuditEvents(sink);
 		expect(events).toHaveLength(1);
 		expect(events[0]?.consumerKey).toBe("bob");
-		expect(events[0]?.subject).toBe("bob");
+		expect(events[0]?.groupId).toBe("manager");
+		expect(events[0]?.userId).toBe("bob");
 		expect(events[0]?.verdict).toBeUndefined();
 	});
 
-	it("malformed request with missing key records (none) without invoking pipeline", async () => {
-		const sink = createInMemoryAuditSink();
-		const seen: Interaction[] = [];
-		const spy: ControlPipeline = {
-			inspect: (interaction) => {
-				seen.push(interaction);
-				return allowPipeline.inspect(interaction);
-			},
-		};
+	describe("identity resolve matrix at the guard seam", () => {
+		const matrix: {
+			identity: Partial<CallerIdentity> | undefined;
+			label: string;
+			status: 200 | 403;
+		}[] = [
+			{ identity: alice, label: "known user in a known group", status: 200 },
+			{ identity: bob, label: "second known user in a known group", status: 200 },
+			{ identity: ghost, label: "unknown group", status: 403 },
+			{ identity: { groupId: "hr" }, label: "missing user id", status: 403 },
+			{ identity: { userId: "alice" }, label: "missing group id", status: 403 },
+			{ identity: undefined, label: "missing identity", status: 403 },
+		];
 
-		const response = await handleGuardRequest(guardRequest({ direction: "inbound" }), {
-			audit: sink,
-			consumers: createConsumerResolver({
-				defaultSubject: "default",
-				knownKeys: ["alice", "bob"],
-				unknownKey: "default-subject",
-			}),
-			pipeline: spy,
-		});
-
-		expect(response.status).toBe(400);
-		expect(seen).toHaveLength(0);
-		const events = readAuditEvents(sink);
-		expect(events).toHaveLength(2);
-		for (const event of events) {
-			expect(event.consumerKey).toBe("(none)");
-			expect(event.subject).toBe("default");
-			expect(event.verdict).toBeUndefined();
+		for (const { identity, label, status } of matrix) {
+			it(`${label} answers ${status}`, async () => {
+				const sink = createInMemoryAuditSink();
+				const seen: Interaction[] = [];
+				const spy: ControlPipeline = {
+					inspect: (interaction) => {
+						seen.push(interaction);
+						return allowPipeline.inspect(interaction);
+					},
+				};
+				const response = await handleGuardRequest(guardRequest(envelope, identity), {
+					audit: sink,
+					identity: resolver,
+					pipeline: spy,
+				});
+				expect(response.status).toBe(status);
+				expect(seen).toHaveLength(status === 200 ? 1 : 0);
+			});
 		}
 	});
 });
 
 describe("guardInteraction consumerKey", () => {
-	it("defaults absent consumerKey to (none)", async () => {
+	it("defaults an absent consumerKey to (none)", async () => {
 		const sink = createInMemoryAuditSink();
 
 		await guardInteraction(
 			{
 				content: "hello",
 				direction: "inbound",
+				groupId: "hr",
 				id: "int_1",
 				seam: "guard-api",
-				subject: "alice",
 			},
 			allowPipeline,
 			{ audit: sink },
@@ -261,19 +253,20 @@ describe("guardInteraction consumerKey", () => {
 		const events = readAuditEvents(sink);
 		expect(events).toHaveLength(1);
 		expect(events[0]?.consumerKey).toBe("(none)");
-		expect(events[0]?.subject).toBe("alice");
+		expect(events[0]?.groupId).toBe("hr");
 	});
 
-	it("records explicit consumerKey", async () => {
+	it("records an explicit consumerKey alongside groupId and userId", async () => {
 		const sink = createInMemoryAuditSink();
 
 		await guardInteraction(
 			{
 				content: "hello",
 				direction: "inbound",
+				groupId: "hr",
 				id: "int_1",
 				seam: "guard-api",
-				subject: "alice",
+				userId: "alice",
 			},
 			allowPipeline,
 			{ audit: sink, consumerKey: "alice" },
@@ -282,46 +275,7 @@ describe("guardInteraction consumerKey", () => {
 		const events = readAuditEvents(sink);
 		expect(events).toHaveLength(1);
 		expect(events[0]?.consumerKey).toBe("alice");
-		expect(events[0]?.subject).toBe("alice");
-	});
-});
-
-describe("consumer resolver mapping (mcp route equivalent)", () => {
-	it("default-subject policy maps unknown and missing to default", () => {
-		const resolver = createConsumerResolver({
-			defaultSubject: "default",
-			knownKeys: ["alice"],
-			unknownKey: "default-subject",
-		});
-
-		const known = resolver.resolve("alice");
-		expect(known).toEqual({ key: "alice", kind: "known", ok: true, subject: "alice" });
-		const unknown = resolver.resolve("ghost");
-		expect(unknown).toEqual({
-			key: "ghost",
-			kind: "default-subject",
-			ok: true,
-			subject: "default",
-		});
-		const missing = resolver.resolve(undefined);
-		expect(missing).toEqual({
-			key: undefined,
-			kind: "default-subject",
-			ok: true,
-			subject: "default",
-		});
-	});
-
-	it("reject policy rejects unknown and missing keys", () => {
-		const resolver = createConsumerResolver({
-			defaultSubject: "default",
-			knownKeys: ["alice"],
-			unknownKey: "reject",
-		});
-
-		const unknown = resolver.resolve("ghost");
-		expect(unknown.ok).toBe(false);
-		const missing = resolver.resolve(undefined);
-		expect(missing.ok).toBe(false);
+		expect(events[0]?.groupId).toBe("hr");
+		expect(events[0]?.userId).toBe("alice");
 	});
 });

@@ -6,7 +6,7 @@ import { detectSensitive } from "#/control/deterministic/detectors.ts";
 import { guardInteraction } from "#/control/guard.ts";
 import { handleGuardRequest } from "#/control/guard-api.ts";
 import { createSignatureFeedStore, loadSignatureFeed } from "#/control/signatures/feed.ts";
-import { CONSUMER_KEY_HEADER } from "#/control/subjects.ts";
+import { type CallerIdentity, USER_GROUP_ID_HEADER, USER_ID_HEADER } from "#/control/subjects.ts";
 import type { Control, ControlPipeline, Interaction } from "#/control/types.ts";
 import type { CatalogEntry } from "#/hub/catalog.ts";
 import { createToolGovernor } from "#/hub/governance.ts";
@@ -14,29 +14,31 @@ import { createGrantRegistry } from "#/hub/grants.ts";
 import {
 	auditSink,
 	blockOn,
-	consumerResolver,
 	hangingControl,
+	identityResolver,
 	pipelineWith,
 } from "./helpers/fixtures.ts";
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 const POLICY_REASON = /^\[policy\] custom-policy/;
 
+const aliceIdentity: CallerIdentity = { groupId: "hr", userId: "alice" };
+
 function interaction(content = "hello"): Interaction {
 	return {
 		content,
 		direction: "inbound",
+		groupId: "hr",
 		id: `leftover-${content.length}`,
 		seam: "guard-api",
-		subject: "alice",
+		userId: "alice",
 	};
 }
 
-function guardRequest(body: unknown, consumerKey?: string): Request {
+function guardRequest(body: unknown, identity: CallerIdentity = aliceIdentity): Request {
 	const headers = new Headers({ "content-type": "application/json" });
-	if (consumerKey !== undefined) {
-		headers.set(CONSUMER_KEY_HEADER, consumerKey);
-	}
+	headers.set(USER_ID_HEADER, identity.userId);
+	headers.set(USER_GROUP_ID_HEADER, identity.groupId);
 	return new Request("http://test.local/api/guard", {
 		body: JSON.stringify(body),
 		headers,
@@ -256,7 +258,8 @@ describe("guard API body-parse and engine fallbacks", () => {
 		// Arrange: a body that makes request.json() reject, so the handler
 		// falls back to a null body.
 		const headers = new Headers({ "content-type": "application/json" });
-		headers.set(CONSUMER_KEY_HEADER, "alice");
+		headers.set(USER_ID_HEADER, aliceIdentity.userId);
+		headers.set(USER_GROUP_ID_HEADER, aliceIdentity.groupId);
 		const request = new Request("http://test.local/api/guard", {
 			body: "{oops",
 			headers,
@@ -265,7 +268,7 @@ describe("guard API body-parse and engine fallbacks", () => {
 
 		// Act.
 		const response = await handleGuardRequest(request, {
-			consumers: consumerResolver(),
+			identity: identityResolver(),
 			pipeline: pipelineWith([]),
 		});
 
@@ -278,9 +281,9 @@ describe("guard API body-parse and engine fallbacks", () => {
 	it("attributes hits from unknown controls to the policy engine", async () => {
 		// Arrange: a blocking control id outside the known engine mapping.
 		const response = await handleGuardRequest(
-			guardRequest({ content: "this goes boom", direction: "inbound", seam: "guard-api" }, "alice"),
+			guardRequest({ content: "this goes boom", direction: "inbound", seam: "guard-api" }),
 			{
-				consumers: consumerResolver(),
+				identity: identityResolver(),
 				pipeline: pipelineWith([blockOn("boom", "custom-policy")]),
 			},
 		);
@@ -313,11 +316,8 @@ describe("guard API body-parse and engine fallbacks", () => {
 				}),
 		};
 		const response = await handleGuardRequest(
-			guardRequest(
-				{ content: "needs a second opinion", direction: "inbound", seam: "guard-api" },
-				"alice",
-			),
-			{ consumers: consumerResolver(), pipeline: semanticBlock },
+			guardRequest({ content: "needs a second opinion", direction: "inbound", seam: "guard-api" }),
+			{ identity: identityResolver(), pipeline: semanticBlock },
 		);
 
 		// Act.
@@ -363,7 +363,7 @@ describe("tool governance serialization helpers", () => {
 		const governor = createToolGovernor({ grants, pipeline: allow });
 
 		// Act.
-		const outcome = await governor.governToolCall(entry, () => undefined, "alice");
+		const outcome = await governor.governToolCall(entry, () => undefined, "hr");
 
 		// Assert.
 		expect(outcome.kind).toBe("executed");
@@ -400,7 +400,7 @@ describe("tool governance serialization helpers", () => {
 		const governor = createToolGovernor({ grants, pipeline: allow });
 
 		// Act.
-		const outcome = await governor.governToolCall(entry, {}, "alice");
+		const outcome = await governor.governToolCall(entry, {}, "hr");
 
 		// Assert.
 		expect(outcome.kind).toBe("executed");

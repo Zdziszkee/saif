@@ -60,9 +60,9 @@ function inbound(content: string): Interaction {
 	return {
 		content,
 		direction: "inbound",
+		groupId: "test",
 		id: "semantic-tier-coverage",
 		seam: "guard-api",
-		subject: "test",
 	};
 }
 
@@ -502,7 +502,7 @@ describe("control threshold boundaries", () => {
 
 		const result = await inspectControl(control, "probe");
 
-		expect(result).toEqual({ verdict: "allow" });
+		expect(result).toEqual({ semanticAnswers: { edge: 0.1 }, verdict: "allow" });
 	});
 
 	it("marks an uncertain below-flag answer as semantic-uncertain", async () => {

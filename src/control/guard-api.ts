@@ -172,7 +172,3 @@ function logDecision(
 		`[guard] ${interaction.seam}/${interaction.direction} group=${interaction.groupId} -> ${verdict} (${control ?? "none"})\n`,
 	);
 }
-
-/**
-
- */

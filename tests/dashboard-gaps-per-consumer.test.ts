@@ -19,9 +19,10 @@ import {
  * and locks the end-to-end contract: `summarizeAuditDecisions` exposes
  * `byConsumer`, `filterAuditEvents` slices by `consumerKey`, every recent row
  * carries the key, and the JSONL/CSV exports preserve filter parity. The
- * `subject` assertions pin the pre-existing invariant (known keys govern as a
- * subject of the same name; see `src/control/subjects.ts`) alongside the
- * dedicated `consumerKey` field.
+ * `groupId` assertions pin the policy-subject dimension (the user group that
+ * selects the profile and checks; see `src/control/subjects.ts`) alongside
+ * the dedicated `consumerKey` field, with `userId` carrying per-user
+ * identity on every row.
  */
 
 const CONSUMERS: readonly string[] = ["alice", "bob", "deploy-bot"];
@@ -41,9 +42,10 @@ function seedDecisions() {
 				...auditEvent("interaction", {
 					consumerKey,
 					controlId: controls[index] ?? "deterministic",
+					groupId: consumerKey,
 					interactionId: `${consumerKey}-${verdict}`,
 					seam: "guard-api",
-					subject: consumerKey,
+					userId: consumerKey,
 					verdict,
 				}),
 				timestamp: stamp(day),
@@ -53,14 +55,15 @@ function seedDecisions() {
 	}
 	// Noise the dashboard must ignore: verdict-less info note + non-interaction kind.
 	sink.record({
-		...auditEvent("interaction", { consumerKey: "alice", subject: "alice" }),
+		...auditEvent("interaction", { consumerKey: "alice", groupId: "alice", userId: "alice" }),
 		timestamp: stamp(day),
 	});
 	day += 1;
 	sink.record({
 		...auditEvent("registration", {
 			consumerKey: "bob",
-			subject: "bob",
+			groupId: "bob",
+			userId: "bob",
 			verdict: "allow",
 		}),
 		timestamp: stamp(day),
@@ -123,7 +126,8 @@ describe("dashboard per-consumer gaps", () => {
 			if (key !== undefined) {
 				expect(CONSUMERS).toContain(key);
 			}
-			expect(row.subject).toBe(row.consumerKey);
+			expect(row.groupId).toBe(row.consumerKey);
+			expect(row.userId).toBe(row.consumerKey);
 		}
 	});
 
@@ -143,7 +147,9 @@ describe("dashboard per-consumer gaps", () => {
 		expect(auditEventsToJsonl(filtered).split("\n")).toHaveLength(1);
 		const csv = auditEventsToCsv(filtered).split("\n");
 		expect(csv).toHaveLength(2);
-		expect(csv[0]).toContain("consumerKey");
+		expect(csv[0]).toBe(
+			"timestamp,kind,verdict,controlId,groupId,consumerKey,seam,interactionId,detail,redactionCount",
+		);
 		expect(csv[1]).toContain("deploy-bot");
 	});
 
