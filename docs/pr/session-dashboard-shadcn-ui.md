@@ -64,3 +64,34 @@ the aggregate and isolated views cannot drift apart.
 - Dashboard rendering against the fixture data layer and the live
   `policy.json` projection was checked on `bun run dev` (see the 11.1 note in
   `openspec/changes/ai-control-layer/tasks.md`).
+
+---
+
+## Bun-native runtime follow-up
+
+## Summary
+
+- Run the Vite CLI under Bun for `dev`, `build`, and `preview` (`bun --bun vite
+  ...`) and add `start` for the Nitro output; the node-shebang Vite CLI was
+  executing server functions in Node, where the `Bun` global is undefined and
+  the policy loader failed with "policy source unavailable: Bun is not defined".
+- Build the server with Nitro's `bun` preset (`nitro({ preset: "bun" })`) so the
+  output targets the Bun runtime.
+- Replace `node:crypto` SHA-256 with `Bun.CryptoHasher` and async
+  `node:fs/promises` reads with `Bun.file().text()` in the policy loader, the
+  signature feed versioning, and the semantic config hot reload.
+- Declare `Bun` as a known global to the Biome analyzer.
+
+## Design
+
+Bun globals (`Bun.file`, `Bun.CryptoHasher`) cover the async read and hashing
+paths with full `@types/bun` typing, so those moved over first. The remaining
+`node:fs` uses are synchronous or watcher-based (`readFileSync`, `appendFileSync`,
+`watch`, `mkdirSync`) where Bun has no typed equivalent yet; they stay on
+`node:fs` deliberately rather than switching to untyped `bun:fs` shims.
+
+## Validation
+
+- `bun test`: 283 pass, 9 skip (live-model, opt-in), 0 fail, 901 expect()
+  calls across 34 files.
+- `bun run verify` (`tsc --noEmit && biome check .`): clean.

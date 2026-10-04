@@ -100,7 +100,7 @@ export function summarizePolicy(
 } {
 	const { policy, policyVersion } = snapshot;
 	const consumers = Object.fromEntries(
-		Object.entries(policy.consumers).map(([key, consumer]) => [key, consumer.profile]),
+		Object.entries(policy.groups).map(([key, group]) => [key, group.profile]),
 	);
 	return {
 		feedVersion,

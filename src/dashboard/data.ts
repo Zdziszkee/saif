@@ -104,12 +104,12 @@ function worstLatency(parts: readonly ConsumerMetrics[]): LatencyPercentiles {
 	return latency;
 }
 
-/** Decisions recorded for one consumer key (`subject === consumerKey`). */
+/** Decisions recorded for one consumer key (`groupId === consumerKey`). */
 function consumerDecisions(
 	events: readonly AuditEvent[],
 	consumerKey: string,
 ): readonly AuditEvent[] {
-	return filterAuditEvents(events, { subject: consumerKey }).filter(isAuditDecision);
+	return filterAuditEvents(events, { groupId: consumerKey }).filter(isAuditDecision);
 }
 
 function verdictsFromAudit(decisions: readonly AuditEvent[]): Record<Verdict, number> {
@@ -138,7 +138,7 @@ function escalationFromDecision(consumerKey: string, event: AuditEvent): Escalat
 		id: event.interactionId ?? `${ESCALATION_ID_PREFIX}-${consumerKey}-${event.timestamp}`,
 		reason: event.detail ?? DEFAULT_ESCALATION_REASON,
 		seam: event.seam ?? DEFAULT_ESCALATION_SEAM,
-		subject: event.subject ?? consumerKey,
+		subject: event.groupId ?? consumerKey,
 		timestamp: event.timestamp,
 	};
 }

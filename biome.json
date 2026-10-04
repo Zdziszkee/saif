@@ -39,7 +39,8 @@
 			"quoteStyle": "double",
 			"semicolons": "always",
 			"trailingCommas": "all"
-		}
+		},
+		"globals": ["Bun"]
 	},
 	"linter": {
 		"domains": {

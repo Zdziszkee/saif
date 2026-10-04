@@ -29,7 +29,7 @@ import {
 } from "#/dashboard/format.ts";
 import { ALL_CONSUMERS, type ConsumerMetrics } from "#/dashboard/types.ts";
 
-const CONSUMER_KEYS = ["alice", "analyst", "deploy-bot"] as const;
+const CONSUMER_KEYS = ["hr", "manager", "software-developer"] as const;
 const GENERATED_AT = "2026-10-03T20:00:00.000Z";
 const TEST_POLICY_VERSION = "sha256.test-policy-version";
 
@@ -68,19 +68,19 @@ describe("aggregateMetrics", () => {
 	});
 
 	it("starts from the documented per-consumer fixture verdicts", () => {
-		expect(metricsFor("alice").verdicts).toEqual({
+		expect(metricsFor("hr").verdicts).toEqual({
 			allow: 1180,
 			block: 18,
 			escalate: 3,
 			redact: 42,
 		});
-		expect(metricsFor("analyst").verdicts).toEqual({
+		expect(metricsFor("manager").verdicts).toEqual({
 			allow: 640,
 			block: 6,
 			escalate: 1,
 			redact: 27,
 		});
-		expect(metricsFor("deploy-bot").verdicts).toEqual({
+		expect(metricsFor("software-developer").verdicts).toEqual({
 			allow: 2450,
 			block: 61,
 			escalate: 9,
@@ -149,10 +149,10 @@ describe("selectMetrics", () => {
 	});
 
 	it("returns the consumer's own metrics otherwise", () => {
-		const alice = selectMetrics(DATA, "alice");
-		expect(DATA.byConsumer).toMatchObject({ alice });
-		expect(alice.verdicts).toEqual({ allow: 1180, block: 18, escalate: 3, redact: 42 });
-		expect(selectMetrics(DATA, "deploy-bot").verdicts.allow).toBe(2450);
+		const hr = selectMetrics(DATA, "hr");
+		expect(DATA.byConsumer).toMatchObject({ hr });
+		expect(hr.verdicts).toEqual({ allow: 1180, block: 18, escalate: 3, redact: 42 });
+		expect(selectMetrics(DATA, "software-developer").verdicts.allow).toBe(2450);
 	});
 
 	it("falls back to the aggregate for unknown consumer keys", () => {
@@ -167,12 +167,12 @@ describe("selectEscalations", () => {
 	});
 
 	it("filters rows by consumer key", () => {
-		const deployBot = selectEscalations(DATA, "deploy-bot");
+		const deployBot = selectEscalations(DATA, "software-developer");
 		expect(deployBot.map((row) => row.id)).toEqual(["esc-2026-10-03-014", "esc-2026-10-03-011"]);
-		expect(selectEscalations(DATA, "alice").map((row) => row.id)).toEqual(["esc-2026-10-03-013"]);
-		expect(selectEscalations(DATA, "analyst").map((row) => row.id)).toEqual(["esc-2026-10-03-009"]);
+		expect(selectEscalations(DATA, "hr").map((row) => row.id)).toEqual(["esc-2026-10-03-013"]);
+		expect(selectEscalations(DATA, "manager").map((row) => row.id)).toEqual(["esc-2026-10-03-009"]);
 		for (const row of deployBot) {
-			expect(row.consumerKey).toBe("deploy-bot");
+			expect(row.consumerKey).toBe("software-developer");
 		}
 	});
 
@@ -183,8 +183,8 @@ describe("selectEscalations", () => {
 
 describe("buildDashboardData", () => {
 	it("produces the policy.json consumer keys, sorted", () => {
-		expect(DATA.consumerKeys).toEqual(["alice", "analyst", "deploy-bot"]);
-		expect(Object.keys(DATA.byConsumer).sort()).toEqual(["alice", "analyst", "deploy-bot"]);
+		expect(DATA.consumerKeys).toEqual(["hr", "manager", "software-developer"]);
+		expect(Object.keys(DATA.byConsumer).sort()).toEqual(["hr", "manager", "software-developer"]);
 	});
 
 	it("stamps the policy version string and fixture feed version", () => {
@@ -198,9 +198,9 @@ describe("buildDashboardData", () => {
 		expect(DATA.policy.defaultProfile).toBe("standard");
 		expect(DATA.policy.failureVerdict).toBe("escalate");
 		expect(DATA.policy.consumers).toEqual({
-			alice: "standard",
-			analyst: "permissive",
-			"deploy-bot": "strict",
+			hr: "strict",
+			manager: "standard",
+			"software-developer": "standard",
 		});
 		expect(DATA.policy.controls.map((control) => control.id)).toEqual([
 			"shape",

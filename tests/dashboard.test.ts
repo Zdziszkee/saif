@@ -49,8 +49,8 @@ function render(element: ReactElement): string {
 
 const SNAPSHOT = await loadSnapshot();
 const DATA: DashboardData = buildDashboardData(SNAPSHOT, GENERATED_AT);
-const ALICE = selectMetrics(DATA, "alice");
-const DEPLOY_BOT = selectMetrics(DATA, "deploy-bot");
+const ALICE = selectMetrics(DATA, "hr");
+const DEPLOY_BOT = selectMetrics(DATA, "software-developer");
 
 describe("dashboard rendering against fixture data", () => {
 	it("renders every section heading and the version badges", () => {
@@ -205,7 +205,7 @@ describe("dashboard rendering against fixture data", () => {
 
 	it("isolates one consumer's escalations from the others", () => {
 		const html = render(
-			createElement(EscalationsSection, { rows: selectEscalations(DATA, "deploy-bot") }),
+			createElement(EscalationsSection, { rows: selectEscalations(DATA, "software-developer") }),
 		);
 		expect(html).toContain("mcp-tool");
 		expect(html).toContain("guard-api");

@@ -42,27 +42,27 @@ function budgetSeries(consumerIndex: number): BudgetSeriesPoint[] {
 }
 
 const FIXTURE_VERDICTS: Readonly<Record<string, ConsumerMetrics["verdicts"]>> = {
-	alice: { allow: 1180, block: 18, escalate: 3, redact: 42 },
-	analyst: { allow: 640, block: 6, escalate: 1, redact: 27 },
-	"deploy-bot": { allow: 2450, block: 61, escalate: 9, redact: 88 },
+	hr: { allow: 1180, block: 18, escalate: 3, redact: 42 },
+	manager: { allow: 640, block: 6, escalate: 1, redact: 27 },
+	"software-developer": { allow: 2450, block: 61, escalate: 9, redact: 88 },
 };
 
 const FIXTURE_REDACTIONS: Readonly<Record<string, number>> = {
-	alice: 42,
-	analyst: 27,
-	"deploy-bot": 88,
+	hr: 42,
+	manager: 27,
+	"software-developer": 88,
 };
 
 /** Fixture-backed seam (task 10.2): latency queries pending. */
 const FIXTURE_LATENCY: Readonly<Record<string, ConsumerMetrics["latency"]>> = {
-	alice: { p50: 38, p95: 121, p99: 260 },
-	analyst: { p50: 44, p95: 140, p99: 305 },
-	"deploy-bot": { p50: 31, p95: 96, p99: 210 },
+	hr: { p50: 38, p95: 121, p99: 260 },
+	manager: { p50: 44, p95: 140, p99: 305 },
+	"software-developer": { p50: 31, p95: 96, p99: 210 },
 };
 
 /** Fixture-backed seam (task 10.2): threat breakdown queries pending. */
 const FIXTURE_THREATS: Readonly<Record<string, ThreatBreakdownRow[]>> = {
-	alice: [
+	hr: [
 		{ blocked: 3, category: "pii.email", controlId: "detection", flagged: 1, redacted: 19 },
 		{ blocked: 2, category: "secret.api_key", controlId: "detection", flagged: 0, redacted: 6 },
 		{
@@ -74,7 +74,7 @@ const FIXTURE_THREATS: Readonly<Record<string, ThreatBreakdownRow[]>> = {
 		},
 		{ blocked: 5, category: "jailbreak", controlId: "semantic", flagged: 1, redacted: 3 },
 	],
-	analyst: [
+	manager: [
 		{ blocked: 1, category: "pii.email", controlId: "detection", flagged: 0, redacted: 12 },
 		{ blocked: 2, category: "pii.card", controlId: "detection", flagged: 1, redacted: 7 },
 		{
@@ -85,7 +85,7 @@ const FIXTURE_THREATS: Readonly<Record<string, ThreatBreakdownRow[]>> = {
 			redacted: 2,
 		},
 	],
-	"deploy-bot": [
+	"software-developer": [
 		{ blocked: 9, category: "secret.api_key", controlId: "detection", flagged: 1, redacted: 30 },
 		{ blocked: 14, category: "malicious_code", controlId: "signatures", flagged: 3, redacted: 8 },
 		{
@@ -108,9 +108,9 @@ const FIXTURE_THREATS: Readonly<Record<string, ThreatBreakdownRow[]>> = {
 
 /** Fixture-backed seam (task 7.x): budget usage queries pending. */
 const FIXTURE_BUDGET: Readonly<Record<string, BudgetRuleView[]>> = {
-	alice: [
+	hr: [
 		{
-			consumerKey: "alice",
+			consumerKey: "hr",
 			limit: 250_000,
 			metric: "tokens",
 			modelScope: "*",
@@ -118,7 +118,7 @@ const FIXTURE_BUDGET: Readonly<Record<string, BudgetRuleView[]>> = {
 			used: 148_200,
 		},
 		{
-			consumerKey: "alice",
+			consumerKey: "hr",
 			limit: 20,
 			metric: "costUsd",
 			modelScope: "*",
@@ -126,9 +126,9 @@ const FIXTURE_BUDGET: Readonly<Record<string, BudgetRuleView[]>> = {
 			used: 11.4,
 		},
 	],
-	analyst: [
+	manager: [
 		{
-			consumerKey: "analyst",
+			consumerKey: "manager",
 			limit: 500,
 			metric: "requests",
 			modelScope: "primary",
@@ -136,9 +136,9 @@ const FIXTURE_BUDGET: Readonly<Record<string, BudgetRuleView[]>> = {
 			used: 287,
 		},
 	],
-	"deploy-bot": [
+	"software-developer": [
 		{
-			consumerKey: "deploy-bot",
+			consumerKey: "software-developer",
 			limit: 600_000,
 			metric: "computeTimeMs",
 			modelScope: "*",
@@ -150,39 +150,39 @@ const FIXTURE_BUDGET: Readonly<Record<string, BudgetRuleView[]>> = {
 
 export const FIXTURE_ESCALATIONS: readonly EscalationRow[] = [
 	{
-		consumerKey: "deploy-bot",
+		consumerKey: "software-developer",
 		direction: "outbound",
 		id: "esc-2026-10-03-014",
 		reason: "semantic decisiveness below floor (data_exfiltration p=0.58)",
 		seam: "mcp-tool",
-		subject: "deploy-bot",
+		subject: "software-developer",
 		timestamp: "2026-10-03T18:42:11.000Z",
 	},
 	{
-		consumerKey: "alice",
+		consumerKey: "hr",
 		direction: "inbound",
 		id: "esc-2026-10-03-013",
 		reason: "signature suspect signals above threshold (invisible-char density)",
 		seam: "chat",
-		subject: "alice",
+		subject: "hr",
 		timestamp: "2026-10-03T17:05:47.000Z",
 	},
 	{
-		consumerKey: "deploy-bot",
+		consumerKey: "software-developer",
 		direction: "inbound",
 		id: "esc-2026-10-03-011",
 		reason: "semantic failure verdict applied (classifier timeout)",
 		seam: "guard-api",
-		subject: "deploy-bot",
+		subject: "software-developer",
 		timestamp: "2026-10-03T15:22:03.000Z",
 	},
 	{
-		consumerKey: "analyst",
+		consumerKey: "manager",
 		direction: "outbound",
 		id: "esc-2026-10-03-009",
 		reason: "residual sensitive span in egress state",
 		seam: "chat",
-		subject: "analyst",
+		subject: "manager",
 		timestamp: "2026-10-03T13:58:29.000Z",
 	},
 ];
