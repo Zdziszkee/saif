@@ -13,6 +13,7 @@
     "start": "bun run .output/server/index.mjs",
     "test": "bun test --path-ignore-patterns tests/integration",
     "test:watch": "bun test --watch",
+    "eval": "bun test tests/eval",
     "format": "biome format --write",
     "lint": "biome lint",
     "check": "biome check .",
