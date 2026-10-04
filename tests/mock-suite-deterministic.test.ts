@@ -197,8 +197,10 @@ describe("real detection config from policy.json", () => {
 
 	it("maps secrets to block and pii to redact by default", () => {
 		const policy = requirePolicy(policyDocument);
-		expect(policy.controls.detection.defaultActions.secret).toBe("block");
-		expect(policy.controls.detection.defaultActions.pii).toBe("redact");
+		// biome-ignore lint/complexity/useLiteralKeys: bracket access required by noPropertyAccessFromIndexSignature on the record type
+		expect(policy.controls.detection.defaultActions["secret"]).toBe("block");
+		// biome-ignore lint/complexity/useLiteralKeys: bracket access required by noPropertyAccessFromIndexSignature on the record type
+		expect(policy.controls.detection.defaultActions["pii"]).toBe("redact");
 	});
 
 	it("ships the employee-id and internal-codename custom rules", () => {

@@ -273,15 +273,15 @@ describe("judge config edits flip verdicts", () => {
 		expect(blocked.verdict).toBe("block");
 	});
 
-	it("emptying the model allowlist blocks the previously allowed model", () => {
+	it("emptying the model allowlist blocks the previously allowed model", async () => {
 		const policy = requirePolicy(policyDocument, "policy.json");
 		const control = createAllowlistControl(policy.controls.allowlist.models);
 		const named = (model: string): Interaction => ({ ...interaction("hi"), model });
-		expect(control.inspect(named("primary")).verdict).toBe("allow");
-		expect(control.inspect(named("evil-model")).verdict).toBe("block");
+		expect((await Promise.resolve(control.inspect(named("primary")))).verdict).toBe("allow");
+		expect((await Promise.resolve(control.inspect(named("evil-model")))).verdict).toBe("block");
 		const emptied = createAllowlistControl([]);
-		expect(emptied.inspect(named("primary")).verdict).toBe("block");
-		expect(emptied.inspect(interaction("hi")).verdict).toBe("allow");
+		expect((await Promise.resolve(emptied.inspect(named("primary")))).verdict).toBe("block");
+		expect((await Promise.resolve(emptied.inspect(interaction("hi")))).verdict).toBe("allow");
 	});
 });
 
@@ -305,8 +305,10 @@ describe("broken configs fail closed with paths", () => {
 		expect(outcome.hit?.controlId).toBe("policy-unavailable");
 	});
 
-	it("policyUnavailableControl blocks every interaction", () => {
-		const outcome = policyUnavailableControl().inspect(interaction("benign"));
+	it("policyUnavailableControl blocks every interaction", async () => {
+		const outcome = await Promise.resolve(
+			policyUnavailableControl().inspect(interaction("benign")),
+		);
 		expect(outcome.verdict).toBe("block");
 		expect(outcome.hit?.controlId).toBe("policy-unavailable");
 	});

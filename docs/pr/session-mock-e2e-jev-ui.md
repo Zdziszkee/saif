@@ -138,3 +138,11 @@ detection/feed paths):
 - [x] `bun test tests/mock-suite-budget-telemetry.test.ts` (40 pass, 0 fail, 129 expect() calls)
 - [x] `bun test` full hermetic gate (1590 pass, 9 skip, 0 fail, 4644 expect() calls, 1599 tests across 91 files)
 - [x] `bunx biome check` on touched files (clean: 1 file checked, no fixes)
+
+## Validation (final pre-PR)
+
+- [x] `bun run verify` (`tsc --noEmit` + `biome check .`, 250 files clean)
+- [x] `bun test` (1598 pass, 9 skip, 0 fail, 4680 expects, 1607 tests across 91 files)
+- Cherry-picked `origin/session/controls-jev-loader` (`277f70f`, JEV tab seeded from
+  route loader) onto this branch; `src/routes/controls.tsx` carries both the loader
+  seeding and the mock/off fallback.
