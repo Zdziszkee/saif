@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod";
+import { createIdSequence } from "#/lib/ids.ts";
 import type { Interaction, InteractionSeam } from "./types.ts";
 
 /** Maximum inspected content size (bytes of UTF-8 text), per the L0 shape limit. */
@@ -36,12 +37,7 @@ export type ShapeValidation =
 	| { ok: true; interaction: Interaction }
 	| { ok: false; errors: string[] };
 
-let nextId = 0;
-
-function generateInteractionId(): string {
-	nextId += 1;
-	return `int_${Date.now()}_${nextId}`;
-}
+const generateInteractionId = createIdSequence("int");
 
 /**
  * Validate the request envelope. Caller identity comes from the resolved

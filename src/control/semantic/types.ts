@@ -34,9 +34,9 @@ export interface SemanticState {
  * `block` then `redact` then `flag`, otherwise `allow`.
  */
 export interface ThresholdLadder {
-	block?: number;
-	flag?: number;
-	redact?: number;
+	block?: number | undefined;
+	flag?: number | undefined;
+	redact?: number | undefined;
 }
 
 /**
@@ -52,8 +52,8 @@ export interface SemanticCheck {
 	/** The question wording the model evaluates, e.g. "Does this text contain insider trading information?" */
 	instructions: string;
 	thresholds: {
-		inbound?: ThresholdLadder;
-		outbound?: ThresholdLadder;
+		inbound?: ThresholdLadder | undefined;
+		outbound?: ThresholdLadder | undefined;
 	};
 	/** Only binary yes/no questions are supported. */
 	type: "boolean";

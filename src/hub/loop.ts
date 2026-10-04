@@ -10,7 +10,9 @@
  */
 
 import type { Verdict } from "#/control/types.ts";
+import { parseJsonOrEmpty } from "#/lib/json.ts";
 import type { ToolCallOutcome, ToolRejection } from "./governance.ts";
+import { definedRejection } from "./governance.ts";
 import type { ModelConnection, ModelMessage, ModelReply, ModelToolSpec } from "./model.ts";
 
 export interface LoopBudgets {
@@ -114,7 +116,7 @@ async function dispatchToolCalls(
 		const tool = toolByName.get(call.name);
 		if (!tool) {
 			messages.push({
-				content: JSON.stringify({ control: "tool-catalog", error: "blocked", verdict: "block" }),
+				content: definedRejection({ control: "tool-catalog", kind: "blocked", verdict: "block" }),
 				name: call.name,
 				role: "tool",
 				toolCallId: call.id,
@@ -130,11 +132,7 @@ async function dispatchToolCalls(
 				break;
 			}
 			messages.push({
-				content: JSON.stringify({
-					control: outcome.rejection.control,
-					error: outcome.rejection.kind,
-					verdict: outcome.rejection.verdict,
-				}),
+				content: definedRejection(outcome.rejection),
 				name: call.name,
 				role: "tool",
 				toolCallId: call.id,
@@ -153,9 +151,5 @@ async function dispatchToolCalls(
 }
 
 function parseArguments(serialized: string): unknown {
-	try {
-		return JSON.parse(serialized);
-	} catch {
-		return {};
-	}
+	return parseJsonOrEmpty(serialized);
 }
