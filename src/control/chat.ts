@@ -39,6 +39,9 @@ export async function guardedChat(
 	prompt: string,
 	options: ChatSeamOptions,
 ): Promise<ChatSeamOutcome> {
+	// Both directions audit under the caller's user id. `userId` is required
+	// here, so unlike header-derived ids no `?? "(none)"` fallback applies.
+	const guardOptions = { audit: options.audit, consumerKey: options.userId };
 	const promptOutcome = await guardInteraction(
 		{
 			content: prompt,
@@ -49,7 +52,7 @@ export async function guardedChat(
 			userId: options.userId,
 		},
 		options.pipeline,
-		{ audit: options.audit },
+		guardOptions,
 	);
 	if (promptOutcome.rejection) {
 		return {
@@ -70,7 +73,7 @@ export async function guardedChat(
 			userId: options.userId,
 		},
 		options.pipeline,
-		{ audit: options.audit },
+		guardOptions,
 	);
 	return {
 		answer: answerOutcome.content,

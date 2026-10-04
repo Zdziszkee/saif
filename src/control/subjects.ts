@@ -122,6 +122,7 @@ export function identityRejection(
 ): Response {
 	audit.record(
 		auditEvent("interaction", {
+			consumerKey: resolution.userId ?? "(none)",
 			controlId: "caller-identity",
 			detail: `caller identity rejected: ${resolution.reason}`,
 			groupId: resolution.groupId,

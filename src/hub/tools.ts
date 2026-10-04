@@ -21,14 +21,18 @@ export interface BuiltinToolSpec {
 	name: string;
 }
 
+const addTodoInput = z.object({ title: z.string().min(1) });
+const emptyInput = z.object({});
+const fetchUrlInput = z.object({ url: z.string().url() });
+
 export const basicBuiltinTools: BuiltinToolSpec[] = [
 	{
 		description: "Add a todo to a list of todos",
 		implementation: (args) => {
-			const { title } = z.object({ title: z.string().min(1) }).parse(args);
+			const { title } = addTodoInput.parse(args);
 			return addTodo(title);
 		},
-		inputSchema: z.object({ title: z.string().min(1) }),
+		inputSchema: addTodoInput,
 		name: "addTodo",
 	},
 	{
@@ -36,7 +40,7 @@ export const basicBuiltinTools: BuiltinToolSpec[] = [
 			"DESTRUCTIVE DEMO TOOL: delete every todo. Runs only under tool-call " +
 			"governance; kept in the catalog to demonstrate risky-tool control.",
 		implementation: () => ({ deleted: clearTodos() }),
-		inputSchema: z.object({}),
+		inputSchema: emptyInput,
 		name: "deleteAllTodos",
 	},
 	{
@@ -45,20 +49,20 @@ export const basicBuiltinTools: BuiltinToolSpec[] = [
 			"Runs only under tool-call governance; kept in the catalog to demonstrate " +
 			"network-tool control.",
 		implementation: async (args) => {
-			const { url } = z.object({ url: z.string().url() }).parse(args);
+			const { url } = fetchUrlInput.parse(args);
 			const response = await fetch(url);
 			return {
 				body: (await response.text()).slice(0, FETCH_BODY_LIMIT_CHARS),
 				status: response.status,
 			};
 		},
-		inputSchema: z.object({ url: z.string().url() }),
+		inputSchema: fetchUrlInput,
 		name: "fetchUrl",
 	},
 	{
 		description: "List the current todos",
 		implementation: () => ({ todos: getTodos() }),
-		inputSchema: z.object({}),
+		inputSchema: emptyInput,
 		name: "listTodos",
 	},
 ];

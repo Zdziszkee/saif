@@ -103,6 +103,7 @@ export interface DashboardData {
 	escalations: readonly EscalationRow[];
 	feedVersion: string;
 	generatedAt: string;
+	personRoles: Readonly<Record<string, string>>;
 	policy: PolicyView;
 	policyVersion: string;
 }

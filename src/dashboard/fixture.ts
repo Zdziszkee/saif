@@ -187,6 +187,11 @@ export const FIXTURE_ESCALATIONS: readonly EscalationRow[] = [
 	},
 ];
 
+/** Seeded person-to-role roster: empty — no policy-declared roster exists, so
+ * people surface only through live audit decisions and `data.ts` overlays the
+ * audit-derived mapping (last decision wins) on this seed. */
+export const FIXTURE_PERSON_ROLES: Readonly<Record<string, string>> = {};
+
 /** Seeded per-consumer metrics, keyed exactly like the policy consumers. */
 export function fixtureConsumerMetrics(
 	consumerKeys: readonly string[],

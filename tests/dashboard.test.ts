@@ -16,6 +16,8 @@ import {
 	PostureSection,
 	ThreatsSection,
 } from "#/components/dashboard/metric-sections.tsx";
+import { PeopleSection } from "#/components/dashboard/people-sections.tsx";
+import { matchesPerson, personLabel, roleLabel } from "#/components/dashboard/persons.ts";
 import {
 	ControlsSection,
 	EscalationsSection,
@@ -231,5 +233,126 @@ describe("dashboard rendering against fixture data", () => {
 		const escalationsHtml = render(createElement(EscalationsSection, { rows: [] }));
 		expect(escalationsHtml).toContain("No activity in this window");
 		expect(escalationsHtml).not.toContain("mcp-tool");
+	});
+});
+
+const PERSON_ROLES: Readonly<Record<string, string>> = {
+	hr: "admin",
+	manager: "viewer",
+	"software-developer": "viewer",
+};
+
+const PEOPLE_DATA: DashboardData = { ...DATA, personRoles: PERSON_ROLES };
+
+function renderDashboard(element: ReactElement): string {
+	return render(createElement(ThemeProvider, null, element));
+}
+
+describe("dashboard people section", () => {
+	it("renders the People heading with search and role controls", () => {
+		const html = renderDashboard(
+			createElement(Dashboard, { initialData: PEOPLE_DATA, onRefresh: async () => PEOPLE_DATA }),
+		);
+		expect(html).toContain("People");
+		expect(html).toContain("People activity");
+		expect(html).toContain('aria-label="Search people"');
+		expect(html).toContain('placeholder="Search people"');
+		expect(html).toContain('aria-label="Role scope"');
+	});
+
+	it("lists people sorted by total desc with consumer links and role labels", () => {
+		const html = renderDashboard(
+			createElement(Dashboard, { initialData: PEOPLE_DATA, onRefresh: async () => PEOPLE_DATA }),
+		);
+		for (const column of ["Person", "Role", "Allow", "Redact", "Block", "Escalate", "Total"]) {
+			expect(html).toContain(column);
+		}
+		for (const userId of ["hr", "manager", "software-developer"]) {
+			expect(html).toContain(`?consumer=${userId}`);
+		}
+		expect(html).toContain("Admin");
+		expect(html).toContain("Viewer");
+		expect(html).toContain(">2,608<");
+		expect(html).toContain(">1,243<");
+		expect(html).toContain(">674<");
+		const developer = html.indexOf("?consumer=software-developer");
+		const hr = html.indexOf("?consumer=hr");
+		const manager = html.indexOf("?consumer=manager");
+		expect(developer).toBeGreaterThanOrEqual(0);
+		expect(hr).toBeGreaterThanOrEqual(0);
+		expect(manager).toBeGreaterThanOrEqual(0);
+		expect(developer).toBeLessThan(hr);
+		expect(hr).toBeLessThan(manager);
+	});
+
+	it("shows the unknown role when the payload carries no person roles", () => {
+		const html = renderDashboard(
+			createElement(Dashboard, { initialData: DATA, onRefresh: async () => DATA }),
+		);
+		expect(html).toContain("Unknown");
+		expect(html).toContain("?consumer=hr");
+	});
+
+	it("filters the People table by the initialRole prop", () => {
+		const html = renderDashboard(
+			createElement(Dashboard, {
+				initialData: PEOPLE_DATA,
+				initialRole: "viewer",
+				onRefresh: async () => PEOPLE_DATA,
+			}),
+		);
+		expect(html).toContain("?consumer=manager");
+		expect(html).toContain("?consumer=software-developer");
+		expect(html).not.toContain("?consumer=hr");
+	});
+
+	it("scopes the escalation queue by role through the consumer mapping", () => {
+		const html = renderDashboard(
+			createElement(Dashboard, {
+				initialData: PEOPLE_DATA,
+				initialRole: "admin",
+				onRefresh: async () => PEOPLE_DATA,
+			}),
+		);
+		expect(html).toContain("signature suspect signals above threshold");
+		expect(html).not.toContain("semantic decisiveness below floor");
+		expect(html).not.toContain("residual sensitive span in egress state");
+	});
+
+	it("keeps every escalation without a role filter", () => {
+		const html = renderDashboard(
+			createElement(Dashboard, { initialData: PEOPLE_DATA, onRefresh: async () => PEOPLE_DATA }),
+		);
+		expect(html).toContain("signature suspect signals above threshold");
+		expect(html).toContain("semantic decisiveness below floor");
+		expect(html).toContain("residual sensitive span in egress state");
+	});
+
+	it("shows the empty state when the people rows are empty", () => {
+		const html = render(createElement(PeopleSection, { rows: [] }));
+		expect(html).toContain("No activity in this window");
+		expect(html).not.toContain("?consumer=");
+	});
+});
+
+describe("dashboard person helpers", () => {
+	it("labels a person by userId", () => {
+		expect(personLabel("hr")).toBe("hr");
+		expect(personLabel("software-developer")).toBe("software-developer");
+	});
+
+	it("labels a role from its groupId", () => {
+		expect(roleLabel("software-developer")).toBe("Software developer");
+		expect(roleLabel("hr")).toBe("Hr");
+		expect(roleLabel("")).toBe("(none)");
+	});
+
+	it("matches people case-insensitively on a substring", () => {
+		expect(matchesPerson("hr", undefined)).toBe(true);
+		expect(matchesPerson("hr", "")).toBe(true);
+		expect(matchesPerson("hr", "   ")).toBe(true);
+		expect(matchesPerson("software-developer", "SOFTware")).toBe(true);
+		expect(matchesPerson("software-developer", "velop")).toBe(true);
+		expect(matchesPerson("hr", "manager")).toBe(false);
 	});
 });

@@ -11,8 +11,7 @@
 
 import type { Verdict } from "#/control/types.ts";
 import { parseJsonOrEmpty } from "#/lib/json.ts";
-import type { ToolCallOutcome, ToolRejection } from "./governance.ts";
-import { definedRejection } from "./governance.ts";
+import { definedRejection, type ToolCallOutcome, type ToolRejection } from "./governance.ts";
 import type { ModelConnection, ModelMessage, ModelReply, ModelToolSpec } from "./model.ts";
 
 export interface LoopBudgets {
@@ -125,7 +124,7 @@ async function dispatchToolCalls(
 		}
 
 		// biome-ignore lint/performance/noAwaitInLoops: tool calls run in order, each governed
-		const outcome = await tool.execute(parseArguments(call.arguments));
+		const outcome = await tool.execute(parseJsonOrEmpty(call.arguments));
 		if (outcome.kind === "refused") {
 			if (enforcement === "turn") {
 				turnRejection = outcome.rejection;
@@ -148,8 +147,4 @@ async function dispatchToolCalls(
 		});
 	}
 	return turnRejection;
-}
-
-function parseArguments(serialized: string): unknown {
-	return parseJsonOrEmpty(serialized);
 }
