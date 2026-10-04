@@ -27,7 +27,7 @@ import { createSemanticControl } from "#/control/semantic/control.ts";
 import { createJevClassifier } from "#/control/semantic/jev.ts";
 import { createSignatureControl } from "#/control/signatures/control.ts";
 import { createSignatureFeedStore, type SignatureFeedStore } from "#/control/signatures/feed.ts";
-import { type ConsumerPolicy, consumerPolicyFromDocument } from "#/control/subjects.ts";
+import { type IdentityPolicy, identityPolicyFromDocument } from "#/control/subjects.ts";
 import type { Control, Verdict } from "#/control/types.ts";
 import { env } from "#/env.ts";
 import { createHubConfig } from "./config.ts";
@@ -99,9 +99,9 @@ export function buildSemanticControl(): Control | null {
 }
 
 interface BuiltControls {
-	consumers: ConsumerPolicy;
 	controls: readonly Control[];
 	failureVerdict: Verdict;
+	identity: IdentityPolicy;
 	policyProfile: string;
 	policyVersion: string;
 	semanticEnabled: boolean;
@@ -173,9 +173,9 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 	const status = await loader.start();
 	if (!status.ok) {
 		return {
-			consumers: { defaultSubject: "default", knownKeys: [], unknownKey: "default-subject" },
 			controls: [policyUnavailableControl()],
 			failureVerdict: "block",
+			identity: { knownGroups: [] },
 			policyProfile: "unavailable",
 			policyVersion: "unavailable",
 			semanticEnabled: false,
@@ -186,9 +186,9 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 	const enabled = policy.profiles[policy.defaults.profile].enabledControls;
 	const assembly = assembleStages(policy, audit, loader);
 	return {
-		consumers: consumerPolicyFromDocument(policy.consumers),
 		controls: assembly.controls,
 		failureVerdict: policy.defaults.failureVerdict,
+		identity: identityPolicyFromDocument(policy.groups),
 		policyProfile: policy.defaults.profile,
 		policyVersion: policy.version,
 		semanticEnabled: enabled.semantic && !assembly.semanticSkipped,
@@ -203,7 +203,7 @@ export function getHub(): Promise<Hub> {
 
 async function createHubAsync(): Promise<Hub> {
 	const {
-		consumers,
+		identity,
 		controls,
 		failureVerdict,
 		policyProfile,
@@ -221,8 +221,8 @@ async function createHubAsync(): Promise<Hub> {
 	return createHub({
 		audit: getAuditSink(),
 		config: createHubConfig({
-			consumers,
 			egressAllowlist: parseAllowlist(env.MCP_EGRESS_ALLOWLIST),
+			identity,
 		}),
 		pipeline: createControlPipeline({ controls, failureVerdict }),
 	});

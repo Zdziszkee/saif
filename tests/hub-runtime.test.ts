@@ -43,7 +43,7 @@ function pipelineWithoutSemantic(): ReturnType<typeof createControlPipeline> {
 }
 
 function chatInteraction(content: string): Interaction {
-	return { content, direction: "inbound", id: "runtime-test", seam: "chat", subject: "test" };
+	return { content, direction: "inbound", groupId: "test", id: "runtime-test", seam: "chat" };
 }
 
 describe("hub runtime without a TypeSafe key", () => {
@@ -83,13 +83,13 @@ describe("hub runtime without a TypeSafe key", () => {
 	it("exposes product sink events to dashboard/export readers", async () => {
 		const sink = getAuditSink();
 		sink.record({
+			groupId: "parity-probe",
 			kind: "interaction",
-			subject: "parity-probe",
 			timestamp: new Date().toISOString(),
 			verdict: "allow",
 		});
 		try {
-			expect(readAuditEvents(sink).some((event) => event.subject === "parity-probe")).toBe(true);
+			expect(readAuditEvents(sink).some((event) => event.groupId === "parity-probe")).toBe(true);
 		} finally {
 			await rm("data/audit.jsonl", { force: true });
 		}

@@ -33,6 +33,7 @@ export {
 } from "./classifier.ts";
 export {
 	checkShapeSchema,
+	checksForGroup,
 	loadSemanticConfig,
 	parseChecks,
 	parseSemanticConfig,

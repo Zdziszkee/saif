@@ -1,5 +1,5 @@
 {
-  "$comment": "Jev semantic-tier configuration — the question catalog for the AI-based control tier. Lives at the project root as policy.jev.json, separate from the policy engine's policy.json: this file defines WHAT the decision model is asked (binary yes/no checks, wording, per-check thresholds) plus the deadline, decisiveness floor and egress cap; policy.json keeps only what the policy engine owns (whether the tier runs, and how evidence maps to verdicts). Binary checks only — each entry is one yes/no question, and the whole enabled set is evaluated in a single decide() round trip.",
+  "$comment": "Jev semantic-tier configuration — the question catalog for the AI-based control tier. Lives at the project root as policy.jev.json, separate from the policy engine's policy.json: this file defines WHAT the decision model is asked (binary yes/no checks, wording, per-check thresholds) plus the deadline, decisiveness floor and egress cap; policy.json keeps only what the policy engine owns (which profile applies, and how evidence maps to verdicts). Binary checks only — each entry is one yes/no question, and the whole enabled set is evaluated in a single decide() round trip. `groups` maps each user group id to the check ids that apply to it. Every check is currently available to every group; drop an id from a group to restrict it.",
   "checks": [
     {
       "enabled": true,
@@ -99,5 +99,31 @@
   },
   "maxChars": 4000,
   "model": "jev-latest",
-  "timeoutMs": 2500
+  "timeoutMs": 2500,
+  "groups": {
+    "hr": [
+      "data_exfiltration",
+      "insider_trading",
+      "jailbreak",
+      "malicious_code",
+      "privacy_violation",
+      "prompt_injection"
+    ],
+    "manager": [
+      "data_exfiltration",
+      "insider_trading",
+      "jailbreak",
+      "malicious_code",
+      "privacy_violation",
+      "prompt_injection"
+    ],
+    "software-developer": [
+      "data_exfiltration",
+      "insider_trading",
+      "jailbreak",
+      "malicious_code",
+      "privacy_violation",
+      "prompt_injection"
+    ]
+  }
 }

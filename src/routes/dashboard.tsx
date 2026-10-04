@@ -137,7 +137,7 @@ function Dashboard() {
 								{data.recent.map((event) => (
 									<li key={`${event.timestamp}-${event.interactionId ?? ""}`}>
 										{event.timestamp} [{event.verdict ?? "?"}] {event.controlId ?? ""}{" "}
-										{event.subject ?? ""} ({event.seam ?? "?"})
+										{event.groupId ?? ""} ({event.seam ?? "?"})
 									</li>
 								))}
 							</ul>

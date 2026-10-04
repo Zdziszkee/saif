@@ -12,7 +12,7 @@
 import { toolDefinition } from "@tanstack/ai";
 import { createMCPServer, type MCPServer } from "@tanstack/ai-mcp/server";
 import { type AuditSink, auditEvent, noopAuditSink } from "#/control/audit.ts";
-import { type ConsumerResolver, createConsumerResolver } from "#/control/subjects.ts";
+import { createIdentityResolver, type IdentityResolver } from "#/control/subjects.ts";
 import type { ControlPipeline } from "#/control/types.ts";
 import { createToolCatalog, type ToolCatalog, type ToolRegistration } from "./catalog.ts";
 import { createHubConfig, type HubConfig } from "./config.ts";
@@ -54,11 +54,11 @@ export interface Hub {
 	audit: AuditSink;
 	config: HubConfig;
 	connections: HubConnections;
-	consumers: ConsumerResolver;
-	grant(subject: string, toolName: string): void;
-	invokeTool(name: string, args: unknown, subject: string): Promise<ToolCallOutcome>;
+	grant(groupId: string, toolName: string): void;
+	identity: IdentityResolver;
+	invokeTool(name: string, args: unknown, groupId: string): Promise<ToolCallOutcome>;
 	pipeline: ControlPipeline;
-	server(subject?: string): MCPServer;
+	server(groupId?: string): MCPServer;
 	toolNames(): string[];
 }
 
@@ -73,7 +73,7 @@ interface HubContext {
 export async function createHub(deps: HubDeps): Promise<Hub> {
 	const audit = deps.audit ?? noopAuditSink;
 	const config = deps.config ?? createHubConfig();
-	const consumers = createConsumerResolver(config.consumers);
+	const identity = createIdentityResolver({ knownGroups: config.identity.knownGroups });
 	const grants: GrantRegistry = createGrantRegistry();
 	const catalog: ToolCatalog = createToolCatalog({ audit, pipeline: deps.pipeline });
 	const governor: ToolGovernor = createToolGovernor({ audit, grants, pipeline: deps.pipeline });
@@ -95,13 +95,13 @@ export async function createHub(deps: HubDeps): Promise<Hub> {
 		audit,
 		config,
 		connections,
-		consumers,
-		grant: (subject, toolName) => {
-			grants.grant(subject, toolName);
+		grant: (groupId, toolName) => {
+			grants.grant(groupId, toolName);
 		},
-		invokeTool: (name, args, subject) => invokeTool(context, { args, name, subject }),
+		identity,
+		invokeTool: (name, args, groupId) => invokeTool(context, { args, groupId, name }),
 		pipeline: deps.pipeline,
-		server: (subject = "anonymous") => buildServer(catalog, governor, subject),
+		server: (groupId = "anonymous") => buildServer(catalog, governor, groupId),
 		toolNames: () => catalog.snapshot().map((entry) => entry.name),
 	};
 }
@@ -124,14 +124,14 @@ async function admitBuiltinTools(catalog: ToolCatalog, grants: GrantRegistry): P
 	}
 }
 
-function buildServer(catalog: ToolCatalog, governor: ToolGovernor, subject: string): MCPServer {
+function buildServer(catalog: ToolCatalog, governor: ToolGovernor, groupId: string): MCPServer {
 	const tools = catalog.snapshot().map((entry) =>
 		toolDefinition({
 			description: entry.description,
 			inputSchema: entry.inputSchema,
 			name: entry.name,
 		}).server(async (args) => {
-			const outcome = await governor.governToolCall(entry, args, subject);
+			const outcome = await governor.governToolCall(entry, args, groupId);
 			if (outcome.kind === "refused") {
 				throw new ToolGovernanceError(definedRejection(outcome.rejection));
 			}
@@ -143,7 +143,7 @@ function buildServer(catalog: ToolCatalog, governor: ToolGovernor, subject: stri
 
 function invokeTool(
 	context: HubContext,
-	call: { args: unknown; name: string; subject: string },
+	call: { args: unknown; name: string; groupId: string },
 ): Promise<ToolCallOutcome> {
 	const entry = context.catalog.get(call.name);
 	if (!entry) {
@@ -156,12 +156,12 @@ function invokeTool(
 			auditEvent("interaction", {
 				controlId: rejection.control,
 				detail: `unknown tool: ${call.name}`,
+				groupId: call.groupId,
 				seam: "mcp-tool",
-				subject: call.subject,
 				verdict: "block",
 			}),
 		);
 		return Promise.resolve({ kind: "refused", rejection });
 	}
-	return context.governor.governToolCall(entry, call.args, call.subject);
+	return context.governor.governToolCall(entry, call.args, call.groupId);
 }

@@ -17,8 +17,9 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 ## 3. Storage layer
 
-- [ ] 3.1 Add `audit_events`, `usage_records`, and `budget_windows` tables to `src/db/schema.ts`, generate the Drizzle migration, and verify `bun run db:migrate` applies cleanly to a fresh database (verify: migration runs on a temp SQLite file)
-- [ ] 3.2 Implement repository modules (append-only audit insert and query, usage insert and aggregation, budget window upsert and read) and verify roundtrip tests on a temp database (verify: repository tests pass)
+- [x] 3.1 Add `audit_events` and `usage_records` to `src/db/schema.ts` (only the columns the reporting surfaces query: time, user, group, verdict, cause, decisive check and score, policy version, prompt for rejected content, and per-call tokens and cost), generate the Drizzle migration, and verify `bun run db:migrate` applies cleanly to a fresh database (verify: `bun run db:generate` emits the migration and `bun run db:migrate` creates both tables on a temp SQLite file)
+- [ ] 3.2 Implement repository modules (append-only audit insert and query, usage insert and per-user/per-group aggregation, windowed spend totals for limit enforcement) and verify roundtrip tests on a temp database (verify: repository tests cover insert, query by user/group/verdict/check, and windowed spend aggregation)
+- [ ] 3.3 Document the storage schema and the reporting dimensions it supports in `docs/storage.md` so dashboard work can start from it (verify: doc lists every column with its dashboard purpose)
 
 ## 4. Deterministic tier
 
@@ -63,12 +64,14 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 - [x] 9.2 Create a minimal chat demo seam wired through the `guardInteraction()` wrapper over prompt and answer; verify chat seam tests pass (verify: tests cover blocked prompt and redacted answer)
 - [x] 9.3 Re-scope the MCP hub to a tools-only catalog (design D10): remove the `askModel` registration and model-connection assembly from `src/hub`, keep the served catalog to hub-hosted tools and connected external MCP tools; verify no model-reaching tool is exposed (verify: hub tests assert the MCP catalog contains only tool entries and that connected-tool calls execute through tool-call governance with each outcome recorded in the audit log)
 - [ ] 9.4 Wire the chat seam's `ask` to the TanStack AI gateway (`chat()` over the configured OpenAI-compatible adapter) and move the bounded tool loop to the gateway side (request-count and compute-time caps as `agentLoopStrategy` predicates via `maxIterations`/`combineStrategies`, every tool call routed through hub governance via `onBeforeToolCall`/`onAfterToolCall` middleware); verify prompt/answer guard flow and governed tool rounds (verify: chat seam tests cover blocked prompt, redacted answer, governed tool-call round trip, and over-budget loop termination)
+- [ ] 9.5 Implement the LLM gateway seam (section 14) and wire it through the same control pipeline; verify gateway route tests pass (verify: tests cover allow, block, unknown group, and exhausted budget)
 
 ## 10. Observability
 
-- [ ] 10.1 Record audit entries from the pipeline (verdict, evidence, policy version, feed version, model, usage, latency) and verify append-only behavior tests pass (verify: audit tests cover allow, redact, block, escalate, and failure entries)
-- [ ] 10.2 Implement metrics aggregation (verdicts by control and category, redactions, budget consumption, latency percentiles) and verify aggregation tests pass (verify: metrics tests pass against seeded audit data)
-- [ ] 10.3 Implement audit export endpoints (JSONL and CSV with filters: time range, verdict, control, consumer key) and verify export tests pass (verify: export tests assert filter correctness and parseable output)
+- [ ] 10.1 Record audit rows from the pipeline (time, user, group, verdict, cause, decisive check and score, policy version, prompt for rejected content) and verify append-only behavior tests pass (verify: audit tests cover allow, redact, block, escalate, and each rejection cause)
+- [ ] 10.2 Implement metrics aggregation (verdicts by check and by group, unpriced-call counts, spend by user and group against limits) and verify aggregation tests pass (verify: metrics tests pass against seeded audit and usage data)
+- [ ] 10.3 Implement audit/usage export endpoints (JSON Lines and CSV with filters: time range, verdict, cause, check, user id, group id) and verify export tests pass (verify: export tests assert filter correctness and parseable output)
+- [ ] 10.4 Implement rejection notifications to the dashboard in addition to the durable record; verify a block surfaces without a manual reload (verify: notification test covers each rejection cause)
 
 ## 11. Dashboard
 
@@ -85,3 +88,14 @@ plus §6 live config/feed edits and performance telemetry. Nothing beyond the br
 
 - [ ] 13.1 Run the test suite with no credentials set and verify all spec scenarios pass (verify: `bun run test` green with `TYPESAFE_API_KEY` unset)
 - [ ] 13.2 Verify `bun run verify` (typecheck + biome) passes and record performance telemetry for the deterministic and semantic paths (verify: telemetry numbers captured in `docs/performance.md`)
+
+## 14. LLM gateway seam (OpenAI-compatible endpoint)
+
+- [ ] 14.1 Implement `POST /v1/chat/completions` accepting the OpenAI chat-completions schema, with request shape validation before any control tier; verify malformed bodies are rejected and recorded (verify: route tests cover valid, malformed, and oversized bodies)
+- [ ] 14.2 Implement caller identity resolution from `x-user-id` and `x-user-group-id`, rejecting missing identity and unknown groups with the documented audit cause and no control evaluation; verify both rejection paths (verify: identity tests cover known user, missing header, and unknown group)
+- [ ] 14.3 Implement the gateway lifecycle in order — identity, usage limit, deterministic tier, semantic tier, forward — with the usage-limit check before content validation; verify an over-limit caller is rejected without invoking either tier (verify: ordering test asserts the control tiers are not called)
+- [ ] 14.4 Implement group-selected semantic checks from `policy.jev.json` `groups`, so each group is asked exactly its own questions; verify two groups on the same content get different question sets (verify: group-selection tests pass)
+- [ ] 14.5 Implement the upstream provider call and SSE token relay, streaming tokens through to the harness without buffering and without inspecting the answer; verify streaming passes through unchanged (verify: stream test asserts tokens arrive before the stream ends)
+- [ ] 14.6 Implement the pricing table loader — fetch the LiteLLM model price JSON at startup, retain only per-model cost fields, cache with TTL, and record cost as unknown when a model is unpriced; verify a priced and an unpriced call both account correctly (verify: pricing tests cover known model, unknown model, and fetch failure at startup)
+- [ ] 14.7 Write `usage_records` on stream completion and enforce per-user spend limits by aggregating them over the configured window; verify window rollover and limit enforcement (verify: budget tests cover under-limit pass, exhausted reject, and separate users in one group)
+- [ ] 14.8 Build the harness quickstart in README (point Claude Code or an equivalent at the gateway with the two identity headers) and verify it runs as written (verify: walkthrough executed from a clean start)

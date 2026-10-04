@@ -31,7 +31,7 @@ const checks = [
 ] as const;
 
 function interaction(content: string): Interaction {
-	return { content, direction: "inbound", id: "sem-test", seam: "guard-api", subject: "test" };
+	return { content, direction: "inbound", groupId: "test", id: "sem-test", seam: "guard-api" };
 }
 
 function inspectControl(
@@ -116,9 +116,9 @@ describe("semantic control", () => {
 			control.inspect({
 				content: "definitely an attack",
 				direction: "outbound",
+				groupId: "test",
 				id: "sem-outbound",
 				seam: "guard-api",
-				subject: "test",
 			}),
 		);
 		expect(result.verdict).toBe("allow");

@@ -7,44 +7,78 @@ Records every control decision in an append-only audit log, maintains real-time 
 ## ADDED Requirements
 
 ### Requirement: Append-only audit log
-The system SHALL record an append-only audit entry for every governed interaction: interaction identity and consumer key, direction, policy version, verdict and reasons (fired detections, signatures, semantic probabilities and confidence), redactions applied, target model, token usage, computed cost, and pipeline latency. Audit entries MUST NOT be modifiable through application interfaces.
+The system SHALL record one append-only audit row per governed interaction, carrying exactly the fields the reporting surfaces use: event time, user id, user group id, verdict, cause, the decisive check identifier and its score, the policy version in force, and the prompt text for rejected content. Audit rows MUST NOT be modifiable through application interfaces.
+
+The prompt text SHALL be stored only for `block` and `escalate` outcomes, where it is the evidence a security team needs. Allowed traffic is recorded without its content.
+
+Token usage and monetary cost are NOT part of the audit row; they are recorded in the usage table and joined by the reporting surfaces. Latency is NOT recorded.
 
 #### Scenario: Blocked interaction audited
 - **WHEN** an interaction is blocked by a control
-- **THEN** an audit entry records the verdict, the blocking control and its evidence, the policy version, and the request metadata
+- **THEN** an audit row records the verdict, the cause, the decisive check and its score, the policy version, the responsible user and group, and the exact prompt text
 
 #### Scenario: Allowed interaction audited
 - **WHEN** an interaction is allowed
-- **THEN** an audit entry records the verdict and the evidence summary of every control that evaluated it
+- **THEN** an audit row records the verdict, attribution and policy version, and does not record the prompt text
+
+#### Scenario: Non-check rejection audited
+- **WHEN** an interaction is rejected for a reason other than a control — missing identity, an unknown group, or an exhausted budget
+- **THEN** the audit row records the cause naming that reason and carries no check identifier
+
+### Requirement: Usage and cost records
+For every call forwarded to a model provider the system SHALL record a usage row: event time, user id, user group id, model, prompt and completion token counts, and computed monetary cost. A row whose model has no known price SHALL record cost as unknown rather than zero.
+
+#### Scenario: Usage attributed
+- **WHEN** a request completes against a provider
+- **THEN** a usage row records the calling user and group, the model, the token counts and the computed cost
+
+#### Scenario: Unpriced model visible
+- **WHEN** a completed call used a model with no known price
+- **THEN** its usage row records cost as unknown so reporting can surface it as unpriced
+
+### Requirement: Queryable reporting dimensions
+Audit and usage rows SHALL be indexed and queryable by event time, user id, user group id, verdict, and decisive check, so the reporting surfaces can aggregate along any of those dimensions without a full table scan.
+
+#### Scenario: Per-user and per-group attribution
+- **WHEN** several users across several groups have sent traffic
+- **THEN** verdict counts, failing checks and spend are queryable per user, per group, and in aggregate
+
+#### Scenario: Top failing checks
+- **WHEN** checks have rejected interactions in a time range
+- **THEN** the checks are countable in descending order of how often they fired
 
 ### Requirement: Real-time metrics
-The system SHALL maintain aggregate metrics updated continuously across all connected agents and clients: interaction and verdict counts by control, category, and consumer key, redaction counts, budget consumption by key, and pipeline latency percentiles (p50/p95/p99).
+The system SHALL maintain aggregate metrics across all connected callers: interaction and verdict counts by check and by user group, unpriced-call counts, and spend by user and group against configured limits.
 
 #### Scenario: Metrics reflect recent activity
 - **WHEN** interactions have been evaluated since the system started
-- **THEN** the metrics surface reports current counts by verdict and control and current budget consumption
+- **THEN** the metrics surface reports current counts by verdict and check and current spend against limits
 
-#### Scenario: Metrics attributable to a consumer
-- **WHEN** several agents with distinct consumer keys have sent traffic
-- **THEN** verdict counts and budget consumption are queryable per consumer key as well as in aggregate
+#### Scenario: Spend attributable to a caller
+- **WHEN** several users have sent traffic
+- **THEN** spend is queryable per user and per group as well as in aggregate
 
 ### Requirement: Exportable audit trail
-The system SHALL export audit entries in a standard machine-readable format (JSON Lines and CSV), filterable by time range, verdict, control, and consumer key, suitable for offline security analysis.
+The system SHALL export audit and usage rows in a standard machine-readable format (JSON Lines and CSV), filterable by time range, verdict, cause, check identifier, user id and user group id, suitable for offline security analysis.
 
 #### Scenario: Filtered export
 - **WHEN** a security analyst exports blocked interactions for a time range
-- **THEN** the export contains exactly the matching audit entries in the chosen format
+- **THEN** the export contains exactly the matching rows in the chosen format
 
 ### Requirement: Dashboard
-The system SHALL provide an interactive dashboard for management and security teams showing: the configured controls and strictness profiles in force; overall security posture (recent verdict counts for `allow`, `redact`, `block`, and `escalate`); blocked and redacted threats broken down by control and category; resource and cost consumption over time against configured budget limits; pipeline latency percentiles; and the recent escalations awaiting review. Every metric section SHALL offer a per-consumer-key breakdown so the activity of each connected agent or client can be viewed in aggregate and in isolation. The dashboard MUST show the policy and signature feed versions currently in force.
+The system SHALL provide an interactive dashboard for management and security teams showing: the configured controls and strictness profiles in force; overall security posture (recent verdict counts for `allow`, `redact`, `block`, and `escalate`); rejected threats broken down by cause and by check; spend over time against configured user limits; calls whose cost could not be determined; and the recent escalations awaiting review. Every metric section SHALL offer a per-user and per-group breakdown. The dashboard MUST show the policy version currently in force.
 
 #### Scenario: Posture overview
 - **WHEN** a manager opens the dashboard
-- **THEN** it displays current controls, recent verdict counts, top threat categories, and budget usage against configured limits
+- **THEN** it displays current controls, recent verdict counts, top failing checks, and spend against configured limits
 
-#### Scenario: Per-consumer breakdown
-- **WHEN** a manager or security analyst selects a consumer key on the dashboard
-- **THEN** verdict counts, threat categories, and budget usage are shown for that consumer alone
+#### Scenario: Per-user and per-group breakdown
+- **WHEN** a manager or security analyst selects a user or a group on the dashboard
+- **THEN** verdict counts, failing checks and spend are shown for that selection alone
+
+#### Scenario: Unpriced spend surfaced
+- **WHEN** calls were made to models with no known price
+- **THEN** the dashboard shows them as unpriced rather than folding them into a zero cost total
 
 #### Scenario: Escalation queue
 - **WHEN** interactions have been escalated
@@ -54,6 +88,13 @@ The system SHALL provide an interactive dashboard for management and security te
 - **WHEN** new interactions are evaluated while the dashboard is open
 - **THEN** the dashboard reflects the updated metrics within one refresh interval without a manual reload
 
-#### Scenario: Versions in force
+#### Scenario: Policy version in force
 - **WHEN** the dashboard is viewed
-- **THEN** it shows the policy and signature feed versions currently in force
+- **THEN** it shows the policy version currently in force
+
+### Requirement: Rejection notifications
+Every rejection SHALL be surfaced to the dashboard as a live notification in addition to being durably recorded, so an operator sees blocked traffic as it happens.
+
+#### Scenario: Block surfaces immediately
+- **WHEN** a prompt is blocked
+- **THEN** the dashboard receives a notification identifying the cause, the check, and the responsible user and group

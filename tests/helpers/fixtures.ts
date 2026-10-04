@@ -8,9 +8,9 @@ import type { AuditSink } from "#/control/audit.ts";
 import { createInMemoryAuditSink } from "#/control/audit.ts";
 import { type ControlPipelineOptions, createControlPipeline } from "#/control/pipeline.ts";
 import {
-	type ConsumerPolicy,
-	type ConsumerResolver,
-	createConsumerResolver,
+	createIdentityResolver,
+	type IdentityPolicy,
+	type IdentityResolver,
 } from "#/control/subjects.ts";
 import type { Control, ControlPipeline, Interaction, RedactionSpan } from "#/control/types.ts";
 import type { ModelConnection, ModelReply, ModelRequest } from "#/hub/model.ts";
@@ -86,14 +86,14 @@ export function escalateOn(marker: string): Control {
 	};
 }
 
-/** Control whose verdict depends on the policy subject (per-consumer divergence). */
-export function blockSubject(subject: string, marker: string): Control {
+/** Control whose verdict depends on the policy subject (per-group divergence). */
+export function blockSubject(groupId: string, marker: string): Control {
 	return {
-		id: "fixture-subject",
+		id: "fixture-groupId",
 		inspect: (interaction: Interaction) =>
-			interaction.subject === subject && interaction.content.includes(marker)
+			interaction.groupId === groupId && interaction.content.includes(marker)
 				? {
-						hit: { controlId: "fixture-subject", kind: "fixture", verdict: "block" },
+						hit: { controlId: "fixture-groupId", kind: "fixture", verdict: "block" },
 						verdict: "block",
 					}
 				: { verdict: "allow" },
@@ -133,11 +133,10 @@ export function auditSink(): TestAudit {
 	return createInMemoryAuditSink();
 }
 
-export function consumerResolver(overrides: Partial<ConsumerPolicy> = {}): ConsumerResolver {
-	return createConsumerResolver({
-		defaultSubject: "default",
-		knownKeys: ["alice", "bob"],
-		unknownKey: "default-subject",
+/** Identity resolver with two known groups; anything else is rejected. */
+export function identityResolver(overrides: Partial<IdentityPolicy> = {}): IdentityResolver {
+	return createIdentityResolver({
+		knownGroups: ["hr", "manager"],
 		...overrides,
 	});
 }

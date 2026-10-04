@@ -7,10 +7,10 @@ function interaction(model: string | undefined): Interaction {
 	return {
 		content: "hello",
 		direction: "inbound",
+		groupId: "test",
 		id: "allow-test",
 		model,
 		seam: "guard-api",
-		subject: "test",
 	};
 }
 
