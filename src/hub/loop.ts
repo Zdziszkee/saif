@@ -11,7 +11,12 @@
 
 import type { Verdict } from "#/control/types.ts";
 import { parseJsonOrEmpty } from "#/lib/json.ts";
-import { definedRejection, type ToolCallOutcome, type ToolRejection } from "./governance.ts";
+import {
+	definedConfirmation,
+	definedRejection,
+	type ToolCallOutcome,
+	type ToolRejection,
+} from "./governance.ts";
 import type { ModelConnection, ModelMessage, ModelReply, ModelToolSpec } from "./model.ts";
 
 export interface LoopBudgets {
@@ -125,6 +130,15 @@ async function dispatchToolCalls(
 
 		// biome-ignore lint/performance/noAwaitInLoops: tool calls run in order, each governed
 		const outcome = await tool.execute(parseJsonOrEmpty(call.arguments));
+		if (outcome.kind === "confirmation-required") {
+			messages.push({
+				content: definedConfirmation(outcome.confirmation),
+				name: call.name,
+				role: "tool",
+				toolCallId: call.id,
+			});
+			continue;
+		}
 		if (outcome.kind === "refused") {
 			if (enforcement === "turn") {
 				turnRejection = outcome.rejection;
