@@ -126,3 +126,15 @@ detection/feed paths):
 - [x] `bunx biome check tests/mock-suite-config-reload.test.ts` (clean)
 - [x] `bun test` (1589 pass, 9 skip, 0 fail, 91 files — new file included by default)
 - [ ] `bun run verify` (full `tsc --noEmit` + biome; run before commit)
+
+## Validation (R5 post-rebase budget + docs + full gate)
+
+- Rebased onto `769ed15` (`769ed159e17c14d13617903d38d4424dec86c794`,
+  "Showcase insider-trading obfuscation case; drop router devtools button (#41)").
+  Upstream delta vs pre-rebase base: `src/routes/__root.tsx` drops the router
+  devtools button; `tests/filtered-prompts.test.ts` retunes the showcase
+  insider-trading obfuscation case. No `src/` or budget/telemetry surface
+  touched by this task.
+- [x] `bun test tests/mock-suite-budget-telemetry.test.ts` (40 pass, 0 fail, 129 expect() calls)
+- [x] `bun test` full hermetic gate (1590 pass, 9 skip, 0 fail, 4644 expect() calls, 1599 tests across 91 files)
+- [x] `bunx biome check` on touched files (clean: 1 file checked, no fixes)
