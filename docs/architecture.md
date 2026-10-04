@@ -223,6 +223,12 @@ semantic-tier enablement and reason) and renders a banner only when the
 semantic tier is off, so verdicts with no semantic evidence stay
 explainable.
 
+Rejection notifications reach the dashboard through polling rather than a push
+channel: the dashboard re-fetches its data every 15 seconds, so a block or
+escalate recorded in the audit log surfaces on screen within one interval with
+no manual reload. The durable audit record remains the source of truth; polling
+is only the delivery mechanism for the live view.
+
 ## Storage
 
 SQLite (via `bun:sqlite` and Drizzle, `src/db/`) holds `audit_events`

@@ -45,6 +45,8 @@ export const env = createEnv({
 	 */
 	runtimeEnv: { ...serverProcessEnv(), ...import.meta.env },
 	server: {
+		/** Default budget window (e.g. `"day"`) when a budget rule omits one. */
+		BUDGET_WINDOW_DEFAULT: z.string().optional(),
 		/** Comma-separated egress allowlist for external MCP connections (URLs or origins). */
 		MCP_EGRESS_ALLOWLIST: z.string().optional(),
 		/** Path to the MCP tool access policy (`policy.mcp.json`); defaults to the project root file. */
@@ -55,7 +57,11 @@ export const env = createEnv({
 		MODEL_BASE_URL: z.string().url().optional(),
 		/** Model name served by the OpenAI-compatible endpoint. */
 		MODEL_NAME: z.string().optional(),
+		/** Override path to the policy document (`policy.json`); defaults to the project root file. */
+		POLICY_PATH: z.string().optional(),
 		SERVER_URL: z.string().url().optional(),
+		/** Override path to the signature feed (`signatures.json`); defaults to the project root file. */
+		SIGNATURES_PATH: z.string().optional(),
 		/** TypeSafe API key for the Jev decision model. Absence disables the semantic tier. */
 		TYPESAFE_API_KEY: z.string().min(1).optional(),
 		/**
