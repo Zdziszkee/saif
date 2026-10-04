@@ -30,7 +30,11 @@ import { createLiveDetectionControl } from "#/control/policy/live-control.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
 import type { Policy } from "#/control/policy/schema.ts";
 import { policyUnavailableControl } from "#/control/policy/unavailable.ts";
-import { SEMANTIC_DEFAULTS } from "#/control/semantic/config.ts";
+import {
+	loadSemanticConfig,
+	SEMANTIC_DEFAULTS,
+	type SemanticConfig,
+} from "#/control/semantic/config.ts";
 import { createSemanticControl } from "#/control/semantic/control.ts";
 import { createJevClassifier } from "#/control/semantic/jev.ts";
 import { createSignatureControl } from "#/control/signatures/control.ts";
@@ -52,6 +56,35 @@ import { recordToolCall, type ToolUsageRecord } from "./tool-usage.ts";
 
 let auditSink: AuditSink | undefined;
 let hubPromise: Promise<Hub> | undefined;
+
+/**
+ * Live semantic (Jev) configuration. Starts as the import-time
+ * `SEMANTIC_DEFAULTS` and is re-read from `policy.jev.json` by
+ * `refreshSemanticAfterWrite()` after a UI write, so Jev edits take effect
+ * on the next hub build without a restart.
+ */
+let activeSemanticConfig: SemanticConfig = SEMANTIC_DEFAULTS;
+
+/** The semantic configuration the next hub build will use. */
+export function getActiveSemanticConfig(): SemanticConfig {
+	return activeSemanticConfig;
+}
+
+/**
+ * Re-reads `policy.jev.json` into the active semantic configuration. A failed
+ * reload keeps the previous config and reports on stderr, so a malformed Jev
+ * edit never takes down the hub — the next hub build still uses the last
+ * good config.
+ */
+export async function refreshSemanticAfterWrite(): Promise<void> {
+	try {
+		activeSemanticConfig = await loadSemanticConfig();
+	} catch (error) {
+		process.stderr.write(
+			`semantic config reload failed: ${error instanceof Error ? error.message : String(error)}; keeping previous config\n`,
+		);
+	}
+}
 
 export interface HubStatus {
 	feed: { ok: boolean; version: string };
@@ -98,10 +131,10 @@ export function getSignatureFeedStore(): SignatureFeedStore {
  * throwing control) when the key is absent.
  */
 export function buildSemanticControl(): Control | null {
-	// policy.jev.json loads once at import into SEMANTIC_DEFAULTS (see
-	// `#/control/semantic/config.ts`); a UI policy refresh does not re-read
-	// it — Jev config reload is out of scope for the policy hot path.
-	const { checks, floors, maxChars, model, timeoutMs } = SEMANTIC_DEFAULTS;
+	// Live-bound to the active semantic config (see `getActiveSemanticConfig`):
+	// a UI Jev refresh re-reads `policy.jev.json` so the next hub build picks
+	// up the edit without a restart.
+	const { checks, floors, maxChars, model, timeoutMs } = getActiveSemanticConfig();
 	// Live reads (not the import-time `env` snapshot) so `withEnv` key-absence
 	// tests stay hermetic with a real key in the ambient `.env`, and key
 	// rotation takes effect on the next hub build without a restart.
@@ -253,7 +286,10 @@ let activeLoader: PolicyLoader | undefined;
  * disk — which is also what carries the per-build snapshots (`resolveProfile`
  * thresholds, allowlist, signature config, identity, verdicts). Detection
  * needs no refresh (it re-reads the loader snapshot per inspection), but the
- * rebuild keeps its binding pointed at a live loader.
+ * rebuild keeps its binding pointed at a live loader. The semantic tier is
+ * refreshed too: the active Jev config is re-read from `policy.jev.json`
+ * (fire-and-forget; a failed reload keeps the last good config), so callers
+ * of this function (e.g. `POST /api/jev`) get semantic refresh for free.
  *
  * Call this once after a policy write (e.g. at the end of `POST /api/policy`)
  * — never in the request path itself, and never via a file watcher there:
@@ -264,6 +300,7 @@ let activeLoader: PolicyLoader | undefined;
  */
 export function refreshHubAfterPolicyWrite(): void {
 	hubPromise = undefined;
+	refreshSemanticAfterWrite().catch(() => undefined);
 }
 
 async function createHubAsync(): Promise<Hub> {
