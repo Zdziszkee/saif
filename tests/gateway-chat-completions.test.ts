@@ -11,7 +11,7 @@ import {
 	type GatewayUsageRow,
 	handleChatCompletions,
 	type UsageCheckResult,
-} from "#/routes/v1.chat-completions.ts";
+} from "#/routes/api.chat-completions.ts";
 import {
 	auditSink,
 	blockOn,

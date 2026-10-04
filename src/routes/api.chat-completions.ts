@@ -782,7 +782,7 @@ async function handleGatewayRequest(request: Request): Promise<Response> {
 	});
 }
 
-export const Route = createFileRoute("/v1/chat-completions")({
+export const Route = createFileRoute("/api/chat-completions")({
 	server: {
 		handlers: {
 			POST: ({ request }) => handleGatewayRequest(request),
