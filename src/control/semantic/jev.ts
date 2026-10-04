@@ -87,12 +87,32 @@ export function createJevClassifier(options: JevClassifierOptions): SemanticClas
 	});
 }
 
+const ENV_KEY = "TYPESAFE_API_KEY";
+
+/** Live process-env read (no `process` global, mirroring `#/env.ts`). */
+function liveApiKey(): string | undefined {
+	const holder = globalThis as { process?: { env?: Record<string, string | undefined> } };
+	return holder.process?.env?.[ENV_KEY];
+}
+
 function readApiKeyFromEnv(): string {
+	// Live first: the validated `env` snapshot below is fixed at import, so a
+	// key injected into the environment afterwards (tests, key rotation)
+	// would otherwise resolve stale — and an explicitly emptied variable
+	// would silently keep working on the snapshot. Empty always fails
+	// closed; a set value is the freshest truth.
+	const live = liveApiKey();
+	if (live !== undefined) {
+		if (live.length === 0) {
+			throw new SemanticConfigurationError(
+				"semantic: TYPESAFE_API_KEY is set but empty; the semantic tier cannot run without a real decision model.",
+			);
+		}
+		return live;
+	}
 	try {
-		// The validated `env` snapshot is the canonical read: one typed home
-		// for every server variable. It is fixed at import, so a key injected
-		// into `process.env` afterwards (tests, late dotenv) still resolves
-		// via the live reader instead of failing closed on a stale snapshot.
+		// No live override: the validated snapshot, then the SDK reader
+		// (which also covers `window.env` runtimes without `process`).
 		return env.TYPESAFE_API_KEY ?? getTypesafeApiKeyFromEnv();
 	} catch (error) {
 		throw new SemanticConfigurationError(

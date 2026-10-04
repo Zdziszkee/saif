@@ -2,6 +2,9 @@
  * Integration tier: exercises the real Jev path.
  *
  * Run with `bun run test:integration`, which sets `SEMANTIC_LIVE=1`.
+ * Run with `bun run test:integration:mock` to run the same live block
+ * against the local mock-jev stub instead of the real decision model —
+ * that is also how CI runs it, so no credentials are needed anywhere.
  *
  * The live block is opt-in on purpose. `bun test` is the unit tier and must stay
  * hermetic even when a developer has a real `TYPESAFE_API_KEY` in their
@@ -24,7 +27,7 @@ import {
 
 import { withEnv } from "../semantic/helpers.ts";
 
-const { SEMANTIC_LIVE } = process.env;
+const { SEMANTIC_LIVE, TYPESAFE_BASE_URL } = process.env;
 const LIVE = SEMANTIC_LIVE === "1";
 const MIN_PROBABILITY = 0;
 const MAX_PROBABILITY = 1;
@@ -94,29 +97,30 @@ function probabilityOf(evidence: SemanticEvidence, id: string): number {
  * One real evaluation, shared by several focused assertions.
  *
  * Only reached when `SEMANTIC_LIVE=1` and a key is configured, so `bun test`
- * never pays for a network call.
+ * never pays for a network call. Honors `TYPESAFE_BASE_URL` so the same
+ * block runs against mock-jev in CI and locally.
  */
+function liveClassifier() {
+	return TYPESAFE_BASE_URL === undefined || TYPESAFE_BASE_URL === ""
+		? createJevClassifier({ checks, timeoutMs: PROBE_TIMEOUT_MS })
+		: createJevClassifier({ baseUrl: TYPESAFE_BASE_URL, checks, timeoutMs: PROBE_TIMEOUT_MS });
+}
+
 async function loadBenign(): Promise<SemanticEvidence> {
-	cachedBenign ??= await createJevClassifier({
-		checks,
-		timeoutMs: PROBE_TIMEOUT_MS,
-	}).evaluate(benign);
+	cachedBenign ??= await liveClassifier().evaluate(benign);
 	return cachedBenign;
 }
 
 async function loadBoth(): Promise<[SemanticEvidence, SemanticEvidence]> {
 	cachedBoth ??= await Promise.all([
-		createJevClassifier({ checks, timeoutMs: PROBE_TIMEOUT_MS }).evaluate(benign),
-		createJevClassifier({ checks, timeoutMs: PROBE_TIMEOUT_MS }).evaluate(injection),
+		liveClassifier().evaluate(benign),
+		liveClassifier().evaluate(injection),
 	]);
 	return cachedBoth;
 }
 
 async function loadObfuscated(): Promise<SemanticEvidence> {
-	cachedObfuscated ??= await createJevClassifier({
-		checks,
-		timeoutMs: PROBE_TIMEOUT_MS,
-	}).evaluate(obfuscated);
+	cachedObfuscated ??= await liveClassifier().evaluate(obfuscated);
 	return cachedObfuscated;
 }
 
@@ -164,7 +168,7 @@ async function loadConcurrentBurst(): Promise<ConcurrentBurst> {
 }
 
 async function runConcurrentBurst(): Promise<ConcurrentBurst> {
-	const classifier = createJevClassifier({ checks, timeoutMs: PROBE_TIMEOUT_MS });
+	const classifier = liveClassifier();
 
 	const startedAt = Date.now();
 	const [first, attacked, second] = await Promise.all([
