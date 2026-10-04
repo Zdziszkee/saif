@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from "react";
-import { Area, Bar, CartesianGrid, ComposedChart, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
 	Card,
 	CardContent,
@@ -17,11 +17,15 @@ import { formatTokens, formatUsd } from "#/dashboard/format.ts";
 import type { CostSeriesPoint, CostTotals, CostUserSeries } from "#/dashboard/types.ts";
 
 const CHART_HEIGHT_CLASS = "h-[220px]";
-const BAR_CORNER_RADIUS = 4;
-const BAR_RADIUS: [number, number, number, number] = [BAR_CORNER_RADIUS, BAR_CORNER_RADIUS, 0, 0];
-const AREA_FILL_OPACITY = 0.3;
 const COST_AXIS_ID = "cost";
+const ISO_DAY_LENGTH = 10;
+const LINE_STROKE_WIDTH = 2;
 const TOKEN_AXIS_ID = "tokens";
+
+/** `YYYY-MM-DD` tick label for a linear millisecond time axis. */
+function formatDayTick(timeMs: number): string {
+	return new Date(timeMs).toISOString().slice(0, ISO_DAY_LENGTH);
+}
 
 const COST_CONFIG: ChartConfig = {
 	costUsd: { color: "var(--chart-1)", label: "Cost (USD)" },
@@ -61,7 +65,57 @@ function resolveScope(
 	return { hint: `Showing ${trimmed}`, series: selected.series, totals: selected.totals };
 }
 
-/** Daily metered spend: stacked gateway/MCP token bars plus a cost area.
+interface TimedPoint extends CostSeriesPoint {
+	t: number;
+}
+
+/** Linear-time line chart: gateway/MCP token lines plus a cost line. */
+function CostLines({ points }: { points: readonly TimedPoint[] }) {
+	return (
+		<ChartContainer className={CHART_HEIGHT_CLASS} config={COST_CONFIG}>
+			<LineChart data={[...points]}>
+				<CartesianGrid vertical={false} />
+				<XAxis
+					axisLine={false}
+					dataKey="t"
+					domain={["auto", "auto"]}
+					tickFormatter={formatDayTick}
+					tickLine={false}
+					type="number"
+				/>
+				<YAxis axisLine={false} tickLine={false} yAxisId={COST_AXIS_ID} />
+				<YAxis axisLine={false} orientation="right" tickLine={false} yAxisId={TOKEN_AXIS_ID} />
+				<ChartTooltip content={<ChartTooltipContent />} />
+				<Line
+					dataKey="gatewayTokens"
+					dot={false}
+					stroke="var(--color-gatewayTokens)"
+					strokeWidth={LINE_STROKE_WIDTH}
+					type="monotone"
+					yAxisId={TOKEN_AXIS_ID}
+				/>
+				<Line
+					dataKey="mcpTokens"
+					dot={false}
+					stroke="var(--color-mcpTokens)"
+					strokeWidth={LINE_STROKE_WIDTH}
+					type="monotone"
+					yAxisId={TOKEN_AXIS_ID}
+				/>
+				<Line
+					dataKey="costUsd"
+					dot={false}
+					stroke="var(--color-costUsd)"
+					strokeWidth={LINE_STROKE_WIDTH}
+					type="monotone"
+					yAxisId={COST_AXIS_ID}
+				/>
+			</LineChart>
+		</ChartContainer>
+	);
+}
+
+/** Daily metered spend as line series over linear time, plus a cost line.
  * The inbox filters the plot to one user id; empty shows everyone. */
 export function CostPlot({
 	byUser,
@@ -76,7 +130,10 @@ export function CostPlot({
 	const listId = useId();
 	const users = useMemo(() => Object.keys(byUser).sort(), [byUser]);
 	const scope = resolveScope(query, series, totals, byUser);
-	const shownSeries = scope.series;
+	const timedSeries = useMemo(
+		() => scope.series.map((point) => ({ ...point, t: Date.parse(point.date) })),
+		[scope.series],
+	);
 	const shownTotals = scope.totals;
 	const costLabel = shownTotals.costUsd === null ? "unpriced" : formatUsd(shownTotals.costUsd);
 	return (
@@ -106,42 +163,8 @@ export function CostPlot({
 						))}
 					</datalist>
 				</div>
-				{shownSeries.length > 0 ? (
-					<ChartContainer className={CHART_HEIGHT_CLASS} config={COST_CONFIG}>
-						<ComposedChart data={[...shownSeries]}>
-							<CartesianGrid vertical={false} />
-							<XAxis axisLine={false} dataKey="date" tickLine={false} />
-							<YAxis axisLine={false} tickLine={false} yAxisId={COST_AXIS_ID} />
-							<YAxis
-								axisLine={false}
-								orientation="right"
-								tickLine={false}
-								yAxisId={TOKEN_AXIS_ID}
-							/>
-							<ChartTooltip content={<ChartTooltipContent />} />
-							<Bar
-								dataKey="gatewayTokens"
-								fill="var(--color-gatewayTokens)"
-								radius={BAR_RADIUS}
-								stackId="tokens"
-								yAxisId={TOKEN_AXIS_ID}
-							/>
-							<Bar
-								dataKey="mcpTokens"
-								fill="var(--color-mcpTokens)"
-								radius={BAR_RADIUS}
-								stackId="tokens"
-								yAxisId={TOKEN_AXIS_ID}
-							/>
-							<Area
-								dataKey="costUsd"
-								fill="var(--color-costUsd)"
-								fillOpacity={AREA_FILL_OPACITY}
-								stroke="var(--color-costUsd)"
-								yAxisId={COST_AXIS_ID}
-							/>
-						</ComposedChart>
-					</ChartContainer>
+				{timedSeries.length > 0 ? (
+					<CostLines points={timedSeries} />
 				) : (
 					<p className="text-muted-foreground text-sm">No metered usage yet.</p>
 				)}
