@@ -23,6 +23,7 @@ import type { FetchImpl } from "#/gateway/upstream.ts";
 import {
 	blockOn,
 	escalateOn,
+	failingControl,
 	identityResolver,
 	pipelineWith,
 	redactOn,
@@ -34,6 +35,155 @@ const SECONDS_PER_DAY = 86_400;
 const DELTA_CHUNK = `{"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"test-model","choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}`;
 const USAGE_CHUNK = `{"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"test-model","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":7,"total_tokens":12}}`;
 const DONE_MARKER = "[DONE]";
+const SCORED_DETAIL = "prompt_injection=0.91, jailbreak=0.87";
+const SCORED_KIND = "prompt_injection";
+const SCORED_SCORE = 0.91;
+const CLASSIFIER_FAILURE_MESSAGE = "classifier exploded";
+const CLASSIFIER_CONTROL_ID = "fixture-failure";
+const SIGNATURE_KIND = "signature-match";
+const SIGNATURE_DETAIL = "signature example-pattern";
+const SEMANTIC_EVIDENCE_KIND = "prompt-injection";
+const SEMANTIC_EVIDENCE_DETAIL = "prompt_injection=0.87";
+const SEMANTIC_EVIDENCE_SCORE = 0.87;
+const ALLOW_FIRST_KIND = "allow-first";
+const ALLOW_FIRST_DETAIL = "allow first detail";
+const ALLOW_SECOND_DETAIL = "allow second detail";
+const ALLOW_SECOND_SCORE = 0.42;
+const EVIDENCE_PROMPT = "hello";
+const EVIDENCE_SEPARATOR = "; ";
+
+function captureStdout(): { lines: string[]; restore: () => void } {
+	const lines: string[] = [];
+	const original = process.stdout.write.bind(process.stdout);
+	const replacement = ((chunk: unknown) => {
+		lines.push(String(chunk));
+		return true;
+	}) as typeof process.stdout.write;
+	process.stdout.write = replacement;
+	return {
+		lines,
+		restore: () => {
+			process.stdout.write = original;
+		},
+	};
+}
+
+function scoredBlockPipeline(): ControlPipeline {
+	return {
+		inspect: () =>
+			Promise.resolve({
+				blockingControl: "semantic-checks",
+				content: "newest evil",
+				flagged: false,
+				hits: [
+					{
+						controlId: "semantic",
+						detail: SCORED_DETAIL,
+						kind: SCORED_KIND,
+						score: SCORED_SCORE,
+						verdict: "block",
+					},
+				],
+				redactions: [],
+				verdict: "block",
+			}),
+	};
+}
+
+function scoredAllowPipeline(): ControlPipeline {
+	return {
+		inspect: (interaction) =>
+			Promise.resolve({
+				blockingControl: undefined,
+				content: interaction.content,
+				flagged: true,
+				hits: [
+					{
+						controlId: "semantic",
+						detail: SCORED_DETAIL,
+						kind: SCORED_KIND,
+						score: SCORED_SCORE,
+						verdict: "flag",
+					},
+				],
+				redactions: [],
+				verdict: "allow",
+			}),
+	};
+}
+
+function signatureThenSemanticBlockPipeline(): ControlPipeline {
+	return {
+		inspect: () =>
+			Promise.resolve({
+				blockingControl: "pipeline",
+				content: EVIDENCE_PROMPT,
+				flagged: false,
+				hits: [
+					{
+						controlId: "signature",
+						detail: SIGNATURE_DETAIL,
+						kind: SIGNATURE_KIND,
+						verdict: "block",
+					},
+					{
+						controlId: "semantic",
+						detail: SEMANTIC_EVIDENCE_DETAIL,
+						kind: SEMANTIC_EVIDENCE_KIND,
+						score: SEMANTIC_EVIDENCE_SCORE,
+						verdict: "block",
+					},
+				],
+				redactions: [],
+				verdict: "block",
+			}),
+	};
+}
+
+function twoAllowHitsPipeline(): ControlPipeline {
+	return {
+		inspect: (interaction) =>
+			Promise.resolve({
+				blockingControl: undefined,
+				content: interaction.content,
+				flagged: false,
+				hits: [
+					{
+						controlId: "allow-first",
+						detail: ALLOW_FIRST_DETAIL,
+						kind: ALLOW_FIRST_KIND,
+						verdict: "allow",
+					},
+					{
+						controlId: "allow-second",
+						detail: ALLOW_SECOND_DETAIL,
+						kind: "allow-second",
+						score: ALLOW_SECOND_SCORE,
+						verdict: "allow",
+					},
+				],
+				redactions: [],
+				verdict: "allow",
+			}),
+	};
+}
+
+function emptyDetailBlockPipeline(): ControlPipeline {
+	return {
+		inspect: () =>
+			Promise.resolve({
+				blockingControl: "pipeline",
+				content: EVIDENCE_PROMPT,
+				flagged: false,
+				hits: [
+					{ controlId: "empty-first", kind: "empty-first", verdict: "block" },
+					{ controlId: "empty-second", detail: "   ", kind: "empty-second", verdict: "block" },
+				],
+				redactions: [],
+				verdict: "block",
+			}),
+	};
+}
 
 class FakeGatewayStore implements GatewayStore {
 	audits: (GatewayAuditRow & { id: number })[] = [];
@@ -293,6 +443,27 @@ describe("gateway lifecycle budget precheck", () => {
 		const response = await runGatewayTurn(deps);
 		expect(response.status).toBe(200);
 	});
+
+	it("ignores history length when reserving budget for the newest turn", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: {
+				messages: [
+					{ content: "x".repeat(200), role: "user" },
+					{ content: "thinking", role: "assistant" },
+					{ content: "hi", role: "user" },
+				],
+				model: "test-model",
+			},
+			fetchImpl,
+			rules: [dayRule],
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(200);
+		await response.text();
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.verdict).toBe("allow");
+	});
 });
 
 describe("gateway lifecycle validation", () => {
@@ -345,7 +516,8 @@ describe("gateway lifecycle validation", () => {
 		expect(seen.urls).toHaveLength(0);
 	});
 
-	it("inspects only user messages, never assistant history", async () => {
+	it("inspects only the newest user turn, never assistant history", async () => {
+		const spy = spyingPipeline();
 		const { fetchImpl, seen } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
 		const { deps } = makeTurn({
 			body: {
@@ -357,11 +529,100 @@ describe("gateway lifecycle validation", () => {
 				model: "test-model",
 			},
 			fetchImpl,
-			pipeline: pipelineWith([blockOn("BLOCKME")]),
+			pipeline: spy.pipeline,
 		});
 		const response = await runGatewayTurn(deps);
 		expect(response.status).toBe(200);
 		expect(seen.urls).toHaveLength(1);
+		expect(spy.calls).toHaveLength(1);
+		expect(spy.calls[0]?.content).toBe("world");
+	});
+
+	it("isolates blocked history from the clean active turn", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: {
+				messages: [
+					{ content: "BLOCKME in old history", role: "user" },
+					{ content: "thinking", role: "assistant" },
+					{ content: "clean hello", role: "user" },
+				],
+				model: "test-model",
+			},
+			fetchImpl,
+			pipeline: pipelineWith([blockOn("BLOCKME")]),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(200);
+		await response.text();
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.verdict).toBe("allow");
+		expect(store.audits[0]?.promptText).toBeNull();
+	});
+
+	it("stores only the newest turn text for blocked rows with check evidence", async () => {
+		const { fetchImpl, seen } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: {
+				messages: [
+					{ content: "hello history", role: "user" },
+					{ content: "thinking", role: "assistant" },
+					{ content: "please BLOCKME now", role: "user" },
+				],
+				model: "test-model",
+			},
+			fetchImpl,
+			pipeline: pipelineWith([blockOn("BLOCKME")]),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(403);
+		expect(seen.urls).toHaveLength(0);
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.promptText).toBe("please BLOCKME now");
+		expect(store.audits[0]?.controlId).toBe("fixture");
+		expect(store.audits[0]?.detail).toBe("marker BLOCKME");
+		expect(store.audits[0]?.score).toBeNull();
+	});
+
+	it("records scored semantic evidence for blocked turns", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: { messages: [{ content: "evil newest", role: "user" }], model: "test-model" },
+			fetchImpl,
+			pipeline: scoredBlockPipeline(),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(403);
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.controlId).toBe(SCORED_KIND);
+		expect(store.audits[0]?.score).toBe(SCORED_SCORE);
+		expect(store.audits[0]?.detail).toBe(SCORED_DETAIL);
+		expect(store.audits[0]?.promptText).toBe("evil newest");
+	});
+
+	it("preserves classifier failure text with a null score", async () => {
+		const { fetchImpl, seen } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: {
+				messages: [
+					{ content: "old history", role: "user" },
+					{ content: "thinking", role: "assistant" },
+					{ content: "clean newest", role: "user" },
+				],
+				model: "test-model",
+			},
+			fetchImpl,
+			pipeline: pipelineWith([failingControl(CLASSIFIER_FAILURE_MESSAGE)]),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(403);
+		expect(seen.urls).toHaveLength(0);
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.cause).toBe("classifier-failure");
+		expect(store.audits[0]?.controlId).toBe(CLASSIFIER_CONTROL_ID);
+		expect(store.audits[0]?.detail).toBe(CLASSIFIER_FAILURE_MESSAGE);
+		expect(store.audits[0]?.score).toBeNull();
+		expect(store.audits[0]?.promptText).toBe("clean newest");
 	});
 
 	it("forwards redacted text when the verdict is redact", async () => {
@@ -379,6 +640,104 @@ describe("gateway lifecycle validation", () => {
 		expect(store.audits).toHaveLength(1);
 		expect(store.audits[0]?.verdict).toBe("redact");
 		expect(store.audits[0]?.promptText).toBeNull();
+		expect(store.audits[0]?.controlId).toBe("fixture");
+		expect(store.audits[0]?.score).toBeNull();
+	});
+
+	it("maps redaction onto the retained original message index", async () => {
+		const { fetchImpl, seen } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: {
+				messages: [
+					{ content: "first history", role: "user" },
+					{ content: "thinking", role: "assistant" },
+					{ content: "token SECRET-1 stays", role: "user" },
+				],
+				model: "test-model",
+			},
+			fetchImpl,
+			pipeline: pipelineWith([redactOn("SECRET-1", "[TOKEN]")]),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(200);
+		await response.text();
+		const forwarded = upstreamBodies(seen)[0]?.messages;
+		expect(forwarded?.[0]?.content).toBe("first history");
+		expect(forwarded?.[1]?.content).toBe("thinking");
+		expect(forwarded?.[2]?.content).toBe("token [TOKEN] stays");
+		expect(store.audits[0]?.verdict).toBe("redact");
+		expect(store.audits[0]?.promptText).toBeNull();
+	});
+
+	it("retains scored evidence for allowed turns without storing content", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: { messages: [{ content: "hello newest", role: "user" }], model: "test-model" },
+			fetchImpl,
+			pipeline: scoredAllowPipeline(),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(200);
+		await response.text();
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.verdict).toBe("allow");
+		expect(store.audits[0]?.promptText).toBeNull();
+		expect(store.audits[0]?.controlId).toBe(SCORED_KIND);
+		expect(store.audits[0]?.score).toBe(SCORED_SCORE);
+		expect(store.audits[0]?.detail).toBe(SCORED_DETAIL);
+	});
+});
+
+describe("gateway lifecycle audit evidence", () => {
+	it("combines signature and semantic blocked hits in order", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: { messages: [{ content: EVIDENCE_PROMPT, role: "user" }], model: "test-model" },
+			fetchImpl,
+			pipeline: signatureThenSemanticBlockPipeline(),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(403);
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.controlId).toBe(SIGNATURE_KIND);
+		expect(store.audits[0]?.score).toBe(SEMANTIC_EVIDENCE_SCORE);
+		expect(store.audits[0]?.detail).toBe(
+			`${SIGNATURE_DETAIL}${EVIDENCE_SEPARATOR}${SEMANTIC_EVIDENCE_DETAIL}`,
+		);
+	});
+
+	it("retains combined detail and score for settled allowed turns", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: { messages: [{ content: EVIDENCE_PROMPT, role: "user" }], model: "test-model" },
+			fetchImpl,
+			pipeline: twoAllowHitsPipeline(),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(200);
+		await response.text();
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.verdict).toBe("allow");
+		expect(store.audits[0]?.promptText).toBeNull();
+		expect(store.audits[0]?.controlId).toBe(ALLOW_FIRST_KIND);
+		expect(store.audits[0]?.score).toBe(ALLOW_SECOND_SCORE);
+		expect(store.audits[0]?.detail).toBe(
+			`${ALLOW_FIRST_DETAIL}${EVIDENCE_SEPARATOR}${ALLOW_SECOND_DETAIL}`,
+		);
+	});
+
+	it("stores null when blocked details are missing or blank", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps, store } = makeTurn({
+			body: { messages: [{ content: EVIDENCE_PROMPT, role: "user" }], model: "test-model" },
+			fetchImpl,
+			pipeline: emptyDetailBlockPipeline(),
+		});
+		const response = await runGatewayTurn(deps);
+		expect(response.status).toBe(403);
+		expect(store.audits).toHaveLength(1);
+		expect(store.audits[0]?.detail).toBeNull();
+		expect(store.audits[0]?.score).toBeNull();
 	});
 });
 
@@ -482,5 +841,139 @@ describe("gateway lifecycle forwarding and settlement", () => {
 		expect(store.usages).toHaveLength(1);
 		expect(store.usages[0]?.promptTokens).toBe(0);
 		expect(store.usages[0]?.auditEventId).toBe(store.audits[0]?.id);
+	});
+});
+
+describe("gateway lifecycle decision lines", () => {
+	it("emits one line for blocked turns with identity, control, hits, and detail", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps } = makeTurn({
+			body: { messages: [{ content: "evil newest", role: "user" }], model: "test-model" },
+			fetchImpl,
+			pipeline: scoredBlockPipeline(),
+		});
+		const captured = captureStdout();
+		try {
+			const response = await runGatewayTurn(deps);
+			expect(response.status).toBe(403);
+		} finally {
+			captured.restore();
+		}
+		expect(captured.lines).toHaveLength(1);
+		const line = captured.lines[0] ?? "";
+		expect(line).toContain("user=alice");
+		expect(line).toContain("group=hr");
+		expect(line).toContain("dir=inbound");
+		expect(line).toContain("model=test-model");
+		expect(line).toContain("outcome=block");
+		expect(line).toContain("blocking=semantic-checks");
+		expect(line).toContain(SCORED_KIND);
+		expect(line).toContain("score=0.91");
+		expect(line).toContain(SCORED_DETAIL);
+		expect(line).toContain("upstream=");
+		expect(line).not.toContain("evil newest");
+		expect(line.endsWith("\n")).toBe(true);
+	});
+
+	it("emits classifier failure detail on its own stdout line", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps } = makeTurn({
+			body: { messages: [{ content: "clean newest", role: "user" }], model: "test-model" },
+			fetchImpl,
+			pipeline: pipelineWith([failingControl(CLASSIFIER_FAILURE_MESSAGE)]),
+		});
+		const captured = captureStdout();
+		try {
+			const response = await runGatewayTurn(deps);
+			expect(response.status).toBe(403);
+		} finally {
+			captured.restore();
+		}
+		expect(captured.lines).toHaveLength(1);
+		const line = captured.lines[0] ?? "";
+		expect(line).toContain("outcome=block");
+		expect(line).toContain(CLASSIFIER_FAILURE_MESSAGE);
+		expect(line).not.toContain("clean newest");
+		expect(line.endsWith("\n")).toBe(true);
+	});
+
+	it("emits one line for successful settlement with tokens, cost, and upstream ok", async () => {
+		const { fetchImpl } = stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]);
+		const { deps } = makeTurn({
+			body: { messages: [{ content: "hello newest", role: "user" }], model: "test-model" },
+			fetchImpl,
+			pipeline: scoredAllowPipeline(),
+			priceFor: () => ({ inputPerToken: 0.5, outputPerToken: 0.5 }),
+		});
+		const captured = captureStdout();
+		try {
+			const response = await runGatewayTurn(deps);
+			expect(response.status).toBe(200);
+			await response.text();
+		} finally {
+			captured.restore();
+		}
+		expect(captured.lines).toHaveLength(1);
+		const line = captured.lines[0] ?? "";
+		expect(line).toContain("user=alice");
+		expect(line).toContain("outcome=allow");
+		expect(line).toContain("model=test-model");
+		expect(line).toContain("tokens=");
+		expect(line).toContain("cost=");
+		expect(line).toContain("upstream=ok");
+		expect(line).toContain("status=200");
+		expect(line).toContain(SCORED_DETAIL);
+		expect(line).toContain("score=0.91");
+		expect(line).not.toContain("hello newest");
+		expect(line.endsWith("\n")).toBe(true);
+	});
+
+	it("emits one line each for malformed, budget, and upstream failures", async () => {
+		const malformed = makeTurn({ body: { messages: [], model: "test-model" } });
+		const malformedCaptured = captureStdout();
+		try {
+			const response = await runGatewayTurn(malformed.deps);
+			expect(response.status).toBe(400);
+		} finally {
+			malformedCaptured.restore();
+		}
+		expect(malformedCaptured.lines).toHaveLength(1);
+		expect(malformedCaptured.lines[0]).toContain("outcome=block");
+		expect(malformedCaptured.lines[0]).toContain("blocking=request-shape");
+
+		const dayRule: Policy["controls"]["budget"]["rules"][number] = {
+			key: "alice",
+			modelScope: "*",
+			period: "day",
+			tokens: 10,
+		};
+		const budgetStore = new FakeGatewayStore();
+		budgetStore.spend = { costUsd: 0, tokens: 1000, unpricedTokens: 0 };
+		const budget = makeTurn({
+			fetchImpl: stubFetch([DELTA_CHUNK, USAGE_CHUNK, DONE_MARKER]).fetchImpl,
+			rules: [dayRule],
+			store: budgetStore,
+		});
+		const budgetCaptured = captureStdout();
+		try {
+			const response = await runGatewayTurn(budget.deps);
+			expect(response.status).toBe(429);
+		} finally {
+			budgetCaptured.restore();
+		}
+		expect(budgetCaptured.lines).toHaveLength(1);
+		expect(budgetCaptured.lines[0]).toContain("blocking=budget");
+		expect(budgetCaptured.lines[0]).toContain("budget-exhausted");
+
+		const upstream = makeTurn({ fetchImpl: stubFetch(["boom"], 500).fetchImpl });
+		const upstreamCaptured = captureStdout();
+		try {
+			const response = await runGatewayTurn(upstream.deps);
+			expect(response.status).toBe(502);
+		} finally {
+			upstreamCaptured.restore();
+		}
+		expect(upstreamCaptured.lines).toHaveLength(1);
+		expect(upstreamCaptured.lines[0]).toContain("upstream=upstream-failure");
 	});
 });

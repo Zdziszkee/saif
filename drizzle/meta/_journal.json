@@ -15,6 +15,13 @@
       "when": 1791079851935,
       "tag": "0001_lethal_pyro",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791084318606,
+      "tag": "0002_icy_lady_mastermind",
+      "breakpoints": true
     }
   ]
 }

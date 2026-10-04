@@ -57,6 +57,8 @@ export const auditEvents = sqliteTable(
 		cause: text({ enum: AUDIT_CAUSES }),
 		/** The decisive check id, e.g. `prompt_injection` or a detection rule id. */
 		controlId: text("control_id"),
+		/** Full scored evidence, e.g. `prompt_injection=0.91, jailbreak=0.87`. */
+		detail: text("detail"),
 		/** Policy subject group; drives check selection and group-level reporting. */
 		groupId: text("user_group_id").notNull(),
 		id: integer({ mode: "number" }).primaryKey({ autoIncrement: true }),

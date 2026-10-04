@@ -13,6 +13,15 @@ const MAX_MESSAGE_COUNT = 512;
 const MAX_MODEL_LENGTH = 256;
 const USER_ROLE = "user";
 
+/**
+ * Complete harness scaffolding blocks only: the exact `system-reminder`
+ * element name (so `-evil` suffixed spoofs never match), optional attributes
+ * (quote-aware so `>` inside quotes cannot end the open tag early), arbitrary
+ * inner text across lines, and a case-insensitive close tag.
+ */
+const SYSTEM_REMINDER_PATTERN =
+	/<system-reminder(?:\s(?:"[^"]*"|'[^']*'|[^>"'])*)?>[\s\S]*?<\/system-reminder\s*>/gi;
+
 const contentPartSchema = z.looseObject({
 	text: z.string().optional(),
 	type: z.string(),
@@ -58,6 +67,7 @@ export function parseGatewayBody(input: unknown): GatewayBodyValidation {
 
 /** One user message and its position, so redactions map back to messages. */
 export interface UserSlice {
+	hasHarnessScaffolding: boolean;
 	index: number;
 	text: string;
 }
@@ -74,15 +84,34 @@ export function messageText(message: GatewayChatMessage): string {
 }
 
 /**
- * The new user content: user-role messages only. Assistant messages (model
- * answers kept in the history) are never inspected.
+ * Detect harness scaffolding as metadata only. Never removes text: complete
+ * reminder blocks stay in the returned slice verbatim so enforcement sees
+ * attacker-authored markup. Malformed, spoofed, or unterminated tags leave
+ * the flag false.
+ */
+function detectHarnessScaffolding(raw: string): boolean {
+	SYSTEM_REMINDER_PATTERN.lastIndex = 0;
+	return SYSTEM_REMINDER_PATTERN.test(raw);
+}
+
+/**
+ * The active turn: the newest user-role message only. Assistant messages
+ * (model answers kept in the history) are never inspected, and earlier user
+ * turns are out of scope for this turn's validation.
  */
 export function userSlices(body: GatewayChatBody): UserSlice[] {
-	const slices: UserSlice[] = [];
-	body.messages.forEach((message, index) => {
-		if (message.role === USER_ROLE) {
-			slices.push({ index, text: messageText(message) });
+	for (let index = body.messages.length - 1; index >= 0; index -= 1) {
+		const message = body.messages[index];
+		if (message !== undefined && message.role === USER_ROLE) {
+			const text = messageText(message);
+			return [
+				{
+					hasHarnessScaffolding: detectHarnessScaffolding(text),
+					index,
+					text,
+				},
+			];
 		}
-	});
-	return slices;
+	}
+	return [];
 }

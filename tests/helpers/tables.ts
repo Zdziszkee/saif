@@ -7,10 +7,17 @@
  * statements exist only because tests must not depend on migration filenames.
  */
 
+import { Database } from "bun:sqlite";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import type { GatewayStoreWithSpendDetail } from "#/db/repositories.ts";
+import { createGatewayStore } from "#/db/repositories.ts";
+import { auditEvents, usageRecords } from "#/db/schema.ts";
+
 export const GATEWAY_TABLES_DDL = `
 	CREATE TABLE audit_events (
 		cause TEXT,
 		control_id TEXT,
+		detail TEXT,
 		user_group_id TEXT NOT NULL,
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		model TEXT,
@@ -33,3 +40,16 @@ export const GATEWAY_TABLES_DDL = `
 		user_id TEXT
 	);
 `;
+
+const IN_MEMORY_SQLITE = ":memory:";
+
+/**
+ * Build an isolated store over a throwaway in-memory sqlite file seeded with
+ * {@link GATEWAY_TABLES_DDL}. Centralizes test DDL so suites never duplicate
+ * `CREATE TABLE` strings or drizzle wiring.
+ */
+export function setupIsolatedGatewayStore(): GatewayStoreWithSpendDetail {
+	const sqlite = new Database(IN_MEMORY_SQLITE);
+	sqlite.exec(GATEWAY_TABLES_DDL);
+	return createGatewayStore(drizzle(sqlite, { schema: { auditEvents, usageRecords } }));
+}

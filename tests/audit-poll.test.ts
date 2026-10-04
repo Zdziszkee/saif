@@ -1,21 +1,15 @@
-import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
-import { drizzle } from "drizzle-orm/bun-sqlite";
 
-import { createGatewayStore } from "#/db/repositories.ts";
-import { auditEvents, usageRecords } from "#/db/schema.ts";
 import type { GatewayStore } from "#/gateway/store.ts";
 import { handleAuditPoll } from "#/routes/api.audit.ts";
-import { GATEWAY_TABLES_DDL } from "./helpers/tables.ts";
+import { setupIsolatedGatewayStore } from "./helpers/tables.ts";
 
 function setupStore() {
-	const sqlite = new Database(":memory:");
-	sqlite.exec(GATEWAY_TABLES_DDL);
-	return createGatewayStore(drizzle(sqlite, { schema: { auditEvents, usageRecords } }));
+	return setupIsolatedGatewayStore();
 }
 
 interface AuditPollBody {
-	events: Array<{ id?: unknown; ts?: unknown; verdict?: unknown }>;
+	events: Array<{ detail?: unknown; id?: unknown; ts?: unknown; verdict?: unknown }>;
 	usage: Array<{ costUsd?: unknown; id?: unknown; ts?: unknown }>;
 }
 
@@ -33,6 +27,7 @@ describe("GET /api/audit", () => {
 		const first = await backing.recordAudit({
 			cause: null,
 			controlId: null,
+			detail: null,
 			groupId: "hr",
 			model: null,
 			policyVersion: "v1",
@@ -44,6 +39,7 @@ describe("GET /api/audit", () => {
 		await backing.recordAudit({
 			cause: "blocked-by-check",
 			controlId: "prompt_injection",
+			detail: "prompt_injection=0.90",
 			groupId: "hr",
 			model: null,
 			policyVersion: "v1",
@@ -126,5 +122,39 @@ describe("GET /api/audit", () => {
 		expect((await handleAuditPoll(pollRequest("?since=-3"), backing)).status).toBe(400);
 		expect((await handleAuditPoll(pollRequest("?limit=0"), backing)).status).toBe(400);
 		expect((await handleAuditPoll(pollRequest("?limit=nope"), backing)).status).toBe(400);
+	});
+
+	it("exposes detail in the polled audit shape, preserving null", async () => {
+		const backing = setupStore();
+		const scoredDetail = "prompt_injection=0.91, jailbreak=0.87";
+		await backing.recordAudit({
+			cause: null,
+			controlId: null,
+			detail: null,
+			groupId: "hr",
+			model: null,
+			policyVersion: "v1",
+			promptText: null,
+			score: null,
+			userId: "alice",
+			verdict: "allow",
+		});
+		await backing.recordAudit({
+			cause: "blocked-by-check",
+			controlId: "prompt_injection",
+			detail: scoredDetail,
+			groupId: "hr",
+			model: null,
+			policyVersion: "v1",
+			promptText: "evil prompt",
+			score: 0.9,
+			userId: "alice",
+			verdict: "block",
+		});
+
+		const body = await bodyOf(await handleAuditPoll(pollRequest("?since=0&limit=100"), backing));
+		expect(body.events).toHaveLength(2);
+		expect(body.events[0]).toHaveProperty("detail", null);
+		expect(body.events[1]).toHaveProperty("detail", scoredDetail);
 	});
 });

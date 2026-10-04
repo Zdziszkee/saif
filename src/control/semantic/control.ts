@@ -56,7 +56,8 @@ function scoreChecks(
 ): ScoredChecks {
 	let worst: "allow" | "block" | "flag" | "redact" = "allow";
 	let worstCheck = "";
-	let worstScore: number | undefined;
+	let worstProbability: number | undefined;
+	let maxProbability: number | undefined;
 	const scored: string[] = [];
 	for (const check of checks) {
 		const answer = evidence.answers[check.id];
@@ -73,13 +74,21 @@ function scoreChecks(
 		}
 		const outcome = ladderVerdict(answer.probability, ladder);
 		scored.push(`${check.id}=${answer.probability.toFixed(2)}`);
+		if (maxProbability === undefined || answer.probability > maxProbability) {
+			maxProbability = answer.probability;
+		}
 		if (isMoreSevere(outcome, worst)) {
 			worst = outcome;
 			worstCheck = check.id;
-			worstScore = answer.probability;
+			worstProbability = answer.probability;
 		}
 	}
-	return { detail: scored.join(", "), kind: worstCheck, outcome: worst, score: worstScore };
+	return {
+		detail: scored.join(", "),
+		kind: worstCheck,
+		outcome: worst,
+		score: worstProbability ?? maxProbability,
+	};
 }
 
 function resultForScore(scored: ScoredChecks, uncertain: boolean): ControlResult {
@@ -89,6 +98,7 @@ function resultForScore(scored: ScoredChecks, uncertain: boolean): ControlResult
 				controlId: "semantic",
 				detail: `uncertain answers: ${scored.detail}`,
 				kind: "semantic-uncertain",
+				score: scored.score,
 				verdict: "flag",
 			},
 			verdict: "allow",
@@ -103,7 +113,7 @@ function resultForScore(scored: ScoredChecks, uncertain: boolean): ControlResult
 			controlId: "semantic",
 			detail: `${scored.kind}: ${scored.detail}`,
 			kind: scored.kind,
-			...(scored.score === undefined ? {} : { score: scored.score }),
+			score: scored.score,
 			verdict: hitVerdict,
 		},
 		verdict,

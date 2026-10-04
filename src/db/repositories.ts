@@ -64,6 +64,7 @@ async function recordAuditRow(database: AppDatabase, row: GatewayAuditRow): Prom
 		.values({
 			cause: row.cause,
 			controlId: row.controlId,
+			detail: row.detail,
 			groupId: row.groupId,
 			model: row.model,
 			policyVersion: row.policyVersion,
@@ -156,6 +157,7 @@ async function pollStore(
 		events: eventRows.map((row) => ({
 			cause: row.cause,
 			controlId: row.controlId,
+			detail: row.detail,
 			groupId: row.groupId,
 			id: row.id,
 			model: row.model,

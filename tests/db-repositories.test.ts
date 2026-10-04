@@ -1,21 +1,21 @@
-import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
-import { drizzle } from "drizzle-orm/bun-sqlite";
 
-import { createGatewayStore } from "#/db/repositories.ts";
-import { auditEvents, usageRecords } from "#/db/schema.ts";
-import { GATEWAY_TABLES_DDL } from "./helpers/tables.ts";
+import type { GatewayAuditRow, GatewayUsageRow } from "#/gateway/store.ts";
+import { setupIsolatedGatewayStore } from "./helpers/tables.ts";
 
 function setupStore() {
-	const sqlite = new Database(":memory:");
-	sqlite.exec(GATEWAY_TABLES_DDL);
-	return createGatewayStore(drizzle(sqlite, { schema: { auditEvents, usageRecords } }));
+	return setupIsolatedGatewayStore();
 }
 
-function auditRow(overrides: Record<string, string> = {}) {
+const EVIDENCE_DETAIL = "prompt_injection=0.91, jailbreak=0.87";
+const LONG_DETAIL_REPEAT = 500;
+const LONG_EVIDENCE_DETAIL = "prompt_injection=0.91, jailbreak=0.87. ".repeat(LONG_DETAIL_REPEAT);
+
+function auditRow(overrides: Partial<GatewayAuditRow> = {}): GatewayAuditRow {
 	return {
 		cause: null,
 		controlId: null,
+		detail: null,
 		groupId: "hr",
 		model: null,
 		policyVersion: "v1",
@@ -24,10 +24,10 @@ function auditRow(overrides: Record<string, string> = {}) {
 		userId: "alice",
 		verdict: "allow",
 		...overrides,
-	} as Parameters<ReturnType<typeof setupStore>["recordAudit"]>[0];
+	};
 }
 
-function usageRow(overrides: Record<string, number | string | null> = {}) {
+function usageRow(overrides: Partial<GatewayUsageRow> = {}): GatewayUsageRow {
 	return {
 		auditEventId: null,
 		completionTokens: 50,
@@ -37,7 +37,7 @@ function usageRow(overrides: Record<string, number | string | null> = {}) {
 		promptTokens: 100,
 		userId: "alice",
 		...overrides,
-	} as Parameters<ReturnType<typeof setupStore>["recordUsage"]>[0];
+	};
 }
 
 describe("db repositories", () => {
@@ -125,5 +125,47 @@ describe("db repositories", () => {
 		expect(page.usage[0]?.model).toBe("unknown-model");
 		expect(typeof page.usage[0]?.id).toBe("number");
 		expect(typeof page.usage[0]?.ts).toBe("number");
+	});
+
+	it("round-trips scored evidence detail through poll", async () => {
+		const store = setupStore();
+		await store.recordAudit(auditRow());
+		await store.recordAudit(
+			auditRow({
+				controlId: "prompt_injection",
+				detail: EVIDENCE_DETAIL,
+			}),
+		);
+
+		const page = await store.poll(0, 100);
+		expect(page.events).toHaveLength(2);
+		expect(page.events[0]?.detail).toBeNull();
+		expect(page.events[1]?.detail).toBe(EVIDENCE_DETAIL);
+		expect(page.events[1]?.controlId).toBe("prompt_injection");
+	});
+
+	it("persists null detail as null through poll", async () => {
+		const store = setupStore();
+		await store.recordAudit(auditRow({ detail: null }));
+
+		const page = await store.poll(0, 100);
+		expect(page.events).toHaveLength(1);
+		expect(page.events[0]?.detail).toBeNull();
+		expect("detail" in (page.events[0] ?? {})).toBe(true);
+	});
+
+	it("preserves long evidence text without truncation", async () => {
+		const store = setupStore();
+		await store.recordAudit(
+			auditRow({
+				controlId: "prompt_injection",
+				detail: LONG_EVIDENCE_DETAIL,
+			}),
+		);
+
+		const page = await store.poll(0, 100);
+		expect(page.events).toHaveLength(1);
+		expect(page.events[0]?.detail).toBe(LONG_EVIDENCE_DETAIL);
+		expect(page.events[0]?.detail?.length).toBe(LONG_EVIDENCE_DETAIL.length);
 	});
 });

@@ -25,12 +25,20 @@ import {
 	type IdentityResolver,
 	identityFromRequest,
 } from "#/control/subjects.ts";
-import type { ControlPipeline, RedactionSpan, Verdict } from "#/control/types.ts";
+import type {
+	ControlHit,
+	ControlPipeline,
+	InspectionResult,
+	RedactionSpan,
+	Verdict,
+} from "#/control/types.ts";
 import { isBlockingVerdict } from "#/control/types.ts";
 import type { AuditCause } from "#/db/schema.ts";
 import type { PriceLookup } from "#/gateway/pricing.ts";
 import type { GatewayAuditRow, GatewayStore, SpendSummary } from "#/gateway/store.ts";
 import { createIdSequence } from "#/lib/ids.ts";
+import type { DecisionLogHit, DecisionLogInput } from "./decision-log.ts";
+import { formatDecisionLine } from "./decision-log.ts";
 import { type GatewayChatBody, parseGatewayBody, type UserSlice, userSlices } from "./request.ts";
 import {
 	type FetchImpl,
@@ -57,9 +65,16 @@ const SECONDS_PER_DAY = 86_400;
 const DAYS_PER_MONTH = 30;
 const MS_PER_SECOND = 1000;
 const ALL_MODELS_SCOPE = "*";
-const PROMPT_SEPARATOR = "\n";
 const PIPELINE_CONTROL = "pipeline";
 const STREAM_CONTENT_TYPE = "text/event-stream";
+const DECISION_DIRECTION = "inbound";
+const BUDGET_EXHAUSTED_OUTCOME = "budget-exhausted";
+const UPSTREAM_OK = "ok";
+const UPSTREAM_FAILURE_OUTCOME = "upstream-failure";
+const CALLER_IDENTITY_CONTROL = "caller-identity";
+const REQUEST_SHAPE_CONTROL = "request-shape";
+const SEMANTIC_CHECKS_CONTROL = "semantic-checks";
+const BUDGET_CONTROL = "budget";
 
 /** Wire keys written to the upstream body (string access, never identifiers). */
 const STREAM_OPTIONS_KEY = "stream_options";
@@ -103,7 +118,151 @@ interface TurnState {
 	caller: CallerIdentity;
 	deps: GatewayTurnDeps;
 	model: string;
+	/** Newest-turn slices from `userSlices()` (newest user message only). */
 	slices: UserSlice[];
+}
+
+/** Newest-turn slice; history never participates in validation. */
+function newestSlice(slices: readonly UserSlice[]): UserSlice | null {
+	return slices.at(-1) ?? null;
+}
+
+/** Verbatim text of the newest user turn only. */
+function newestText(slices: readonly UserSlice[]): string {
+	return newestSlice(slices)?.text ?? "";
+}
+
+/** Length of the newest turn for budget reservation. */
+function newestLength(slices: readonly UserSlice[]): number {
+	return newestText(slices).length;
+}
+
+/** Decisive check evidence for one audit row. */
+interface TurnEvidence {
+	controlId: string;
+	decisive: ControlHit | null;
+	detail: string | null;
+	score: number | null;
+}
+
+const EVIDENCE_DETAIL_SEPARATOR = "; ";
+
+/** Hits that share the terminal verdict, in pipeline order. */
+function matchingHits(hits: readonly ControlHit[], verdict: string): ControlHit[] {
+	return hits.filter((hit) => hit.verdict === verdict);
+}
+
+/** First verdict-matching hit; falls back to the first hit to preserve allow/flag mapping. */
+function primaryHit(hits: readonly ControlHit[], verdict: string): ControlHit | null {
+	const matching = matchingHits(hits, verdict);
+	if (matching.length > 0) {
+		return matching.at(0) ?? null;
+	}
+	return hits.at(0) ?? null;
+}
+
+/** Evidence sources: verdict-matching hits, or the first hit when none match. */
+function evidenceSources(hits: readonly ControlHit[], verdict: string): readonly ControlHit[] {
+	const matching = matchingHits(hits, verdict);
+	return matching.length > 0 ? matching : hits.slice(0, 1);
+}
+
+function checkIdForHit(hit: ControlHit | null, fallback: string): string {
+	if (hit === null) {
+		return fallback;
+	}
+	return hit.kind.trim().length > 0 ? hit.kind : fallback;
+}
+
+function combinedDetail(sources: readonly ControlHit[]): string | null {
+	const parts: string[] = [];
+	for (const hit of sources) {
+		if (typeof hit.detail === "string" && hit.detail.trim().length > 0) {
+			parts.push(hit.detail);
+		}
+	}
+	return parts.length > 0 ? parts.join(EVIDENCE_DETAIL_SEPARATOR) : null;
+}
+
+function firstFiniteScore(sources: readonly ControlHit[]): number | null {
+	for (const hit of sources) {
+		if (typeof hit.score === "number" && Number.isFinite(hit.score)) {
+			return hit.score;
+		}
+	}
+	return null;
+}
+
+function failureDetail(failure: string | undefined): string | null {
+	if (failure === undefined) {
+		return null;
+	}
+	return failure.trim().length > 0 ? failure : null;
+}
+
+function evidenceForVerdict(
+	hits: readonly ControlHit[],
+	verdict: string,
+	fallbackControl: string,
+): TurnEvidence {
+	const primary = primaryHit(hits, verdict);
+	const sources = evidenceSources(hits, verdict);
+	return {
+		controlId: checkIdForHit(primary, fallbackControl),
+		decisive: primary,
+		detail: combinedDetail(sources),
+		score: firstFiniteScore(sources),
+	};
+}
+
+function evidenceForBlocked(
+	inspection: InspectionResult,
+	verdict: string,
+	fallbackControl: string,
+): TurnEvidence {
+	const primary = primaryHit(inspection.hits, verdict);
+	if (inspection.failure !== undefined) {
+		return {
+			controlId: checkIdForHit(primary, fallbackControl),
+			decisive: primary,
+			detail: failureDetail(inspection.failure),
+			score: null,
+		};
+	}
+	const sources = evidenceSources(inspection.hits, verdict);
+	return {
+		controlId: checkIdForHit(primary, fallbackControl),
+		decisive: primary,
+		detail: combinedDetail(sources),
+		score: firstFiniteScore(sources),
+	};
+}
+
+function toDecisionHits(hits: readonly ControlHit[]): DecisionLogHit[] {
+	return hits.map((hit) => ({
+		controlId: hit.controlId,
+		detail: hit.detail,
+		kind: hit.kind,
+		score: hit.score,
+		verdict: hit.verdict,
+	}));
+}
+
+function decisionTimestamp(deps: GatewayTurnDeps): string {
+	try {
+		const seconds = deps.clock === undefined ? Date.now() / MS_PER_SECOND : deps.clock();
+		if (!Number.isFinite(seconds)) {
+			return new Date().toISOString();
+		}
+		return new Date(seconds * MS_PER_SECOND).toISOString();
+	} catch {
+		return new Date().toISOString();
+	}
+}
+
+function writeDecisionLine(input: DecisionLogInput): void {
+	// biome-ignore lint/correctness/noProcessGlobal: gateway observability writes one decision line to stdout
+	process.stdout.write(`${formatDecisionLine(input)}\n`);
 }
 
 /** OpenAI error envelope: `{ error: { message, type, code } }`. */
@@ -137,15 +296,28 @@ async function resolveCaller(deps: GatewayTurnDeps): Promise<TurnStep> {
 		return { caller: resolution.identity };
 	}
 	const missing = resolution.kind === "missing-identity";
+	const userId = resolution.userId ?? "";
+	const groupId = resolution.groupId ?? "";
 	await recordTurnAudit(deps, {
 		cause: missing ? "missing-identity" : "unknown-group",
-		controlId: "caller-identity",
-		groupId: resolution.groupId ?? "",
+		controlId: CALLER_IDENTITY_CONTROL,
+		detail: null,
+		groupId,
 		model: null,
 		promptText: null,
 		score: null,
-		userId: resolution.userId ?? "",
+		userId,
 		verdict: "block",
+	});
+	writeDecisionLine({
+		blockingControl: CALLER_IDENTITY_CONTROL,
+		direction: DECISION_DIRECTION,
+		groupId,
+		hits: [],
+		outcome: "block",
+		timestamp: decisionTimestamp(deps),
+		upstream: { outcome: "unknown" },
+		userId,
 	});
 	return {
 		response: openAiError(
@@ -165,12 +337,7 @@ async function runGovernedTurn(deps: GatewayTurnDeps, caller: CallerIdentity): P
 	}
 	const model = validation.body.model ?? deps.upstream.defaultModel;
 	if (model === undefined) {
-		return openAiError(
-			HTTP_BAD_REQUEST,
-			"request body is missing 'model' and no default model is configured",
-			"invalid_request_error",
-			"model_required",
-		);
+		return rejectMissingModel(deps, caller);
 	}
 	const state: TurnState = {
 		body: validation.body,
@@ -183,7 +350,7 @@ async function runGovernedTurn(deps: GatewayTurnDeps, caller: CallerIdentity): P
 	if (semanticRejection !== null) {
 		return semanticRejection;
 	}
-	const budgetRejection = await rejectOverBudget(deps, caller, model, promptLength(state.slices));
+	const budgetRejection = await rejectOverBudget(deps, caller, model, newestLength(state.slices));
 	if (budgetRejection !== null) {
 		return budgetRejection;
 	}
@@ -205,7 +372,8 @@ async function rejectMalformed(
 ): Promise<Response> {
 	await recordTurnAudit(deps, {
 		cause: "malformed-request",
-		controlId: "request-shape",
+		controlId: REQUEST_SHAPE_CONTROL,
+		detail: null,
 		groupId: caller.groupId,
 		model: null,
 		promptText: null,
@@ -213,11 +381,54 @@ async function rejectMalformed(
 		userId: caller.userId,
 		verdict: "block",
 	});
+	writeDecisionLine({
+		blockingControl: REQUEST_SHAPE_CONTROL,
+		direction: DECISION_DIRECTION,
+		groupId: caller.groupId,
+		hits: [],
+		outcome: "block",
+		timestamp: decisionTimestamp(deps),
+		upstream: { outcome: "unknown" },
+		userId: caller.userId,
+	});
 	return openAiError(
 		HTTP_BAD_REQUEST,
 		`malformed chat completion request: ${errors.join("; ")}`,
 		"invalid_request_error",
 		"invalid_request",
+	);
+}
+
+async function rejectMissingModel(
+	deps: GatewayTurnDeps,
+	caller: CallerIdentity,
+): Promise<Response> {
+	await recordTurnAudit(deps, {
+		cause: "malformed-request",
+		controlId: REQUEST_SHAPE_CONTROL,
+		detail: null,
+		groupId: caller.groupId,
+		model: null,
+		promptText: null,
+		score: null,
+		userId: caller.userId,
+		verdict: "block",
+	});
+	writeDecisionLine({
+		blockingControl: REQUEST_SHAPE_CONTROL,
+		direction: DECISION_DIRECTION,
+		groupId: caller.groupId,
+		hits: [],
+		outcome: "block",
+		timestamp: decisionTimestamp(deps),
+		upstream: { outcome: "unknown" },
+		userId: caller.userId,
+	});
+	return openAiError(
+		HTTP_BAD_REQUEST,
+		"request body is missing 'model' and no default model is configured",
+		"invalid_request_error",
+		"model_required",
 	);
 }
 
@@ -239,7 +450,8 @@ async function rejectUnknownSemanticGroup(
 		}
 		await recordTurnAudit(deps, {
 			cause: "unknown-group",
-			controlId: "semantic-checks",
+			controlId: SEMANTIC_CHECKS_CONTROL,
+			detail: null,
 			groupId: caller.groupId,
 			model: null,
 			promptText: null,
@@ -247,12 +459,18 @@ async function rejectUnknownSemanticGroup(
 			userId: caller.userId,
 			verdict: "block",
 		});
+		writeDecisionLine({
+			blockingControl: SEMANTIC_CHECKS_CONTROL,
+			direction: DECISION_DIRECTION,
+			groupId: caller.groupId,
+			hits: [],
+			outcome: "block",
+			timestamp: decisionTimestamp(deps),
+			upstream: { outcome: "unknown" },
+			userId: caller.userId,
+		});
 		return openAiError(HTTP_FORBIDDEN, error.message, "permission_error", "unknown-group");
 	}
-}
-
-function promptLength(slices: readonly UserSlice[]): number {
-	return slices.reduce((total, slice) => total + slice.text.length, 0);
 }
 
 function estimatePromptTokens(promptChars: number): number {
@@ -338,7 +556,8 @@ async function rejectOverBudget(
 		const verdict = deps.policy.budget.overBudgetVerdict;
 		await recordTurnAudit(deps, {
 			cause: "budget-exhausted",
-			controlId: "budget",
+			controlId: BUDGET_CONTROL,
+			detail: null,
 			groupId: caller.groupId,
 			model,
 			promptText: null,
@@ -349,6 +568,18 @@ async function rejectOverBudget(
 		if (!isBlockingVerdict(verdict)) {
 			return null;
 		}
+		writeDecisionLine({
+			blockingControl: BUDGET_CONTROL,
+			budget: { outcome: BUDGET_EXHAUSTED_OUTCOME },
+			direction: DECISION_DIRECTION,
+			groupId: caller.groupId,
+			hits: [],
+			model,
+			outcome: verdict,
+			timestamp: decisionTimestamp(deps),
+			upstream: { outcome: "unknown" },
+			userId: caller.userId,
+		});
 		return openAiError(
 			HTTP_TOO_MANY_REQUESTS,
 			`budget exhausted for user "${caller.userId}": over the ${rule.period}ly limit`,
@@ -359,9 +590,9 @@ async function rejectOverBudget(
 	return null;
 }
 
-/** Validate the new user content, then forward (redacted text when redacted). */
+/** Validate the newest user turn, then forward (redacted text when redacted). */
 async function validateAndForward(state: TurnState): Promise<Response> {
-	const promptText = state.slices.map((slice) => slice.text).join(PROMPT_SEPARATOR);
+	const promptText = newestText(state.slices);
 	const outcome = await guardInteraction(
 		{
 			content: promptText,
@@ -375,17 +606,21 @@ async function validateAndForward(state: TurnState): Promise<Response> {
 		state.deps.pipeline,
 	);
 	if (outcome.rejection !== undefined) {
-		return rejectBlocked(state, promptText, outcome.rejection, outcome.inspection.failure);
+		return rejectBlocked(state, promptText, outcome.rejection, outcome.inspection);
 	}
 	const forwardTexts =
 		outcome.verdict === "redact"
-			? redactSlices(
-					state.slices.map((slice) => slice.text),
-					outcome.inspection.redactions,
-				)
+			? redactedForwardTexts(state.slices, outcome.inspection.redactions)
 			: state.slices.map((slice) => slice.text);
+	const blocking = outcome.inspection.blockingControl ?? PIPELINE_CONTROL;
+	const evidence = evidenceForVerdict(outcome.inspection.hits, outcome.verdict, blocking);
 	return forwardUpstream(state, forwardTexts, {
-		controlId: outcome.inspection.blockingControl ?? PIPELINE_CONTROL,
+		blockingControl: blocking,
+		controlId: evidence.controlId,
+		detail: evidence.detail,
+		flagged: outcome.inspection.flagged,
+		hits: outcome.inspection.hits,
+		score: evidence.score,
 		verdict: outcome.verdict,
 	});
 }
@@ -399,18 +634,34 @@ async function rejectBlocked(
 	state: TurnState,
 	promptText: string,
 	rejection: BlockRejection,
-	failure: string | undefined,
+	inspection: InspectionResult,
 ): Promise<Response> {
-	const cause: AuditCause = failure === undefined ? "blocked-by-check" : "classifier-failure";
+	const cause: AuditCause =
+		inspection.failure === undefined ? "blocked-by-check" : "classifier-failure";
+	const evidence = evidenceForBlocked(inspection, rejection.verdict, rejection.control);
 	await recordTurnAudit(state.deps, {
 		cause,
-		controlId: rejection.control,
+		controlId: evidence.controlId,
+		detail: evidence.detail,
 		groupId: state.caller.groupId,
 		model: state.model,
 		promptText,
-		score: null,
+		score: evidence.score,
 		userId: state.caller.userId,
 		verdict: rejection.verdict,
+	});
+	writeDecisionLine({
+		blockingControl: rejection.control,
+		direction: DECISION_DIRECTION,
+		flagged: inspection.flagged === true ? true : undefined,
+		groupId: state.caller.groupId,
+		hits: toDecisionHits(inspection.hits),
+		model: state.model,
+		outcome: rejection.verdict,
+		semanticDetail: evidence.detail ?? undefined,
+		timestamp: decisionTimestamp(state.deps),
+		upstream: { outcome: "unknown" },
+		userId: state.caller.userId,
 	});
 	const action = rejection.verdict === "escalate" ? "escalated" : "blocked";
 	return openAiError(
@@ -421,31 +672,24 @@ async function rejectBlocked(
 	);
 }
 
-/** Map blob-level redaction spans back onto their per-message slices. */
-function redactSlices(texts: readonly string[], spans: readonly RedactionSpan[]): string[] {
-	const slices: string[] = [];
-	let cursor = 0;
-	for (const text of texts) {
-		const start = cursor;
-		const end = start + text.length;
-		const local = spans.flatMap((span) => clampSpan(span, start, end));
-		slices.push(applyRedactions(text, local));
-		cursor = end + PROMPT_SEPARATOR.length;
-	}
-	return slices;
-}
-
-function clampSpan(span: RedactionSpan, start: number, end: number): RedactionSpan[] {
-	const localStart = Math.max(span.start, start) - start;
-	const localEnd = Math.min(span.end, end) - start;
-	if (localStart >= localEnd) {
-		return [];
-	}
-	return [{ ...span, end: localEnd, start: localStart }];
+/**
+ * Apply detector spans (offsets in the validated newest-turn text) onto that
+ * slice only. History messages forward unchanged via index mapping below.
+ */
+function redactedForwardTexts(
+	slices: readonly UserSlice[],
+	spans: readonly RedactionSpan[],
+): string[] {
+	return slices.map((slice) => applyRedactions(slice.text, spans));
 }
 
 interface SettleVerdict {
+	blockingControl: string;
 	controlId: string;
+	detail: string | null;
+	flagged: boolean;
+	hits: readonly ControlHit[];
+	score: number | null;
 	verdict: Verdict;
 }
 
@@ -476,7 +720,7 @@ async function forwardUpstream(
 	});
 	const first = await nextEvent(events);
 	if ("error" in first) {
-		return rejectUpstreamFailure(state, first.error);
+		return rejectUpstreamFailure(state, settle, first.error);
 	}
 	return streamSettledResponse(state, settle, events, first.result);
 }
@@ -499,17 +743,39 @@ function rebuildMessages(
 	});
 }
 
-async function rejectUpstreamFailure(state: TurnState, error: unknown): Promise<Response> {
+async function rejectUpstreamFailure(
+	state: TurnState,
+	settle: SettleVerdict,
+	error: unknown,
+): Promise<Response> {
 	const failure = toUpstreamError(error);
 	await recordTurnAudit(state.deps, {
 		cause: "upstream-failure",
-		controlId: PIPELINE_CONTROL,
+		controlId: settle.controlId,
+		detail: settle.detail,
 		groupId: state.caller.groupId,
 		model: state.model,
 		promptText: null,
-		score: null,
+		score: settle.score,
 		userId: state.caller.userId,
-		verdict: "allow",
+		verdict: settle.verdict,
+	});
+	writeDecisionLine({
+		blockingControl: settle.blockingControl,
+		direction: DECISION_DIRECTION,
+		flagged: settle.flagged === true ? true : undefined,
+		groupId: state.caller.groupId,
+		hits: toDecisionHits(settle.hits),
+		model: state.model,
+		outcome: settle.verdict,
+		semanticDetail: settle.detail ?? undefined,
+		timestamp: decisionTimestamp(state.deps),
+		upstream: {
+			detail: failure.message,
+			outcome: UPSTREAM_FAILURE_OUTCOME,
+			status: failure.status,
+		},
+		userId: state.caller.userId,
 	});
 	return openAiError(
 		HTTP_BAD_GATEWAY,
@@ -601,13 +867,15 @@ async function settleStream(
 ): Promise<void> {
 	const promptTokens = usage?.promptTokens ?? 0;
 	const completionTokens = usage?.completionTokens ?? 0;
+	const costUsd = costForUsage(state.deps.priceFor(state.model), promptTokens, completionTokens);
 	const auditId = await recordTurnAudit(state.deps, {
 		cause: error === null ? null : "upstream-failure",
 		controlId: settle.controlId,
+		detail: settle.detail,
 		groupId: state.caller.groupId,
 		model: state.model,
 		promptText: null,
-		score: null,
+		score: settle.score,
 		userId: state.caller.userId,
 		verdict: settle.verdict,
 	});
@@ -615,13 +883,78 @@ async function settleStream(
 		state.deps.store.recordUsage({
 			auditEventId: auditId,
 			completionTokens,
-			costUsd: costForUsage(state.deps.priceFor(state.model), promptTokens, completionTokens),
+			costUsd,
 			groupId: state.caller.groupId,
 			model: state.model,
 			promptTokens,
 			userId: state.caller.userId,
 		}),
 	);
+	writeSettledDecisionLine(state, settle, {
+		completionTokens,
+		costUsd,
+		error,
+		promptTokens,
+	});
+}
+
+interface SettledUsage {
+	completionTokens: number;
+	costUsd: number | null;
+	error: UpstreamError | null;
+	promptTokens: number;
+}
+
+function writeSettledDecisionLine(
+	state: TurnState,
+	settle: SettleVerdict,
+	usage: SettledUsage,
+): void {
+	if (usage.error === null) {
+		writeDecisionLine({
+			blockingControl: settle.blockingControl,
+			budget: {
+				completionTokens: usage.completionTokens,
+				costUsd: usage.costUsd,
+				outcome: UPSTREAM_OK,
+				promptTokens: usage.promptTokens,
+			},
+			direction: DECISION_DIRECTION,
+			flagged: settle.flagged === true ? true : undefined,
+			groupId: state.caller.groupId,
+			hits: toDecisionHits(settle.hits),
+			model: state.model,
+			outcome: settle.verdict,
+			semanticDetail: settle.detail ?? undefined,
+			timestamp: decisionTimestamp(state.deps),
+			upstream: { outcome: UPSTREAM_OK, status: HTTP_OK },
+			userId: state.caller.userId,
+		});
+		return;
+	}
+	writeDecisionLine({
+		blockingControl: settle.blockingControl,
+		budget: {
+			completionTokens: usage.completionTokens,
+			costUsd: usage.costUsd,
+			outcome: UPSTREAM_OK,
+			promptTokens: usage.promptTokens,
+		},
+		direction: DECISION_DIRECTION,
+		flagged: settle.flagged === true ? true : undefined,
+		groupId: state.caller.groupId,
+		hits: toDecisionHits(settle.hits),
+		model: state.model,
+		outcome: settle.verdict,
+		semanticDetail: settle.detail ?? undefined,
+		timestamp: decisionTimestamp(state.deps),
+		upstream: {
+			detail: usage.error.message,
+			outcome: UPSTREAM_FAILURE_OUTCOME,
+			status: usage.error.status,
+		},
+		userId: state.caller.userId,
+	});
 }
 
 function costForUsage(

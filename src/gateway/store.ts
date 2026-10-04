@@ -11,6 +11,11 @@ import type { AuditCause, Verdict } from "#/db/schema.ts";
 export interface GatewayAuditRow {
 	cause: AuditCause | null;
 	controlId: string | null;
+	/**
+	 * Full scored evidence, e.g. `prompt_injection=0.91, jailbreak=0.87`.
+	 * Null for outcomes without check-level evidence.
+	 */
+	detail: string | null;
 	groupId: string;
 	/** Requested model; null when unknown (identity/shape rejections). */
 	model: string | null;
