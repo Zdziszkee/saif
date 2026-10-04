@@ -18,6 +18,7 @@ import {
 	type InspectionResult,
 	type Interaction,
 	isVerdict,
+	OUTCOME_SEVERITY,
 	type RedactionSpan,
 	type Verdict,
 } from "./types.ts";
@@ -32,13 +33,6 @@ export interface ControlPipelineOptions {
 }
 
 const DEFAULT_CONTROL_TIMEOUT_MS = 10_000;
-
-const VERDICT_SEVERITY: Record<Verdict, number> = {
-	allow: 0,
-	block: 3,
-	escalate: 2,
-	redact: 1,
-};
 
 interface InspectionState {
 	blockingControl: string | undefined;
@@ -100,7 +94,7 @@ function mergeControlResult(
 	if (result.redactions && result.redactions.length > 0) {
 		state.redactions.push(...result.redactions);
 	}
-	if (VERDICT_SEVERITY[result.verdict] > VERDICT_SEVERITY[state.verdict]) {
+	if (OUTCOME_SEVERITY[result.verdict] > OUTCOME_SEVERITY[state.verdict]) {
 		state.verdict = result.verdict;
 		state.blockingControl = result.verdict === "allow" ? undefined : controlId;
 	}
@@ -122,18 +116,28 @@ function failClosed(
 			detail: failure.error,
 			groupId: interaction.groupId,
 			interactionId: interaction.id,
+			subject: interaction.subject,
 			userId: interaction.userId,
 			verdict: failure.failureVerdict,
 		}),
 	);
+	let verdict: Verdict;
+	let blockingControl: string | undefined;
+	if (OUTCOME_SEVERITY[state.verdict] >= OUTCOME_SEVERITY[failure.failureVerdict]) {
+		verdict = state.verdict;
+		blockingControl = state.verdict === "allow" ? undefined : state.blockingControl;
+	} else {
+		verdict = failure.failureVerdict;
+		blockingControl = failure.failureVerdict === "allow" ? undefined : failure.controlId;
+	}
 	return {
-		blockingControl: failure.failureVerdict === "allow" ? undefined : failure.controlId,
+		blockingControl,
 		content: interaction.content,
 		failure: failure.error,
 		flagged: false,
 		hits: state.hits,
 		redactions: state.redactions,
-		verdict: failure.failureVerdict,
+		verdict,
 	};
 }
 

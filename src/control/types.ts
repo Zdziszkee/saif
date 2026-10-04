@@ -22,11 +22,16 @@ export interface ToolCallRef {
 export interface Interaction {
 	content: string;
 	direction: Direction;
-	/** Policy subject: the user group the caller presented. Selects profile and checks. */
-	groupId: string;
+	/**
+	 * Policy subject: the user group the caller presented. Selects profile
+	 * and checks. Absent on consumer-key traffic without group identity.
+	 */
+	groupId?: string | undefined;
 	id: string;
 	model?: string | undefined;
 	seam: InteractionSeam;
+	/** Consumer-key subject, when the caller presented a known key. */
+	subject?: string | undefined;
 	tool?: ToolCallRef | undefined;
 	/**
 	 * The individual caller: usage limits and per-user reporting. Absent at
@@ -92,6 +97,31 @@ export interface ControlPipeline {
 
 export const VERDICTS: readonly Verdict[] = ["allow", "redact", "block", "escalate"];
 
+/** Verdicts that never forward content: the gateway answers with the rejection shape. */
+const BLOCKING_VERDICTS: readonly Verdict[] = ["block", "escalate"];
+
 export function isVerdict(value: unknown): value is Verdict {
 	return typeof value === "string" && (VERDICTS as readonly string[]).includes(value);
 }
+
+/** True for the two verdicts that refuse forwarding (`block`, `escalate`). */
+export function isBlockingVerdict(verdict: Verdict): boolean {
+	return BLOCKING_VERDICTS.includes(verdict);
+}
+
+/**
+ * Shared severity order for worst-wins decisions, used by every control stage
+ * and the pipeline: `allow < flag < redact < escalate < block`.
+ *
+ * `flag` forwards the content annotated for review, so it outranks `allow`;
+ * `redact` forwards altered content; `escalate` and `block` refuse forwarding,
+ * with `block` final. A single table lives here so the tiers cannot drift —
+ * every comparison in the codebase must use this instead of a local copy.
+ */
+export const OUTCOME_SEVERITY: Record<Verdict | "flag", number> = {
+	allow: 0,
+	block: 4,
+	escalate: 3,
+	flag: 1,
+	redact: 2,
+};

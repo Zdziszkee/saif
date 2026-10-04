@@ -82,6 +82,7 @@ export const detectionConfigSchema = z.strictObject({
 	rules: z.array(detectionRuleSchema),
 });
 
+export type DetectionConfig = z.infer<typeof detectionConfigSchema>;
 /** Structural-suspicion configuration for the signature engine. */
 export const suspectConfigSchema = z.strictObject({
 	action: verdictSchema,
@@ -187,6 +188,12 @@ export const profileSchema = z.strictObject({
 
 export type Profile = z.infer<typeof profileSchema>;
 
+/** Per-policy-subject assignment and optional deep-merge overrides. */
+export const consumerSchema = z.strictObject({
+	overrides: profileSchema.partial().optional(),
+	profile: profileNameSchema,
+});
+
 /** Per-user-group assignment and optional deep-merge overrides. */
 export const groupSchema = z.strictObject({
 	overrides: profileSchema.partial().optional(),
@@ -196,6 +203,7 @@ export const groupSchema = z.strictObject({
 /** The complete policy document: the single source of truth for all controls. */
 export const policySchema = z
 	.strictObject({
+		consumers: z.record(z.string(), consumerSchema),
 		controls: z.strictObject({
 			allowlist: modelAllowlistSchema,
 			budget: budgetConfigSchema,
@@ -207,6 +215,7 @@ export const policySchema = z
 		}),
 		defaults: z.strictObject({
 			failureVerdict: verdictSchema,
+			profile: profileNameSchema,
 		}),
 		groups: z.record(z.string(), groupSchema),
 		profiles: z.strictObject({

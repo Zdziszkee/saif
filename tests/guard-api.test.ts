@@ -1,6 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import { handleGuardRequest } from "#/control/guard-api.ts";
-import { type CallerIdentity, USER_GROUP_ID_HEADER, USER_ID_HEADER } from "#/control/subjects.ts";
+import {
+	type CallerIdentity,
+	CONSUMER_KEY_HEADER,
+	type ConsumerResolver,
+	createConsumerResolver,
+	requireKnownConsumer,
+	USER_GROUP_ID_HEADER,
+	USER_ID_HEADER,
+} from "#/control/subjects.ts";
 import type { ControlPipeline, Interaction } from "#/control/types.ts";
 import {
 	auditSink,
@@ -16,6 +24,14 @@ import {
 const alice: CallerIdentity = { groupId: "hr", userId: "alice" };
 const bob: CallerIdentity = { groupId: "manager", userId: "bob" };
 const ghost: CallerIdentity = { groupId: "ghost-group", userId: "ghost" };
+
+function consumerResolver(): ConsumerResolver {
+	return createConsumerResolver({
+		defaultSubject: "default",
+		knownKeys: ["alice", "bob"],
+		unknownKey: "default-subject",
+	});
+}
 
 function guardRequest(body: unknown, identity?: Partial<CallerIdentity>): Request {
 	const headers = new Headers({ "content-type": "application/json" });
@@ -143,6 +159,41 @@ describe("guard API", () => {
 		expect(audit.events.some((event) => event.kind === "failure")).toBe(true);
 	});
 
+	it("keeps an earlier block when a later control fails", async () => {
+		const audit = auditSink();
+		const response = await handleGuardRequest(
+			guardRequest({ ...envelope, content: "MARKER please block" }, alice),
+			{
+				audit,
+				identity: identityResolver(),
+				pipeline: pipelineWith(
+					[
+						{
+							id: "fixture-blocker",
+							inspect: (interaction: Interaction) =>
+								interaction.content.includes("MARKER")
+									? {
+											hit: {
+												controlId: "fixture-blocker",
+												kind: "fixture",
+												verdict: "block",
+											},
+											verdict: "block",
+										}
+									: { verdict: "allow" },
+						},
+						failingControl("boom"),
+					],
+					{ audit, failureVerdict: "escalate" },
+				),
+			},
+		);
+		expect(response.status).toBe(403);
+		const body = await jsonOf(response);
+		expect(body.verdict).toBe("block");
+		expect(body.control).toBe("fixture-blocker");
+	});
+
 	it("governs concurrent consumers in isolation", async () => {
 		const audit = auditSink();
 		const deps = {
@@ -222,5 +273,51 @@ describe("guard API", () => {
 		const event = audit.events.find((entry) => entry.kind === "interaction");
 		expect(event?.userId).toBe("alice");
 		expect(event?.groupId).toBe("hr");
+	});
+});
+
+describe("known-consumer gate", () => {
+	function keyedRequest(consumerKey?: string): Request {
+		const headers = new Headers();
+		if (consumerKey !== undefined) {
+			headers.set(CONSUMER_KEY_HEADER, consumerKey);
+		}
+		return new Request("http://test.local/api/audit/export?format=jsonl", { headers });
+	}
+
+	it("passes a key the policy defines", () => {
+		const access = requireKnownConsumer(keyedRequest("alice"), consumerResolver());
+		expect(access).toEqual({ ok: true, subject: "alice" });
+	});
+
+	it("rejects a missing key", () => {
+		const access = requireKnownConsumer(keyedRequest(), consumerResolver());
+		expect(access.ok).toBe(false);
+	});
+
+	it("rejects an unknown key even under default-subject policy", () => {
+		const access = requireKnownConsumer(keyedRequest("ghost"), consumerResolver());
+		expect(access.ok).toBe(false);
+	});
+});
+
+describe("decision logging", () => {
+	it("writes one line per guard decision to stdout", async () => {
+		const lines: string[] = [];
+		const original = process.stdout.write;
+		process.stdout.write = ((chunk: unknown): boolean => {
+			lines.push(String(chunk));
+			return true;
+		}) as typeof process.stdout.write;
+		try {
+			const response = await handleGuardRequest(guardRequest(envelope, alice), {
+				identity: identityResolver(),
+				pipeline: pipelineWith([]),
+			});
+			expect(response.status).toBe(200);
+		} finally {
+			process.stdout.write = original;
+		}
+		expect(lines.some((line) => line.includes("[guard]") && line.includes("allow"))).toBe(true);
 	});
 });

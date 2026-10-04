@@ -8,6 +8,9 @@ import type { AuditSink } from "#/control/audit.ts";
 import { createInMemoryAuditSink } from "#/control/audit.ts";
 import { type ControlPipelineOptions, createControlPipeline } from "#/control/pipeline.ts";
 import {
+	type ConsumerPolicy,
+	type ConsumerResolver,
+	createConsumerResolver,
 	createIdentityResolver,
 	type IdentityPolicy,
 	type IdentityResolver,
@@ -137,6 +140,16 @@ export function auditSink(): TestAudit {
 export function identityResolver(overrides: Partial<IdentityPolicy> = {}): IdentityResolver {
 	return createIdentityResolver({
 		knownGroups: ["hr", "manager"],
+		...overrides,
+	});
+}
+
+/** Consumer resolver with two known keys under default-subject behavior. */
+export function consumerResolver(overrides: Partial<ConsumerPolicy> = {}): ConsumerResolver {
+	return createConsumerResolver({
+		defaultSubject: "default",
+		knownKeys: ["alice", "bob"],
+		unknownKey: "default-subject",
 		...overrides,
 	});
 }

@@ -1,4 +1,22 @@
 {
+  "consumers": {
+    "alice": {
+      "profile": "standard"
+    },
+    "analyst": {
+      "profile": "permissive"
+    },
+    "deploy-bot": {
+      "overrides": {
+        "enabledControls": {
+          "detection": true,
+          "semantic": false,
+          "signatures": true
+        }
+      },
+      "profile": "strict"
+    }
+  },
   "controls": {
     "allowlist": {
       "models": [
@@ -15,25 +33,25 @@
       "overBudgetVerdict": "block",
       "rules": [
         {
-          "key": "user-1",
+          "key": "alice",
           "modelScope": "*",
           "period": "day",
           "tokens": 250000
         },
         {
           "costUsd": 20,
-          "key": "user-1",
+          "key": "alice",
           "modelScope": "*",
           "period": "month"
         },
         {
           "computeTimeMs": 600000,
-          "key": "user-1",
+          "key": "deploy-bot",
           "modelScope": "*",
           "period": "day"
         },
         {
-          "key": "user-1",
+          "key": "analyst",
           "modelScope": "primary",
           "period": "day",
           "requests": 500
@@ -83,12 +101,10 @@
     "shape": {
       "maxContentBytes": 65536
     },
-    "signatures": {
-      "enabled": true,
-      "perSignatureActions": {
-        "atlas-sig-001": "redact"
-      },
-      "severityActions": {
+      "signatures": {
+        "enabled": true,
+        "perSignatureActions": {},
+        "severityActions": {
         "critical": "block",
         "high": "block",
         "low": "flag",
@@ -101,7 +117,8 @@
     }
   },
   "defaults": {
-    "failureVerdict": "escalate"
+    "failureVerdict": "escalate",
+    "profile": "standard"
   },
   "profiles": {
     "permissive": {

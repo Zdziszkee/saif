@@ -1,4 +1,52 @@
 {
+  "consumers": {
+    "alice": {
+      "profile": "strict"
+    },
+    "deploy-bot": {
+      "overrides": {
+        "thresholds": {
+          "detection": {
+            "inbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            },
+            "outbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            }
+          },
+          "semantic": {
+            "inbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            },
+            "outbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            }
+          },
+          "signatures": {
+            "inbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            },
+            "outbound": {
+              "block": 0.5,
+              "escalate": 0.4,
+              "redact": 0.3
+            }
+          }
+        }
+      },
+      "profile": "strict"
+    }
+  },
   "controls": {
     "allowlist": {
       "models": [
@@ -12,25 +60,25 @@
       "overBudgetVerdict": "block",
       "rules": [
         {
-          "key": "user-1",
+          "key": "alice",
           "modelScope": "*",
           "period": "day",
           "tokens": 100000
         },
         {
           "costUsd": 5,
-          "key": "user-1",
+          "key": "alice",
           "modelScope": "*",
           "period": "month"
         },
         {
           "computeTimeMs": 120000,
-          "key": "user-1",
+          "key": "deploy-bot",
           "modelScope": "*",
           "period": "day"
         },
         {
-          "key": "user-1",
+          "key": "deploy-bot",
           "modelScope": "primary",
           "period": "day",
           "requests": 100
@@ -81,12 +129,10 @@
     "shape": {
       "maxContentBytes": 32768
     },
-    "signatures": {
-      "enabled": true,
-      "perSignatureActions": {
-        "atlas-sig-001": "block"
-      },
-      "severityActions": {
+      "signatures": {
+        "enabled": true,
+        "perSignatureActions": {},
+        "severityActions": {
         "critical": "block",
         "high": "block",
         "low": "redact",
@@ -99,7 +145,8 @@
     }
   },
   "defaults": {
-    "failureVerdict": "block"
+    "failureVerdict": "block",
+    "profile": "strict"
   },
   "profiles": {
     "permissive": {

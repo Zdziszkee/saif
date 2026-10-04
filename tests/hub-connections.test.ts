@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { createHubConfig } from "#/hub/config.ts";
 import { createHub } from "#/hub/mcp-server.ts";
 import { createExternalServer } from "./helpers/external-server.ts";
-import { auditSink, modelDouble, pipelineWith, staticReply } from "./helpers/fixtures.ts";
+import { auditSink, pipelineWith } from "./helpers/fixtures.ts";
 
 const TOKEN = "SECRET-SERVICE-TOKEN-123";
 
@@ -13,7 +13,6 @@ function headerValue(headers: Record<string, string>, name: string): string | un
 function connectionHub(allowlist: string[]) {
 	const external = createExternalServer();
 	const audit = auditSink();
-	const model = modelDouble(() => staticReply("model answer"));
 	return {
 		audit,
 		external,
@@ -21,10 +20,8 @@ function connectionHub(allowlist: string[]) {
 			audit,
 			config: createHubConfig({ egressAllowlist: allowlist }),
 			fetch: external.fetch,
-			model,
 			pipeline: pipelineWith([]),
 		}),
-		model,
 	};
 }
 
@@ -73,6 +70,9 @@ describe("hub connections", () => {
 		if (allowed.kind === "executed") {
 			expect(allowed.result).toEqual({ echoed: "hi" });
 		}
+		expect(
+			audit.events.some((event) => event.seam === "mcp-tool" && event.verdict === "allow"),
+		).toBe(true);
 
 		const stillDenied = await hub.invokeTool("ext_echo", { text: "hi" }, "bob");
 		expect(stillDenied.kind).toBe("refused");
@@ -90,7 +90,7 @@ describe("hub connections", () => {
 	});
 
 	it("keeps the service credential in transport custody only", async () => {
-		const { audit, external, hubPromise, model } = connectionHub(["https://ext.test"]);
+		const { audit, external, hubPromise } = connectionHub(["https://ext.test"]);
 		const hub = await hubPromise;
 		const connected = await hub.addConnection({
 			endpoint: "https://ext.test/mcp",
@@ -108,12 +108,11 @@ describe("hub connections", () => {
 		).toBe(true);
 
 		hub.grant("alice", "ext_echo");
-		await hub.invokeTool("ext_echo", { text: "call the tool" }, "alice");
-		await hub.invokeTool("askModel", { prompt: "what did the tool say?" }, "alice");
+		const echoed = await hub.invokeTool("ext_echo", { text: "call the tool" }, "alice");
 
-		// The token appears in no connection record, audit entry, or model-visible content.
+		// The token appears in no connection record, audit entry, or tool result.
 		expect(JSON.stringify(hub.connections.list())).not.toContain(TOKEN);
 		expect(JSON.stringify(audit.events)).not.toContain(TOKEN);
-		expect(JSON.stringify(model.requests)).not.toContain(TOKEN);
+		expect(JSON.stringify(echoed)).not.toContain(TOKEN);
 	});
 });

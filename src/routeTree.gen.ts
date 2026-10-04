@@ -10,12 +10,22 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as PlaygroundRouteImport } from './routes/playground'
+import { Route as ApiDecisionsRouteImport } from './routes/api.decisions'
 import { Route as ApiGuardRouteImport } from './routes/api.guard'
+import { Route as ApiStatusRouteImport } from './routes/api.status'
+import { Route as ApiAuditExportRouteImport } from './routes/api.audit.export'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -23,40 +33,105 @@ const McpRoute = McpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PlaygroundRoute = PlaygroundRouteImport.update({
+  id: '/playground',
+  path: '/playground',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDecisionsRoute = ApiDecisionsRouteImport.update({
+  id: '/api/decisions',
+  path: '/api/decisions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGuardRoute = ApiGuardRouteImport.update({
   id: '/api/guard',
   path: '/api/guard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiStatusRoute = ApiStatusRouteImport.update({
+  id: '/api/status',
+  path: '/api/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuditExportRoute = ApiAuditExportRouteImport.update({
+  id: '/api/audit/export',
+  path: '/api/audit/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
+  '/playground': typeof PlaygroundRoute
+  '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/status': typeof ApiStatusRoute
+  '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
+  '/playground': typeof PlaygroundRoute
+  '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/status': typeof ApiStatusRoute
+  '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/mcp': typeof McpRoute
+  '/playground': typeof PlaygroundRoute
+  '/api/decisions': typeof ApiDecisionsRoute
   '/api/guard': typeof ApiGuardRoute
+  '/api/status': typeof ApiStatusRoute
+  '/api/audit/export': typeof ApiAuditExportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/mcp' | '/api/guard'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/mcp'
+    | '/playground'
+    | '/api/decisions'
+    | '/api/guard'
+    | '/api/status'
+    | '/api/audit/export'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/mcp' | '/api/guard'
-  id: '__root__' | '/' | '/mcp' | '/api/guard'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/mcp'
+    | '/playground'
+    | '/api/decisions'
+    | '/api/guard'
+    | '/api/status'
+    | '/api/audit/export'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/mcp'
+    | '/playground'
+    | '/api/decisions'
+    | '/api/guard'
+    | '/api/status'
+    | '/api/audit/export'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DashboardRoute: typeof DashboardRoute
   McpRoute: typeof McpRoute
+  PlaygroundRoute: typeof PlaygroundRoute
+  ApiDecisionsRoute: typeof ApiDecisionsRoute
   ApiGuardRoute: typeof ApiGuardRoute
+  ApiStatusRoute: typeof ApiStatusRoute
+  ApiAuditExportRoute: typeof ApiAuditExportRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -68,11 +143,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/mcp': {
       id: '/mcp'
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/playground': {
+      id: '/playground'
+      path: '/playground'
+      fullPath: '/playground'
+      preLoaderRoute: typeof PlaygroundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/decisions': {
+      id: '/api/decisions'
+      path: '/api/decisions'
+      fullPath: '/api/decisions'
+      preLoaderRoute: typeof ApiDecisionsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/guard': {
@@ -82,13 +178,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGuardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/status': {
+      id: '/api/status'
+      path: '/api/status'
+      fullPath: '/api/status'
+      preLoaderRoute: typeof ApiStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/audit/export': {
+      id: '/api/audit/export'
+      path: '/api/audit/export'
+      fullPath: '/api/audit/export'
+      preLoaderRoute: typeof ApiAuditExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DashboardRoute: DashboardRoute,
   McpRoute: McpRoute,
+  PlaygroundRoute: PlaygroundRoute,
+  ApiDecisionsRoute: ApiDecisionsRoute,
   ApiGuardRoute: ApiGuardRoute,
+  ApiStatusRoute: ApiStatusRoute,
+  ApiAuditExportRoute: ApiAuditExportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -44,12 +44,18 @@ function generateInteractionId(): string {
 }
 
 /**
- * Validate the request envelope. Caller identity comes from the resolved
- * `x-user-id` / `x-user-group-id` headers, never from the request body.
+ * Validate the request envelope. Caller identity comes from resolved request
+ * headers — `x-user-id` / `x-user-group-id` and/or `x-consumer-key` — never
+ * from the request body. Any attribution the seam did not resolve stays
+ * absent on the interaction.
  */
 export function parseInteractionRequest(
 	input: unknown,
-	identity: { groupId: string; userId: string },
+	caller: {
+		groupId?: string | undefined;
+		subject?: string | undefined;
+		userId?: string | undefined;
+	},
 ): ShapeValidation {
 	const parsed = interactionRequestSchema.safeParse(input);
 	if (!parsed.success) {
@@ -67,14 +73,15 @@ export function parseInteractionRequest(
 		interaction: {
 			content: request.content,
 			direction: request.direction,
-			groupId: identity.groupId,
+			groupId: caller.groupId,
 			id: request.id ?? generateInteractionId(),
 			model: request.model,
 			seam,
+			subject: caller.subject,
 			tool: request.tool
 				? { arguments: request.tool.arguments, name: request.tool.name }
 				: undefined,
-			userId: identity.userId,
+			userId: caller.userId,
 		},
 		ok: true,
 	};
