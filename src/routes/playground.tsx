@@ -103,6 +103,12 @@ const samples: readonly Sample[] = [
 		seam: "guard-api",
 		text: "The CONFIDENTIAL launch date is Friday.",
 	},
+	{
+		direction: "outbound",
+		label: "Redacted + flagged (custom policy)",
+		seam: "guard-api",
+		text: "Contact alice@example.com about the CONFIDENTIAL launch; badge EMP-482910.",
+	},
 ];
 
 export const Route = createFileRoute("/playground")({ component: Playground });

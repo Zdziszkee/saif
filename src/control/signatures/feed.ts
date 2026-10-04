@@ -65,6 +65,13 @@ function feedVersion(canonical: string): string {
 	return createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
+const REGEX_SPECIAL = /[.*+?^${}()|[\]\\]/g;
+
+/** Escape literal text for embedding in a generated signature pattern. */
+export function escapeRegExp(text: string): string {
+	return text.replace(REGEX_SPECIAL, "\\$&");
+}
+
 function compileEntry(entry: SignatureEntry): CompiledSignature | string {
 	try {
 		return { ...entry, regex: new RegExp(entry.pattern, "gi") };

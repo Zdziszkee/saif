@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { handleGuardRequest } from "#/control/guard-api.ts";
+import { engineOfControlId, handleGuardRequest } from "#/control/guard-api.ts";
 import { CONSUMER_KEY_HEADER, requireKnownConsumer } from "#/control/subjects.ts";
 import type { ControlPipeline, Interaction } from "#/control/types.ts";
 import {
@@ -281,5 +281,43 @@ describe("decision logging", () => {
 			process.stdout.write = original;
 		}
 		expect(lines.some((line) => line.includes("[guard]") && line.includes("allow"))).toBe(true);
+	});
+});
+
+describe("engine attribution", () => {
+	it("maps control ids to engines", () => {
+		expect(engineOfControlId("deterministic")).toBe("regex");
+		expect(engineOfControlId("semantic")).toBe("jev");
+		expect(engineOfControlId("signatures")).toBe("feed");
+		expect(engineOfControlId("pipeline")).toBe("pipeline");
+		expect(engineOfControlId("consumer-key")).toBe("policy");
+	});
+
+	it("records the blocking control for redact, not just rejections", async () => {
+		const audit = auditSink();
+		const response = await handleGuardRequest(
+			guardRequest({ ...envelope, content: "token SECRET-1 stays" }, "alice"),
+			{
+				audit,
+				consumers: consumerResolver(),
+				pipeline: pipelineWith([redactOn("SECRET-1", "[TOKEN]")]),
+			},
+		);
+		expect(response.status).toBe(200);
+		const decision = audit.events.find((event) => event.verdict === "redact");
+		expect(decision?.controlId).toBe("fixture-redact");
+	});
+
+	it("attributes clean allows to the pipeline instead of none", async () => {
+		const audit = auditSink();
+		await handleGuardRequest(guardRequest(envelope, "alice"), {
+			audit,
+			consumers: consumerResolver(),
+			pipeline: pipelineWith([]),
+		});
+		const decision = audit.events.find(
+			(event) => event.verdict === "allow" && event.interactionId !== undefined,
+		);
+		expect(decision?.controlId).toBe("pipeline");
 	});
 });

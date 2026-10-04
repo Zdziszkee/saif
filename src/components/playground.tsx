@@ -131,6 +131,7 @@ export function GuardForm(props: GuardFormProps) {
 const engineVariants: Record<string, "default" | "destructive" | "outline" | "secondary"> = {
 	feed: "secondary",
 	jev: "default",
+	pipeline: "outline",
 	policy: "outline",
 	regex: "secondary",
 };

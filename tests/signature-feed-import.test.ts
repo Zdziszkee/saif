@@ -1,9 +1,7 @@
 import { describe, expect, it } from "bun:test";
-import {
-	buildSignatureFeed,
-	parseAtlasSnapshot,
-	parseOwaspSnapshot,
-} from "../scripts/build-signature-feed.ts";
+import { parseAtlasSnapshot } from "#/control/signatures/sources/atlas.ts";
+import { parseOwaspSnapshot } from "#/control/signatures/sources/owasp.ts";
+import { buildSignatureFeed } from "../scripts/build-signature-feed.ts";
 
 const AddedAt = "2026-10-04T00:00:00.000Z";
 

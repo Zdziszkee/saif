@@ -36,6 +36,7 @@ const DEFAULT_CONTROL_TIMEOUT_MS = 10_000;
 
 interface InspectionState {
 	blockingControl: string | undefined;
+	flagged: boolean;
 	hits: ControlHit[];
 	redactions: RedactionSpan[];
 	verdict: Verdict;
@@ -52,6 +53,7 @@ export function createControlPipeline(options: ControlPipelineOptions): ControlP
 		async inspect(interaction: Interaction): Promise<InspectionResult> {
 			const state: InspectionState = {
 				blockingControl: undefined,
+				flagged: false,
 				hits: [],
 				redactions: [],
 				verdict: "allow",
@@ -74,7 +76,7 @@ export function createControlPipeline(options: ControlPipelineOptions): ControlP
 			return {
 				blockingControl: state.blockingControl,
 				content: interaction.content,
-				flagged: state.hits.some((hit) => hit.verdict === "flag"),
+				flagged: state.flagged || state.hits.some((hit) => hit.verdict === "flag"),
 				hits: state.hits,
 				redactions: state.redactions,
 				verdict: state.verdict,
@@ -90,6 +92,9 @@ function mergeControlResult(
 ): void {
 	if (result.hit) {
 		state.hits.push(result.hit);
+	}
+	if (result.flagged === true) {
+		state.flagged = true;
 	}
 	if (result.redactions && result.redactions.length > 0) {
 		state.redactions.push(...result.redactions);
