@@ -8,10 +8,10 @@
  * never a silently empty feed).
  */
 
-import { createHash } from "node:crypto";
 import type { FSWatcher } from "node:fs";
 import { readFileSync, watch } from "node:fs";
 import { z } from "zod";
+import { sha256Hex } from "#/control/hash.ts";
 
 export const signatureKindSchema = z.enum([
 	"injection",
@@ -62,7 +62,7 @@ export interface FeedLoadResult {
 }
 
 function feedVersion(canonical: string): string {
-	return createHash("sha256").update(canonical, "utf8").digest("hex");
+	return sha256Hex(canonical);
 }
 
 function compileEntry(entry: SignatureEntry): CompiledSignature | string {

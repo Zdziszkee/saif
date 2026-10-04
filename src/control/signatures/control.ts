@@ -7,8 +7,10 @@
  * source, feed version) in the hit so audit and tuning can trace it.
  */
 
-import type { Control, ControlResult, Interaction, RedactionSpan, Verdict } from "../types.ts";
-import { OUTCOME_SEVERITY } from "../types.ts";
+import { redactionsFromFindings } from "../redact.ts";
+import { scanMatches } from "../scan.ts";
+import type { Control, ControlResult, Interaction, RedactionSpan } from "../types.ts";
+import { splitOutcome, worstOutcome } from "../verdicts.ts";
 import type { CompiledSignature, SignatureFeed, SignatureSeverity } from "./feed.ts";
 
 export type SignatureAction = "allow" | "block" | "escalate" | "flag" | "redact";
@@ -80,18 +82,14 @@ function scanEntry(
 	}
 	for (const region of regions) {
 		const regex = new RegExp(entry.regex.source, entry.regex.flags);
-		for (const match of region.text.matchAll(regex)) {
-			const start = match.index;
-			if (start === undefined) {
-				continue;
-			}
+		scanMatches(region.text, regex, (value, start) => {
 			matches.push({
 				action,
 				detail,
 				placeholder,
-				span: region.inContent ? { end: start + match[0].length, start } : null,
+				span: region.inContent ? { end: start + value.length, start } : null,
 			});
-		}
+		});
 	}
 	return matches;
 }
@@ -99,15 +97,9 @@ function scanEntry(
 type ScannedEntry = ScannedMatch & { kind: string; signatureId: string };
 
 function worstAction(scanned: readonly ScannedEntry[]): { action: SignatureAction; kind: string } {
-	let worst: SignatureAction = "allow";
-	let worstKind = "";
-	for (const item of scanned) {
-		if (OUTCOME_SEVERITY[item.action] > OUTCOME_SEVERITY[worst]) {
-			worst = item.action;
-			worstKind = item.kind;
-		}
-	}
-	return { action: worst, kind: worstKind };
+	const action = worstOutcome(scanned.map((item) => item.action));
+	const kind = scanned.find((item) => item.action === action)?.kind ?? "";
+	return { action, kind };
 }
 
 function hitDetails(scanned: readonly ScannedEntry[]): string {
@@ -121,20 +113,15 @@ function hitDetails(scanned: readonly ScannedEntry[]): string {
 }
 
 function contentRedactions(scanned: readonly ScannedEntry[]): RedactionSpan[] {
-	const redactions: RedactionSpan[] = [];
-	for (const item of scanned) {
-		if (item.action !== "redact" || item.placeholder === null || item.span === null) {
-			continue;
-		}
-		redactions.push({
+	return redactionsFromFindings(
+		scanned.map((item) => ({
+			action: item.action,
 			detectorId: item.signatureId,
-			end: item.span.end,
 			kind: item.kind,
 			placeholder: item.placeholder,
-			start: item.span.start,
-		});
-	}
-	return redactions;
+			span: item.span,
+		})),
+	);
 }
 
 function decideSignatureResult(scanned: readonly ScannedEntry[]): ControlResult {
@@ -158,16 +145,16 @@ function decideSignatureResult(scanned: readonly ScannedEntry[]): ControlResult 
 			verdict: "escalate",
 		};
 	}
-	const verdict: Verdict = worst === "flag" ? "allow" : worst;
+	const verdict = splitOutcome(worst);
 	return {
 		...(redactions.length > 0 ? { redactions } : {}),
 		hit: {
 			controlId: "signatures",
 			detail: details,
 			kind: worstKind,
-			verdict: worst === "flag" ? "flag" : worst,
+			verdict: verdict.hitVerdict,
 		},
-		verdict,
+		verdict: verdict.verdict,
 	};
 }
 

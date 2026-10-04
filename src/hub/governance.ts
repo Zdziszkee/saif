@@ -6,8 +6,10 @@
  */
 
 import { type AuditSink, auditEvent, noopAuditSink } from "#/control/audit.ts";
-import { type GuardRejection, guardInteraction } from "#/control/guard.ts";
+import { type GuardRejection, guardInteraction, rejectionKind } from "#/control/guard.ts";
 import type { ControlPipeline, Verdict } from "#/control/types.ts";
+import { describeError } from "#/lib/errors.ts";
+import { parseJsonOrEmpty, parseJsonOrForward } from "#/lib/json.ts";
 import type { CatalogEntry } from "./catalog.ts";
 import type { GrantRegistry } from "./grants.ts";
 
@@ -148,7 +150,7 @@ async function executeTool(
 	try {
 		return { value: await Promise.resolve(entry.implementation(args, groupId)) };
 	} catch (error) {
-		const detail = error instanceof Error ? error.message : String(error);
+		const detail = describeError(error);
 		const rejection: ToolRejection = {
 			control: "tool-execution",
 			kind: "failed",
@@ -198,7 +200,7 @@ async function inspectResult(
 export function toToolRejection(rejection: GuardRejection): ToolRejection {
 	return {
 		control: rejection.control,
-		kind: rejection.verdict === "escalate" ? "escalated" : "blocked",
+		kind: rejectionKind(rejection.verdict),
 		verdict: rejection.verdict,
 	};
 }
@@ -211,11 +213,7 @@ function nextToolInteractionId(toolName: string): string {
 }
 
 function parseArgs(serialized: string): unknown {
-	try {
-		return JSON.parse(serialized);
-	} catch {
-		return {};
-	}
+	return parseJsonOrEmpty(serialized);
 }
 
 function serializeResult(result: unknown): string {
@@ -229,9 +227,5 @@ function deserializeResult(rawResult: unknown, forwarded: string): unknown {
 	if (typeof rawResult === "string") {
 		return forwarded;
 	}
-	try {
-		return JSON.parse(forwarded);
-	} catch {
-		return forwarded;
-	}
+	return parseJsonOrForward(forwarded);
 }

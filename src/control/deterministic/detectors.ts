@@ -4,6 +4,8 @@ import {
 	matchKnownNames,
 } from "#/control/deterministic/name-index.ts";
 import { detectNamedEntities } from "#/control/deterministic/ner.ts";
+import { scanMatches } from "#/control/scan.ts";
+import { isOneOf } from "#/lib/guards.ts";
 
 export const detectionTypes = [
 	"address",
@@ -183,11 +185,7 @@ function uuidValid(value: string): boolean {
 	if (version === undefined || variant === undefined) {
 		return false;
 	}
-	return (
-		version >= UuidVersionMin &&
-		version <= UuidVersionMax &&
-		(UuidVariants as readonly string[]).includes(variant)
-	);
+	return version >= UuidVersionMin && version <= UuidVersionMax && isOneOf(variant, UuidVariants);
 }
 
 const secretContext = [
@@ -630,17 +628,12 @@ function collect(text: string, patterns: readonly PatternSpec[]): Detection[] {
 	const found: Detection[] = [];
 	for (const pattern of patterns) {
 		const regex = new RegExp(pattern.source, "gi");
-		for (const match of text.matchAll(regex)) {
-			const value = match[0];
-			const start = match.index;
-			if (value === undefined || start === undefined) {
-				continue;
-			}
+		scanMatches(text, regex, (value, start) => {
 			const detection = detectionFromMatch(pattern, text, value, start);
 			if (detection !== null) {
 				found.push(detection);
 			}
-		}
+		});
 	}
 	return found;
 }

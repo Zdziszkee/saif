@@ -1,35 +1,64 @@
-import fs from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const todosPath = "./mcp-todos.json";
-
-// In-memory todos storage
-const todos = fs.existsSync(todosPath)
-	? JSON.parse(fs.readFileSync(todosPath, "utf8"))
-	: [
-			{
-				id: 1,
-				title: "Buy groceries",
-			},
-		];
-
-// Subscription callbacks per userID
-let subscribers: ((items: Todo[]) => void)[] = [];
 
 export interface Todo {
 	id: number;
 	title: string;
 }
 
+function isTodo(value: unknown): value is Todo {
+	if (typeof value !== "object" || value === null) {
+		return false;
+	}
+	const record = value as { id?: unknown; title?: unknown };
+	return typeof record.id === "number" && typeof record.title === "string";
+}
+
+function defaultTodos(): Todo[] {
+	return [
+		{
+			id: 1,
+			title: "Buy groceries",
+		},
+	];
+}
+
+function loadTodos(): Todo[] {
+	if (!existsSync(todosPath)) {
+		return defaultTodos();
+	}
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(todosPath, "utf8"));
+		if (Array.isArray(parsed) && parsed.every(isTodo)) {
+			return [...parsed];
+		}
+	} catch {
+		// A corrupt store must not crash every importer; start fresh.
+	}
+	return defaultTodos();
+}
+
+// In-memory todos storage
+const todos: Todo[] = loadTodos();
+
+function persistTodos(): void {
+	writeFileSync(todosPath, JSON.stringify(todos, null, 2));
+}
+
+// Subscription callbacks per userID
+let subscribers: ((items: Todo[]) => void)[] = [];
+
 // Get the todos for a user
 export function getTodos(): Todo[] {
-	return todos;
+	return [...todos];
 }
 
 // Add an item to the todos
 export function addTodo(title: string): Todo {
 	const todo: Todo = { id: todos.length + 1, title };
 	todos.push(todo);
-	fs.writeFileSync(todosPath, JSON.stringify(todos, null, 2));
+	persistTodos();
 	notifySubscribers();
 	return todo;
 }
@@ -38,7 +67,7 @@ export function addTodo(title: string): Todo {
 export function clearTodos(): number {
 	const deleted = todos.length;
 	todos.length = 0;
-	fs.writeFileSync(todosPath, JSON.stringify(todos, null, 2));
+	persistTodos();
 	notifySubscribers();
 	return deleted;
 }
@@ -46,7 +75,7 @@ export function clearTodos(): number {
 // Subscribe to cart changes for a user
 export function subscribeToTodos(callback: (items: Todo[]) => void) {
 	subscribers.push(callback);
-	callback(todos);
+	callback([...todos]);
 	return () => {
 		subscribers = subscribers.filter((cb) => cb !== callback);
 	};
@@ -56,7 +85,7 @@ export function subscribeToTodos(callback: (items: Todo[]) => void) {
 function notifySubscribers() {
 	for (const cb of subscribers) {
 		try {
-			cb(todos);
+			cb([...todos]);
 		} catch {
 			// A misbehaving subscriber must not break notifications to the others.
 		}

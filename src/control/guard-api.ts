@@ -9,9 +9,9 @@
  */
 
 import { type AuditSink, auditEvent, noopAuditSink } from "./audit.ts";
-import { guardInteraction } from "./guard.ts";
+import { guardInteraction, rejectionKind } from "./guard.ts";
 import { parseInteractionRequest } from "./shape.ts";
-import { type IdentityResolution, type IdentityResolver, identityFromRequest } from "./subjects.ts";
+import { type IdentityResolver, identityFromRequest, identityRejection } from "./subjects.ts";
 import type {
 	ControlHit,
 	ControlPipeline,
@@ -66,7 +66,7 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 		return Response.json(
 			{
 				control: outcome.rejection.control,
-				error: outcome.verdict === "escalate" ? "escalated" : "blocked",
+				error: rejectionKind(outcome.verdict),
 				hits,
 				reasons,
 				verdict: outcome.verdict,
@@ -81,34 +81,6 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 		reasons,
 		verdict: outcome.verdict,
 	});
-}
-
-/**
- * The defined rejection for an unusable caller identity. A missing identity or
- * an unknown group is never a fallback to another caller's configuration.
- */
-function identityRejection(
-	resolution: Extract<IdentityResolution, { ok: false }>,
-	audit: AuditSink,
-): Response {
-	audit.record(
-		auditEvent("interaction", {
-			controlId: "caller-identity",
-			detail: `caller identity rejected: ${resolution.reason}`,
-			groupId: resolution.groupId,
-			userId: resolution.userId,
-			verdict: "block",
-		}),
-	);
-	return Response.json(
-		{
-			control: "caller-identity",
-			error: "rejected",
-			reason: resolution.reason,
-			verdict: "block",
-		},
-		{ status: 403 },
-	);
 }
 
 export interface GuardHitView {

@@ -95,8 +95,10 @@ export const VERDICTS: readonly Verdict[] = ["allow", "redact", "block", "escala
 /** Verdicts that never forward content: the gateway answers with the rejection shape. */
 const BLOCKING_VERDICTS: readonly Verdict[] = ["block", "escalate"];
 
+import { isOneOf } from "#/lib/guards.ts";
+
 export function isVerdict(value: unknown): value is Verdict {
-	return typeof value === "string" && (VERDICTS as readonly string[]).includes(value);
+	return isOneOf(value, VERDICTS);
 }
 
 /** True for the two verdicts that refuse forwarding (`block`, `escalate`). */

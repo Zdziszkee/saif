@@ -25,7 +25,7 @@ export const basicBuiltinTools: BuiltinToolSpec[] = [
 	{
 		description: "Add a todo to a list of todos",
 		implementation: (args) => {
-			const { title } = args as { title: string };
+			const { title } = z.object({ title: z.string().min(1) }).parse(args);
 			return addTodo(title);
 		},
 		inputSchema: z.object({ title: z.string().min(1) }),
@@ -45,7 +45,7 @@ export const basicBuiltinTools: BuiltinToolSpec[] = [
 			"Runs only under tool-call governance; kept in the catalog to demonstrate " +
 			"network-tool control.",
 		implementation: async (args) => {
-			const { url } = args as { url: string };
+			const { url } = z.object({ url: z.string().url() }).parse(args);
 			const response = await fetch(url);
 			return {
 				body: (await response.text()).slice(0, FETCH_BODY_LIMIT_CHARS),

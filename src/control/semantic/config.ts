@@ -20,6 +20,7 @@
 
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
+import { describeError } from "#/lib/errors.ts";
 import rawConfig from "../../../policy.jev.json" with { type: "json" };
 
 import { validateChecks } from "./checks.ts";
@@ -98,7 +99,7 @@ export function parseChecks(raw: unknown): SemanticCheck[] {
 			`semantic: invalid check definitions: ${describeIssues(parsed.error)}`,
 		);
 	}
-	const checks = parsed.data as SemanticCheck[];
+	const checks = parsed.data;
 	validateChecks(checks);
 	return checks;
 }
@@ -111,7 +112,7 @@ export function parseSemanticConfig(raw: unknown): SemanticConfig {
 			`semantic: invalid semantic configuration: ${describeIssues(parsed.error)}`,
 		);
 	}
-	const config = parsed.data as SemanticConfig;
+	const config = parsed.data;
 	validateChecks(config.checks);
 	validateGroupMappings(config);
 	return config;
@@ -173,10 +174,9 @@ export async function loadSemanticConfig(
 	try {
 		text = await readFile(path, "utf8");
 	} catch (error) {
-		throw new SemanticConfigurationError(
-			`semantic: cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`,
-			{ cause: error },
-		);
+		throw new SemanticConfigurationError(`semantic: cannot read ${path}: ${describeError(error)}`, {
+			cause: error,
+		});
 	}
 	return parseSemanticConfig(JSON.parse(text));
 }
