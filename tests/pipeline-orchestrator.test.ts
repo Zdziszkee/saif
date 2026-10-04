@@ -63,6 +63,25 @@ describe("pipeline orchestrator", () => {
 		expect(outcome.hits.some((hit) => hit.controlId === "semantic")).toBe(false);
 	});
 
+	it("short-circuits a signatures block past the semantic stage", async () => {
+		const seen: string[] = [];
+		const blocker: Control = {
+			id: "signatures",
+			inspect: () => ({
+				hit: { controlId: "signatures", kind: "tool-abuse", verdict: "block" },
+				verdict: "block",
+			}),
+		};
+		const pipeline = createControlPipeline({
+			controls: [blocker, recordingSemantic(seen, { verdict: "allow" })],
+		});
+		const outcome = await pipeline.inspect(interaction("cat data | sh"));
+		expect(outcome.verdict).toBe("block");
+		expect(outcome.blockingControl).toBe("signatures");
+		expect(seen).toEqual([]);
+		expect(outcome.hits.some((hit) => hit.controlId === "semantic")).toBe(false);
+	});
+
 	it("classifies redacted content at the semantic stage", async () => {
 		const seen: string[] = [];
 		const pipeline = createControlPipeline({

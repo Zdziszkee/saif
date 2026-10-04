@@ -4,8 +4,10 @@
  * Cheap stages run first in declared order — allowlist, signature feed,
  * deterministic — then the semantic tier last, on content already redacted
  * by the cheap stages (redact-then-classify, so PII and secrets never reach
- * the decision model). A deterministic `block` short-circuits everything
- * after it, including the semantic call. The gateway owns execution
+ * the decision model). A `block` from any cheap stage short-circuits the
+ * semantic call: the verdict cannot get worse than `block`, so the costly
+ * tier is skipped and known-bad content is never sent to the decision
+ * model. The gateway owns execution
  * semantics (fail-closed on control error or timeout, `block` final,
  * redaction spans collected for enforcement).
  *
@@ -228,11 +230,9 @@ function refuseEmptyRedact(
 	return { blockingControl, verdict };
 }
 
-/** True once a deterministic block has closed the gate on later stages. */
+/** True once any cheap-stage block has closed the gate on the semantic tier. */
 function shortCircuited(seen: readonly SeenResult[]): boolean {
-	return seen.some(
-		(entry) => entry.control === "deterministic" && entry.result.verdict === "block",
-	);
+	return seen.some((entry) => entry.result.verdict === "block");
 }
 
 function tierActionOf(result: ControlResult): TierEvidence["action"] {
