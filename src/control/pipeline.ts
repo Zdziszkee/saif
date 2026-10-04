@@ -14,6 +14,12 @@
  * profile strictness decides live traffic; without one it merges control
  * verdicts directly (legacy path — identical outcomes, used by tests and
  * any wiring without policy context).
+ *
+ * One honesty rule covers every path: a `redact` with no redaction spans
+ * escalates instead. With nothing to scrub the guard would forward the
+ * content verbatim while the audit log claims it was scrubbed — the
+ * semantic tier, which reports probabilities but never spans, is the usual
+ * source. The content is held for review under the same blocking control.
  */
 
 import { describeError } from "#/lib/errors.ts";
@@ -178,19 +184,41 @@ async function runSemanticStage(run: PipelineRun): Promise<InspectionResult | nu
 
 /** Legacy merge: control verdicts combine directly, exactly as before. */
 function legacyResult(run: PipelineRun): InspectionResult {
+	const refused = refuseEmptyRedact(
+		run.state.verdict,
+		run.state.blockingControl,
+		run.state.redactions,
+	);
 	return {
-		blockingControl: run.state.blockingControl,
+		blockingControl: refused.blockingControl,
 		content: run.interaction.content,
 		flagged: run.state.flagged || run.state.hits.some((hit) => hit.verdict === "flag"),
 		hits: run.state.hits,
 		redactions: run.state.redactions,
-		verdict: run.state.verdict,
+		verdict: refused.verdict,
 	};
 }
 
 interface SeenResult {
 	control: string;
 	result: ControlResult;
+}
+
+/**
+ * A redact with nothing to redact is a refusal wearing a forward's clothes:
+ * with no spans the guard would forward the content verbatim while the
+ * audit log claims it was scrubbed. Escalate instead so the content is held
+ * for review under the same blocking control.
+ */
+function refuseEmptyRedact(
+	verdict: Verdict,
+	blockingControl: string | undefined,
+	redactions: readonly RedactionSpan[],
+): { blockingControl: string | undefined; verdict: Verdict } {
+	if (verdict === "redact" && redactions.length === 0) {
+		return { blockingControl, verdict: "escalate" };
+	}
+	return { blockingControl, verdict };
 }
 
 /** True once a deterministic block has closed the gate on later stages. */
@@ -246,13 +274,18 @@ function mapThroughPolicy(input: {
 		semantic: input.semanticAnswers,
 		signatures,
 	});
+	const refused = refuseEmptyRedact(
+		decision.verdict,
+		decision.blockingControl,
+		input.state.redactions,
+	);
 	return {
-		blockingControl: decision.blockingControl,
+		blockingControl: refused.blockingControl,
 		content: input.interaction.content,
 		flagged: decision.flagged || input.state.flagged,
 		hits: input.state.hits,
 		redactions: input.state.redactions,
-		verdict: decision.verdict,
+		verdict: refused.verdict,
 	};
 }
 
@@ -305,14 +338,15 @@ function failClosed(
 		verdict = state.verdict;
 		blockingControl = state.verdict === "allow" ? undefined : state.blockingControl;
 	}
+	const refused = refuseEmptyRedact(verdict, blockingControl, state.redactions);
 	return {
-		blockingControl,
+		blockingControl: refused.blockingControl,
 		content: interaction.content,
 		failure: failure.error,
 		flagged: false,
 		hits: state.hits,
 		redactions: state.redactions,
-		verdict,
+		verdict: refused.verdict,
 	};
 }
 

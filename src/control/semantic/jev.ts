@@ -21,6 +21,11 @@ export interface JevClassifierOptions extends Omit<SemanticClassifierOptions, "n
 	 * `getTypesafeApiKeyFromEnv()`.
 	 */
 	apiKey?: string;
+	/**
+	 * Override for the TypeSafe endpoint (tests and the `mock:jev` stub).
+	 * Unset means the production TypeSafe API.
+	 */
+	baseUrl?: string | undefined;
 	/** Override the transport `fetch`, primarily for tests. */
 	fetch?: typeof fetch;
 	/** Overrides `SEMANTIC_DEFAULTS.model` from `./policy.json`. */
@@ -50,7 +55,13 @@ export interface JevClassifierOptions extends Omit<SemanticClassifierOptions, "n
  * ```
  */
 export function createJevClassifier(options: JevClassifierOptions): SemanticClassifier {
-	const { apiKey, fetch: fetchFn, model = SEMANTIC_DEFAULTS.model, ...classifierOptions } = options;
+	const {
+		apiKey,
+		baseUrl,
+		fetch: fetchFn,
+		model = SEMANTIC_DEFAULTS.model,
+		...classifierOptions
+	} = options;
 
 	const key = apiKey ?? readApiKeyFromEnv();
 	const timeoutMs = classifierOptions.timeoutMs ?? SEMANTIC_DEFAULTS.timeoutMs;
@@ -60,8 +71,12 @@ export function createJevClassifier(options: JevClassifierOptions): SemanticClas
 		model,
 		key,
 		fetchFn === undefined
-			? { timeout: transportTimeout }
-			: { fetch: fetchFn, timeout: transportTimeout },
+			? { ...(baseUrl === undefined ? {} : { baseUrl }), timeout: transportTimeout }
+			: {
+					...(baseUrl === undefined ? {} : { baseUrl }),
+					fetch: fetchFn,
+					timeout: transportTimeout,
+				},
 	);
 
 	return createSemanticClassifier(adapter, {

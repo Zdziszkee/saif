@@ -135,7 +135,11 @@ enabled controls. Interactions run under exactly one profile.
 | `thresholds.<control>.<direction>` | `{ block, escalate, redact }` in [0, 1] | Evidence-to-verdict thresholds per control (`detection`, `semantic`, `signatures`) and direction (`inbound`, `outbound`): at or above `block` the verdict is `block`, otherwise at or above `redact` it is `redact`, otherwise at or above `escalate` it is `escalate`, otherwise `allow`. |
 
 Lower threshold values make a profile stricter (less evidence is needed to
-reach a stronger verdict).
+reach a stronger verdict). One pipeline-level honesty rule sits above the
+mapping: a `redact` with no redaction spans escalates instead, under the same
+blocking control. With nothing to scrub the guard would forward the content
+verbatim while the audit log claims it was scrubbed — the semantic tier,
+which reports probabilities but never spans, is the usual source.
 
 ## Validation rules at a glance
 

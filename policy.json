@@ -204,24 +204,24 @@
           "inbound": {
             "block": 0.7,
             "escalate": 0.5,
-            "redact": 0.5
+            "redact": 0.45
           },
           "outbound": {
             "block": 0.7,
             "escalate": 0.5,
-            "redact": 0.5
+            "redact": 0.45
           }
         },
         "semantic": {
           "inbound": {
             "block": 0.7,
             "escalate": 0.5,
-            "redact": 0.5
+            "redact": 0.45
           },
           "outbound": {
             "block": 0.7,
             "escalate": 0.5,
-            "redact": 0.5
+            "redact": 0.45
           }
         },
         "signatures": {
