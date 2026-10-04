@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import { TEXT_INPUT_CLASS } from "#/components/controls/options.ts";
+import { Button } from "#/components/ui/button.tsx";
 import {
 	Card,
 	CardContent,
@@ -7,6 +8,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "#/components/ui/card.tsx";
+import { Separator } from "#/components/ui/separator.tsx";
 import {
 	Table,
 	TableBody,
@@ -15,6 +17,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/ui/table.tsx";
+import { RESERVED_QUESTION_KEY } from "#/control/semantic/checks.ts";
 import type { SemanticConfig } from "#/control/semantic/config.ts";
 import type { SemanticCheck, ThresholdLadder } from "#/control/semantic/types.ts";
 
@@ -133,15 +136,19 @@ function ThresholdCell({
 function JevCheckRow({
 	check,
 	onEnabledChange,
+	onRemove,
 	onThresholdChange,
+	removeDisabled,
 }: {
 	check: SemanticCheck;
 	onEnabledChange: (next: boolean) => void;
+	onRemove: () => void;
 	onThresholdChange: (
 		direction: ThresholdDirection,
 		key: LadderKey,
 		value: number | undefined,
 	) => void;
+	removeDisabled: boolean;
 }) {
 	const rowId = useId();
 	const enabledId = `${rowId}-enabled`;
@@ -195,7 +202,112 @@ function JevCheckRow({
 					value={thresholdValue(check, "outbound", "flag")}
 				/>
 			</TableCell>
+			<TableCell>
+				<Button
+					aria-label={`Remove ${check.id}`}
+					disabled={removeDisabled}
+					onClick={onRemove}
+					size="xs"
+					title={removeDisabled ? "At least one check is required" : `Remove ${check.id}`}
+					type="button"
+					variant="outline"
+				>
+					Remove
+				</Button>
+			</TableCell>
 		</TableRow>
+	);
+}
+
+function AddCheckForm({
+	existingIds,
+	onAdd,
+}: {
+	existingIds: readonly string[];
+	onAdd: (check: SemanticCheck) => void;
+}) {
+	const formId = useId();
+	const idInputId = `${formId}-id`;
+	const instructionsInputId = `${formId}-instructions`;
+	const enabledInputId = `${formId}-enabled`;
+	const [checkId, setCheckId] = useState("");
+	const [instructions, setInstructions] = useState("");
+	const [enabled, setEnabled] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const submit = (): void => {
+		const id = checkId.trim();
+		if (id.length === 0) {
+			setError("Check id must not be empty.");
+			return;
+		}
+		if (id === RESERVED_QUESTION_KEY) {
+			setError(`"${RESERVED_QUESTION_KEY}" is reserved by decide().`);
+			return;
+		}
+		if (existingIds.includes(id)) {
+			setError(`Duplicate check id "${id}".`);
+			return;
+		}
+		if (instructions.trim().length === 0) {
+			setError("Instructions must not be empty.");
+			return;
+		}
+		setError(null);
+		onAdd({ enabled, id, instructions: instructions.trim(), thresholds: {}, type: "boolean" });
+		setCheckId("");
+		setInstructions("");
+		setEnabled(true);
+	};
+	return (
+		<div className="flex flex-col gap-2">
+			<div className="text-sm font-medium">Add check</div>
+			<div className="flex flex-wrap items-end gap-2">
+				<div className="flex flex-col gap-1">
+					<label className="text-xs text-muted-foreground" htmlFor={idInputId}>
+						Check id
+					</label>
+					<input
+						className={`${TEXT_INPUT_CLASS} w-44`}
+						id={idInputId}
+						onChange={(event) => setCheckId(event.target.value)}
+						placeholder="self_harm"
+						value={checkId}
+					/>
+				</div>
+				<div className="flex min-w-52 flex-1 flex-col gap-1">
+					<label className="text-xs text-muted-foreground" htmlFor={instructionsInputId}>
+						Instructions (the question Jev answers)
+					</label>
+					<input
+						className={TEXT_INPUT_CLASS}
+						id={instructionsInputId}
+						onChange={(event) => setInstructions(event.target.value)}
+						placeholder="Does this text encourage self-harm?"
+						value={instructions}
+					/>
+				</div>
+				<div className="flex items-center gap-2 pb-2">
+					<input
+						checked={enabled}
+						className="size-4"
+						id={enabledInputId}
+						onChange={(event) => setEnabled(event.target.checked)}
+						type="checkbox"
+					/>
+					<label className="text-xs text-muted-foreground" htmlFor={enabledInputId}>
+						Enabled
+					</label>
+				</div>
+				<Button onClick={submit} size="sm" type="button" variant="outline">
+					Add check
+				</Button>
+			</div>
+			{error !== null ? (
+				<span className="text-destructive text-xs" role="alert">
+					{error}
+				</span>
+			) : null}
+		</div>
 	);
 }
 
@@ -211,6 +323,14 @@ export function JevChecksEditor({
 		mutate(copy);
 		onChange(copy);
 	};
+	const removeAt = (index: number): void => {
+		if (draft.checks.length <= 1) {
+			return;
+		}
+		update((copy) => {
+			copy.checks = copy.checks.filter((_, candidate) => candidate !== index);
+		});
+	};
 	return (
 		<Card>
 			<CardHeader>
@@ -219,7 +339,7 @@ export function JevChecksEditor({
 					Which binary checks run each decide() round trip and their per-direction thresholds.
 				</CardDescription>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="flex flex-col gap-4">
 				<Table>
 					<TableHeader>
 						<TableRow>
@@ -229,6 +349,9 @@ export function JevChecksEditor({
 							<TableHead>Inbound flag</TableHead>
 							<TableHead>Outbound block</TableHead>
 							<TableHead>Outbound flag</TableHead>
+							<TableHead>
+								<span className="sr-only">Actions</span>
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -244,6 +367,7 @@ export function JevChecksEditor({
 										}
 									});
 								}}
+								onRemove={() => removeAt(index)}
 								onThresholdChange={(direction, key, value) => {
 									update((copy) => {
 										const target = copy.checks[index];
@@ -252,10 +376,20 @@ export function JevChecksEditor({
 										}
 									});
 								}}
+								removeDisabled={draft.checks.length <= 1}
 							/>
 						))}
 					</TableBody>
 				</Table>
+				<Separator />
+				<AddCheckForm
+					existingIds={draft.checks.map((check) => check.id)}
+					onAdd={(check) => {
+						update((copy) => {
+							copy.checks = [...copy.checks, check];
+						});
+					}}
+				/>
 			</CardContent>
 		</Card>
 	);
