@@ -72,3 +72,22 @@ export function withEnv(name: string, value: string, run: () => void): void {
 		}
 	}
 }
+
+/** Async variant of {@link withEnv} for promise-returning callbacks. */
+export async function withEnvAsync(
+	name: string,
+	value: string,
+	run: () => Promise<void>,
+): Promise<void> {
+	const previous = process.env[name];
+	process.env[name] = value;
+	try {
+		await run();
+	} finally {
+		if (previous === undefined) {
+			delete process.env[name];
+		} else {
+			process.env[name] = previous;
+		}
+	}
+}

@@ -16,7 +16,13 @@ import {
 	consumerKeyFromRequest,
 	type SubjectResolution,
 } from "./subjects.ts";
-import type { ControlHit, ControlPipeline, InspectionResult } from "./types.ts";
+import type {
+	ControlHit,
+	ControlPipeline,
+	InspectionResult,
+	Interaction,
+	Verdict,
+} from "./types.ts";
 
 export interface GuardApiDeps {
 	audit?: AuditSink | undefined;
@@ -63,6 +69,7 @@ export async function handleGuardRequest(request: Request, deps: GuardApiDeps): 
 	}
 
 	const outcome = await guardInteraction(validation.interaction, deps.pipeline, { audit });
+	logDecision(validation.interaction, outcome.verdict, outcome.rejection?.control);
 	const hits = outcome.inspection.hits.map(toHitView);
 	const reasons = buildReasons(outcome.inspection);
 	if (outcome.rejection) {
@@ -146,6 +153,22 @@ function buildReasons(inspection: InspectionResult): string[] {
 		reasons.push(`fail-closed: ${inspection.failure}`);
 	}
 	return reasons;
+}
+
+/**
+ * One human-readable line per decision on stdout, so `bun run dev` shows
+ * every playground click live. Uses `process.stdout` directly because the
+ * `noConsole` lint rule bans `console.*` in `src/`; the durable trail stays
+ * in the audit sink (and `data/audit.jsonl` in product wiring).
+ */
+function logDecision(
+	interaction: Interaction,
+	verdict: Verdict,
+	control: string | undefined,
+): void {
+	process.stdout.write(
+		`[guard] ${interaction.seam}/${interaction.direction} subject=${interaction.subject} -> ${verdict} (${control ?? "none"})\n`,
+	);
 }
 
 /**

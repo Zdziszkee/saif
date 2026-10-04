@@ -41,6 +41,17 @@ export function createInMemoryAuditSink(): AuditSink & { events: AuditEvent[] } 
 	};
 }
 
+/** Fan-out sink: every recorded event goes to each sink in order. */
+export function combineAuditSinks(...sinks: AuditSink[]): AuditSink {
+	return {
+		record: (event) => {
+			for (const sink of sinks) {
+				sink.record(event);
+			}
+		},
+	};
+}
+
 export function auditEvent(
 	kind: AuditEventKind,
 	fields: Omit<AuditEvent, "kind" | "timestamp"> = {},
