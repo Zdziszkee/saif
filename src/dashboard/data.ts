@@ -30,6 +30,8 @@ import {
 	type BudgetRuleView,
 	type BudgetSeriesPoint,
 	type ConsumerMetrics,
+	type CostSeriesPoint,
+	type CostTotals,
 	type DashboardData,
 	type EscalationRow,
 	type LatencyPercentiles,
@@ -423,6 +425,7 @@ function escalationFromDecision(consumerKey: string, event: AuditEvent): Escalat
 		seam: event.seam ?? DEFAULT_ESCALATION_SEAM,
 		subject: event.groupId ?? consumerKey,
 		timestamp: event.timestamp,
+		userId: event.userId ?? null,
 	};
 }
 
@@ -571,6 +574,114 @@ export function summarizeUserTokenUsage(rows: readonly TokenUsageRow[]): UserTok
 	return summaries.sort((left, right) => right.totalTokens - left.totalTokens);
 }
 
+/** One gateway usage row projected for cost aggregation. Unknowns because
+ * callers project store rows; coerced defensively in `summarizeCostSeries`. */
+export interface CostGatewayRow {
+	completionTokens: unknown;
+	costUsd: unknown;
+	promptTokens: unknown;
+	ts: unknown;
+}
+
+/** One MCP tool-call row projected for cost aggregation. MCP tokens are a
+ * chars/4 estimate and never contribute cost. */
+export interface CostMcpRow {
+	estimatedTokens: unknown;
+	ts: unknown;
+}
+
+const MS_PER_SECOND = 1000;
+/** Below this magnitude a numeric ts is unix seconds, otherwise millis. */
+const SECONDS_MS_CUTOFF = 100_000_000_000;
+const ISO_DATE_LENGTH = 10;
+
+/** Millis for a cost-row ts (Date, unix seconds/millis, or ISO string);
+ * undefined when the row carries no parseable timestamp. */
+function costRowTimeMs(value: unknown): number | undefined {
+	let time: number | undefined;
+	if (value instanceof Date) {
+		const got = value.getTime();
+		time = Number.isFinite(got) ? got : undefined;
+	} else if (typeof value === "number" && Number.isFinite(value)) {
+		time = value < SECONDS_MS_CUTOFF ? value * MS_PER_SECOND : value;
+	} else if (typeof value === "string") {
+		const parsed = Date.parse(value);
+		time = Number.isNaN(parsed) ? undefined : parsed;
+	}
+	return time;
+}
+
+function costPointFor(byDay: Map<string, CostSeriesPoint>, date: string): CostSeriesPoint {
+	const existing = byDay.get(date);
+	if (existing !== undefined) {
+		return existing;
+	}
+	const fresh: CostSeriesPoint = { costUsd: 0, date, gatewayTokens: 0, mcpTokens: 0 };
+	byDay.set(date, fresh);
+	return fresh;
+}
+
+/**
+ * Bucket gateway + MCP rows per UTC day (`YYYY-MM-DD`), ascending, one point
+ * per day with any activity. Gateway tokens are prompt+completion (non-finite
+ * coerces to 0); cost sums only finite gateway `costUsd` — MCP never
+ * contributes cost. Rows with an unparseable ts are skipped entirely (neither
+ * series nor totals). Priced/unpriced call counts cover gateway rows with a
+ * parseable ts only; `totals.costUsd` is null when no call was priced.
+ */
+export function summarizeCostSeries(
+	gateway: readonly CostGatewayRow[],
+	mcp: readonly CostMcpRow[],
+): { series: CostSeriesPoint[]; totals: CostTotals } {
+	const byDay = new Map<string, CostSeriesPoint>();
+	let gatewayTokens = 0;
+	let mcpTokens = 0;
+	let costUsd = 0;
+	let pricedCalls = 0;
+	let unpricedCalls = 0;
+	for (const row of gateway) {
+		const time = costRowTimeMs(row.ts);
+		if (time === undefined) {
+			continue;
+		}
+		const date = new Date(time).toISOString().slice(0, ISO_DATE_LENGTH);
+		const tokens =
+			(asFiniteNumber(row.promptTokens) ?? 0) + (asFiniteNumber(row.completionTokens) ?? 0);
+		gatewayTokens += tokens;
+		const cost = asFiniteNumber(row.costUsd);
+		if (cost === undefined) {
+			unpricedCalls += 1;
+		} else {
+			pricedCalls += 1;
+			costUsd += cost;
+		}
+		const point = costPointFor(byDay, date);
+		point.gatewayTokens += tokens;
+		point.costUsd += cost ?? 0;
+	}
+	for (const row of mcp) {
+		const time = costRowTimeMs(row.ts);
+		if (time === undefined) {
+			continue;
+		}
+		const tokens = asFiniteNumber(row.estimatedTokens) ?? 0;
+		mcpTokens += tokens;
+		costPointFor(byDay, new Date(time).toISOString().slice(0, ISO_DATE_LENGTH)).mcpTokens += tokens;
+	}
+	const series = [...byDay.values()].sort((left, right) => left.date.localeCompare(right.date));
+	return {
+		series,
+		totals: {
+			costUsd: pricedCalls > 0 ? costUsd : null,
+			gatewayTokens,
+			mcpTokens,
+			pricedCalls,
+			totalTokens: gatewayTokens + mcpTokens,
+			unpricedCalls,
+		},
+	};
+}
+
 /**
  * Caller-supplied version stamps for the dashboard payload. Both default to
  * `"unavailable"` when omitted, matching the empty feed/semantic store state.
@@ -591,13 +702,14 @@ export interface VersionStamps {
  * versions. Consumers without decisions report zeros and empty rows so the
  * dashboard renders the "no activity" states.
  */
-// biome-ignore lint/complexity/useMaxParams: contract keeps existing 4 params for backward compat plus optional 5th usageRows
+// biome-ignore lint/complexity/useMaxParams: contract keeps existing 5 params for backward compat plus optional 6th mcpRows
 export function buildDashboardData(
 	snapshot: PolicySnapshot,
 	generatedAt: string,
 	auditEvents: readonly AuditEvent[] = [],
 	versions: VersionStamps = {},
 	usageRows: readonly TokenUsageRow[] = [],
+	mcpRows: readonly CostMcpRow[] = [],
 ): DashboardData {
 	const feedVersion = versions.feedVersion ?? "unavailable";
 	const semanticVersion = versions.semanticVersion ?? "unavailable";
@@ -630,10 +742,21 @@ export function buildDashboardData(
 		.filter((part): part is ConsumerMetrics => part !== undefined);
 	const pooled = aggregateMetrics(parts);
 	const escalations = escalationsFromAudit(decisions).sort(newestFirst);
+	// The server projects gateway rows with an extra `ts` (see `server.ts`);
+	// `TokenUsageRow` itself stays ts-less, so read it structurally here.
+	const gatewayCostRows: CostGatewayRow[] = usageRows.map((row) => ({
+		completionTokens: row.completionTokens,
+		costUsd: row.costUsd,
+		promptTokens: row.promptTokens,
+		ts: (row as { ts?: unknown }).ts,
+	}));
+	const { series: costSeries, totals: costTotals } = summarizeCostSeries(gatewayCostRows, mcpRows);
 	return {
 		aggregate: { ...pooled, latency: percentiles(allLatency) },
 		byConsumer,
 		consumerKeys,
+		costSeries,
+		costTotals,
 		escalations,
 		feedVersion: policyView.feedVersion,
 		generatedAt,

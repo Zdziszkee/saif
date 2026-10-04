@@ -77,6 +77,24 @@ export interface UserTokenUsage {
 	userId: string;
 }
 
+/** One UTC-day bucket of metered spend: gateway tokens/cost + MCP estimate. */
+export interface CostSeriesPoint {
+	costUsd: number;
+	date: string;
+	gatewayTokens: number;
+	mcpTokens: number;
+}
+
+/** Rolled-up metered spend. `costUsd` is null when no call was priced. */
+export interface CostTotals {
+	costUsd: number | null;
+	gatewayTokens: number;
+	mcpTokens: number;
+	pricedCalls: number;
+	totalTokens: number;
+	unpricedCalls: number;
+}
+
 export interface EscalationRow {
 	consumerKey: string;
 	direction: Direction;
@@ -85,6 +103,8 @@ export interface EscalationRow {
 	seam: string;
 	subject: string;
 	timestamp: string;
+	/** Individual caller from `x-user-id`; null at group-scoped surfaces. */
+	userId: string | null;
 }
 
 export interface ControlSummary {
@@ -112,6 +132,8 @@ export interface DashboardData {
 	aggregate: ConsumerMetrics;
 	byConsumer: Readonly<Record<string, ConsumerMetrics>>;
 	consumerKeys: readonly string[];
+	costSeries: CostSeriesPoint[];
+	costTotals: CostTotals;
 	escalations: readonly EscalationRow[];
 	feedVersion: string;
 	generatedAt: string;

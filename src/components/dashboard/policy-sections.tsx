@@ -114,6 +114,7 @@ export function EscalationsSection({ rows }: { rows: readonly EscalationRow[] })
 					<TableRow>
 						<TableHead>When</TableHead>
 						<TableHead>Consumer</TableHead>
+						<TableHead>User</TableHead>
 						<TableHead>Subject</TableHead>
 						<TableHead>Seam</TableHead>
 						<TableHead>Direction</TableHead>
@@ -126,6 +127,7 @@ export function EscalationsSection({ rows }: { rows: readonly EscalationRow[] })
 							<TableRow key={row.id}>
 								<TableCell className="tabular-nums">{formatTimestamp(row.timestamp)}</TableCell>
 								<TableCell className="font-medium">{row.consumerKey}</TableCell>
+								<TableCell className="font-medium">{row.userId ?? "—"}</TableCell>
 								<TableCell className="font-medium">{row.subject}</TableCell>
 								<TableCell>{row.seam}</TableCell>
 								<TableCell>{row.direction}</TableCell>

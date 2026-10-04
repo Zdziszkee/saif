@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { CostPlot } from "#/components/dashboard/cost-plot.tsx";
 import {
-	BudgetSection,
 	LatencySection,
 	PostureSection,
 	ThreatsSection,
@@ -35,6 +35,8 @@ import {
 	ALL_CONSUMERS,
 	type ConsumerMetrics,
 	type ControlSummary,
+	type CostSeriesPoint,
+	type CostTotals,
 	type DashboardData,
 	type ProfileSummary,
 } from "#/dashboard/types.ts";
@@ -250,11 +252,15 @@ function usePeopleScope(
  */
 function OverviewSections({
 	controls,
+	costSeries,
+	costTotals,
 	metrics,
 	profiles,
 	usage,
 }: {
 	controls: readonly ControlSummary[];
+	costSeries: readonly CostSeriesPoint[];
+	costTotals: CostTotals;
 	metrics: ConsumerMetrics;
 	profiles: readonly ProfileSummary[];
 	usage: UserTokenUsage[];
@@ -280,11 +286,7 @@ function OverviewSections({
 			<Separator />
 
 			<div className="flex flex-col gap-3">
-				<SectionTitle
-					description="Resource and cost consumption over time against configured budget limits."
-					title="Budget usage"
-				/>
-				<BudgetSection metrics={metrics} />
+				<CostPlot series={costSeries} totals={costTotals} />
 				<UserTokenUsageCard usage={usage} />
 			</div>
 			<Separator />
@@ -458,6 +460,8 @@ export function Dashboard({
 
 			<OverviewSections
 				controls={data.policy.controls}
+				costSeries={data.costSeries}
+				costTotals={data.costTotals}
 				metrics={metrics}
 				profiles={data.policy.profiles}
 				usage={usage}

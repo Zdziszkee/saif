@@ -9,7 +9,7 @@
  * in-memory audit sink for surfaces that never open the database.
  */
 
-import { and, count, eq, gte, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, gte, type SQL } from "drizzle-orm";
 import type { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import type { AuditEvent } from "#/control/audit.ts";
 import type { Verdict } from "#/control/types.ts";
@@ -70,6 +70,55 @@ export interface ToolCallStatsFilter {
 	groupId?: string | undefined;
 	since?: Date | undefined;
 	toolName?: string | undefined;
+}
+
+/** One persisted MCP tool call for cost/token aggregation. */
+export interface ToolCallRecord {
+	/** chars/4 heuristic over inspected args + result; estimate, never billed. */
+	estimatedTokens: number;
+	toolName: string;
+	/** Timestamp-mode column: drizzle returns a Date; kept wide for callers. */
+	ts: Date | number;
+	userId: string | null;
+	verdict: Verdict;
+}
+
+export interface ListToolUsageOptions {
+	limit?: number | undefined;
+	since?: Date | undefined;
+}
+
+const DEFAULT_LIST_LIMIT = 5000;
+
+/**
+ * Tool-call rows oldest-first (ascending by ts), capped at `limit`.
+ * Never filters by verdict — every terminal outcome counts as metered MCP
+ * activity for the cost/token plot.
+ */
+export async function listToolUsage(
+	db: ToolDb,
+	options: ListToolUsageOptions = {},
+): Promise<ToolCallRecord[]> {
+	const limit = options.limit ?? DEFAULT_LIST_LIMIT;
+	const rows = await db
+		.select({
+			estimatedTokens: mcpToolCalls.estimatedTokens,
+			toolName: mcpToolCalls.toolName,
+			ts: mcpToolCalls.ts,
+			userId: mcpToolCalls.userId,
+			verdict: mcpToolCalls.verdict,
+		})
+		.from(mcpToolCalls)
+		.where(options.since === undefined ? undefined : gte(mcpToolCalls.ts, options.since))
+		.orderBy(asc(mcpToolCalls.ts))
+		.limit(limit);
+	return rows.map((row) => ({
+		estimatedTokens: row.estimatedTokens,
+		toolName: row.toolName,
+		ts: row.ts,
+		userId: row.userId,
+		verdict: row.verdict,
+	}));
 }
 
 /** Calls per tool per verdict, for dashboard aggregation. */
