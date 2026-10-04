@@ -604,9 +604,8 @@ function detectionFromMatch(
 	start: number,
 ): Detection | null {
 	const span = { end: start + value.length, start };
-	const validated =
-		pattern.validate === undefined ? pattern.requiresContext !== true : pattern.validate(value);
-	const context = pattern.context === undefined ? [] : contextHits(text, span, pattern.context);
+	const validated = pattern.validate?.(value) ?? pattern.requiresContext !== true;
+	const context = contextHits(text, span, pattern.context ?? []);
 	if (pattern.requiresContext === true && context.length === 0) {
 		return null;
 	}

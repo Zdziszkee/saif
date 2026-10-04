@@ -10,7 +10,7 @@
 import { z } from "zod";
 import { type AuditSink, auditEvent, noopAuditSink } from "#/control/audit.ts";
 import { type GuardRejection, guardInteraction } from "#/control/guard.ts";
-import type { ControlPipeline } from "#/control/types.ts";
+import { type ControlPipeline, isBlockingVerdict } from "#/control/types.ts";
 
 export type ToolSource = "builtin" | "connected";
 
@@ -92,7 +92,7 @@ export function createToolCatalog(options: CatalogOptions): ToolCatalog {
 				},
 				options.pipeline,
 			);
-			const refused = outcome.verdict === "block" || outcome.verdict === "escalate";
+			const refused = isBlockingVerdict(outcome.verdict);
 			audit.record(
 				auditEvent("registration", {
 					controlId: outcome.rejection?.control,

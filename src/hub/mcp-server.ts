@@ -211,14 +211,15 @@ function toAskModelResult(result: LoopResult, subject: string, audit: AuditSink)
 	};
 }
 
+const REJECTION_STATUS: Record<ToolRejection["kind"], "blocked" | "escalated" | "failed"> = {
+	blocked: "blocked",
+	denied: "blocked",
+	escalated: "escalated",
+	failed: "failed",
+};
+
 function rejectionStatus(rejection: ToolRejection): "blocked" | "escalated" | "failed" {
-	if (rejection.kind === "failed") {
-		return "failed";
-	}
-	if (rejection.kind === "escalated") {
-		return "escalated";
-	}
-	return "blocked";
+	return REJECTION_STATUS[rejection.kind];
 }
 
 function buildServer(catalog: ToolCatalog, governor: ToolGovernor, subject: string): MCPServer {
