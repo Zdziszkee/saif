@@ -43,6 +43,9 @@ export interface ToolCatalog {
 	register(request: ToolRegistration): Promise<AdmissionResult>;
 	remove(name: string): void;
 	snapshot(): CatalogEntry[];
+	/** Mutation generation, bumped on every successful register/remove. Lets
+	 * served MCP server instances detect a changed catalog and rebuild. */
+	version(): number;
 }
 
 export interface CatalogOptions {
@@ -78,6 +81,7 @@ export function toJsonSchema(schema: unknown): Record<string, unknown> {
 export function createToolCatalog(options: CatalogOptions): ToolCatalog {
 	const audit = options.audit ?? noopAuditSink;
 	const entries = new Map<string, CatalogEntry>();
+	let version = 0;
 
 	return {
 		get(name) {
@@ -123,13 +127,19 @@ export function createToolCatalog(options: CatalogOptions): ToolCatalog {
 				name: request.name,
 				source: request.source,
 			});
+			version += 1;
 			return { ok: true };
 		},
 		remove(name) {
-			entries.delete(name);
+			if (entries.delete(name)) {
+				version += 1;
+			}
 		},
 		snapshot() {
 			return [...entries.values()];
+		},
+		version() {
+			return version;
 		},
 	};
 }
