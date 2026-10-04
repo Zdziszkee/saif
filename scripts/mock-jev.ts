@@ -277,6 +277,10 @@ export function loadMockJevScoringConfig(path: string | undefined): MockJevScori
 }
 
 const DEFAULT_MOCK_JEV_PORT = 4321;
+// Fixed per-request latency: keeps the concurrency integration assertion
+// meaningful (non-zero per-call timings that overlap when concurrent) and
+// mimics a network round trip for interactive use.
+const MOCK_JEV_LATENCY_MS = 50;
 const { MOCK_JEV_CONFIG, MOCK_JEV_PORT } = process.env;
 const port = Number(MOCK_JEV_PORT ?? DEFAULT_MOCK_JEV_PORT);
 
@@ -289,6 +293,7 @@ if (process.argv[1]?.endsWith("mock-jev.ts") ?? false) {
 			if (request.method !== "POST" || url.pathname !== "/v1/systemone") {
 				return new Response("mock Jev: POST /v1/systemone only", { status: 404 });
 			}
+			await new Promise((resolve) => setTimeout(resolve, MOCK_JEV_LATENCY_MS));
 			let body: MockJevRequest | null = null;
 			try {
 				body = (await request.json()) as MockJevRequest;
