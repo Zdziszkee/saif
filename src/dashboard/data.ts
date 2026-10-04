@@ -34,6 +34,7 @@ import {
 	type EscalationRow,
 	type LatencyPercentiles,
 	type ThreatBreakdownRow,
+	type UserTokenUsage,
 } from "#/dashboard/types.ts";
 
 const VERDICTS: readonly Verdict[] = ["allow", "redact", "block", "escalate"];
@@ -475,6 +476,101 @@ export function aggregateMetrics(parts: readonly ConsumerMetrics[]): ConsumerMet
 	};
 }
 
+/** One gateway usage row projected by the caller (see `GatewayUsageRow` in
+ * `#/gateway/store.ts`). Unknowns because callers project store rows;
+ * coerced defensively in `summarizeUserTokenUsage`. */
+export interface TokenUsageRow {
+	completionTokens: unknown;
+	costUsd: unknown;
+	model: unknown;
+	promptTokens: unknown;
+	userId: unknown;
+}
+
+function asTokenCount(value: unknown): number {
+	const amount = asFiniteNumber(value);
+	return amount !== undefined && Number.isInteger(amount) ? amount : 0;
+}
+
+function asUsageName(value: unknown): string | undefined {
+	if (typeof value !== "string") {
+		return;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+interface UserTokenAccumulator {
+	completionTokens: number;
+	costUsd: number;
+	hasPriced: boolean;
+	models: Set<string>;
+	promptTokens: number;
+	requests: number;
+}
+
+function accumulatorFor(
+	byUser: Map<string, UserTokenAccumulator>,
+	userId: string,
+): UserTokenAccumulator {
+	const existing = byUser.get(userId);
+	if (existing !== undefined) {
+		return existing;
+	}
+	const fresh: UserTokenAccumulator = {
+		completionTokens: 0,
+		costUsd: 0,
+		hasPriced: false,
+		models: new Set<string>(),
+		promptTokens: 0,
+		requests: 0,
+	};
+	byUser.set(userId, fresh);
+	return fresh;
+}
+
+/**
+ * Roll gateway usage rows up per user: token counts (non-finite or
+ * non-integer counts coerce to 0), request counts, sorted unique models
+ * (blank models omitted but still counted), and cost (`null` when every row
+ * for the user is unpriced, summed otherwise). Sorted desc by totalTokens.
+ */
+export function summarizeUserTokenUsage(rows: readonly TokenUsageRow[]): UserTokenUsage[] {
+	const byUser = new Map<string, UserTokenAccumulator>();
+	for (const row of rows) {
+		const userId = asUsageName(row.userId);
+		if (userId === undefined) {
+			continue;
+		}
+		const acc = accumulatorFor(byUser, userId);
+		acc.requests += 1;
+		acc.promptTokens += asTokenCount(row.promptTokens);
+		acc.completionTokens += asTokenCount(row.completionTokens);
+		const cost = asFiniteNumber(row.costUsd);
+		if (cost !== undefined) {
+			acc.hasPriced = true;
+			acc.costUsd += cost;
+		}
+		const model = asUsageName(row.model);
+		if (model !== undefined) {
+			acc.models.add(model);
+		}
+	}
+	const summaries: UserTokenUsage[] = [];
+	for (const [userId, acc] of byUser) {
+		summaries.push({
+			completionTokens: acc.completionTokens,
+			costUsd: acc.hasPriced ? acc.costUsd : null,
+			models: [...acc.models].sort((left, right) => left.localeCompare(right)),
+			promptTokens: acc.promptTokens,
+			requests: acc.requests,
+			totalTokens: acc.promptTokens + acc.completionTokens,
+			userId,
+		});
+	}
+	return summaries.sort((left, right) => right.totalTokens - left.totalTokens);
+}
+
 /**
  * Caller-supplied version stamps for the dashboard payload. Both default to
  * `"unavailable"` when omitted, matching the empty feed/semantic store state.
@@ -495,11 +591,13 @@ export interface VersionStamps {
  * versions. Consumers without decisions report zeros and empty rows so the
  * dashboard renders the "no activity" states.
  */
+// biome-ignore lint/complexity/useMaxParams: contract keeps existing 4 params for backward compat plus optional 5th usageRows
 export function buildDashboardData(
 	snapshot: PolicySnapshot,
 	generatedAt: string,
 	auditEvents: readonly AuditEvent[] = [],
 	versions: VersionStamps = {},
+	usageRows: readonly TokenUsageRow[] = [],
 ): DashboardData {
 	const feedVersion = versions.feedVersion ?? "unavailable";
 	const semanticVersion = versions.semanticVersion ?? "unavailable";
@@ -543,6 +641,7 @@ export function buildDashboardData(
 		policy: policyView.policy,
 		policyVersion: policyView.policyVersion,
 		semanticVersion: policyView.semanticVersion,
+		userTokenUsage: summarizeUserTokenUsage(usageRows),
 	};
 }
 

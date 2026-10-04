@@ -16,6 +16,7 @@ import {
 	useConsumerScope,
 	useRoleScope,
 } from "#/components/dashboard/scope.ts";
+import { UserTokenUsageCard } from "#/components/dashboard/user-token-usage.tsx";
 import { ThemeSwitcher } from "#/components/theme-switcher.tsx";
 import { TierStatusBanner } from "#/components/tier-status.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
@@ -29,6 +30,7 @@ import {
 import { Separator } from "#/components/ui/separator.tsx";
 import { selectMetrics } from "#/dashboard/data.ts";
 import { formatTimestamp } from "#/dashboard/format.ts";
+import type { UserTokenUsage } from "#/dashboard/types.ts";
 import {
 	ALL_CONSUMERS,
 	type ConsumerMetrics,
@@ -250,10 +252,12 @@ function OverviewSections({
 	controls,
 	metrics,
 	profiles,
+	usage,
 }: {
 	controls: readonly ControlSummary[];
 	metrics: ConsumerMetrics;
 	profiles: readonly ProfileSummary[];
+	usage: UserTokenUsage[];
 }) {
 	return (
 		<>
@@ -281,6 +285,7 @@ function OverviewSections({
 					title="Budget usage"
 				/>
 				<BudgetSection metrics={metrics} />
+				<UserTokenUsageCard usage={usage} />
 			</div>
 			<Separator />
 
@@ -433,6 +438,7 @@ export function Dashboard({
 	}, [onRefresh]);
 
 	const metrics = useMemo(() => selectMetrics(data, consumer), [data, consumer]);
+	const usage = data.userTokenUsage;
 
 	return (
 		<main className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6">
@@ -454,6 +460,7 @@ export function Dashboard({
 				controls={data.policy.controls}
 				metrics={metrics}
 				profiles={data.policy.profiles}
+				usage={usage}
 			/>
 
 			<FullVariantSections

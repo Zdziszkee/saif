@@ -66,6 +66,17 @@ export interface ConsumerMetrics {
 	verdicts: Record<Verdict, number>;
 }
 
+/** Per-user token spend rolled up from gateway usage rows. */
+export interface UserTokenUsage {
+	completionTokens: number;
+	costUsd: number | null;
+	models: string[];
+	promptTokens: number;
+	requests: number;
+	totalTokens: number;
+	userId: string;
+}
+
 export interface EscalationRow {
 	consumerKey: string;
 	direction: Direction;
@@ -108,6 +119,7 @@ export interface DashboardData {
 	policy: PolicyView;
 	policyVersion: string;
 	semanticVersion: string;
+	userTokenUsage: UserTokenUsage[];
 }
 
 export const ALL_CONSUMERS = "all";
