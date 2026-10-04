@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { FilePolicySource, PolicyLoader, type PolicySnapshot } from "#/control/policy/loader.ts";
 import { SEMANTIC_DEFAULTS } from "#/control/semantic/index.ts";
+import { db } from "#/db/index.ts";
 import { createGatewayStore } from "#/db/repositories.ts";
 import { env } from "#/env.ts";
 import {
@@ -37,9 +38,8 @@ async function getPolicySnapshot(): Promise<PolicySnapshot | undefined> {
 
 let gatewayStore: GatewayStore | undefined;
 
-async function getGatewayStore(): Promise<GatewayStore> {
+function getGatewayStore(): GatewayStore {
 	if (gatewayStore === undefined) {
-		const { db } = await import("#/db/index.ts");
 		gatewayStore = createGatewayStore(db);
 	}
 	return gatewayStore;
@@ -102,7 +102,7 @@ async function handle(request: Request): Promise<Response> {
 	}
 	let store: GatewayStore;
 	try {
-		store = await getGatewayStore();
+		store = getGatewayStore();
 	} catch (error) {
 		return openAiError(
 			HTTP_INTERNAL_ERROR,
