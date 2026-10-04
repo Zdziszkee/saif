@@ -1,10 +1,11 @@
 /**
  * Product wiring for the MCP safety hub: builds the hub once from environment
- * configuration. The model connection is the OpenAI-compatible connection from
- * env; when it is not configured, `askModel` fails with a clear configuration
- * error instead of the app failing to start. The control pipeline runs the
- * stages enabled by the default policy profile in cheap-first order —
- * allowlist, signature feed, deterministic, semantic last. The semantic stage
+ * configuration. The hub is the tools-only plane (design D10): it assembles no
+ * model connection, and AI prompt traffic is handled by the prompt-plane
+ * gateway. The control pipeline runs the stages enabled by the default policy
+ * profile in cheap-first order — allowlist, signature feed, deterministic
+ * (bound live to the policy loader's active snapshot, so detection reloads
+ * reach enforcement without a restart), semantic last. The semantic stage
  * additionally requires TYPESAFE_API_KEY: without it the tier is skipped
  * (and the skip audited) instead of failing every request closed.
  */
@@ -17,8 +18,8 @@ import {
 	createInMemoryAuditSink,
 } from "#/control/audit.ts";
 import { createFileAuditSink } from "#/control/audit-file.ts";
-import { createDeterministicControl } from "#/control/deterministic/control.ts";
 import { createControlPipeline } from "#/control/pipeline.ts";
+import { createLiveDetectionControl } from "#/control/policy/live-control.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
 import type { Policy } from "#/control/policy/schema.ts";
 import { SEMANTIC_DEFAULTS } from "#/control/semantic/config.ts";
@@ -26,16 +27,11 @@ import { createSemanticControl } from "#/control/semantic/control.ts";
 import { createJevClassifier } from "#/control/semantic/jev.ts";
 import { createSignatureControl } from "#/control/signatures/control.ts";
 import { createSignatureFeedStore, type SignatureFeedStore } from "#/control/signatures/feed.ts";
-import type { ConsumerPolicy } from "#/control/subjects.ts";
+import { type ConsumerPolicy, consumerPolicyFromDocument } from "#/control/subjects.ts";
 import type { Control, Verdict } from "#/control/types.ts";
 import { env } from "#/env.ts";
 import { createHubConfig } from "./config.ts";
 import { createHub, type Hub } from "./mcp-server.ts";
-import {
-	createOpenAICompatibleConnection,
-	ModelConfigurationError,
-	type ModelConnection,
-} from "./model.ts";
 
 let auditSink: AuditSink | undefined;
 let hubPromise: Promise<Hub> | undefined;
@@ -118,8 +114,12 @@ interface StageAssembly {
 	semanticSkipped: boolean;
 }
 
-/** Cheap-first control stages for a loaded policy; the semantic stage is skipped when unusable. */
-function assembleStages(policy: Policy, audit: AuditSink): StageAssembly {
+/**
+ * Cheap-first control stages for a loaded policy; detection stays bound to
+ * the loader's active snapshot so reloads reach enforcement without a
+ * restart, and the semantic stage is skipped when unusable.
+ */
+function assembleStages(policy: Policy, audit: AuditSink, loader: PolicyLoader): StageAssembly {
 	const enabled = policy.profiles[policy.defaults.profile].enabledControls;
 	const controls: Control[] = [createAllowlistControl(policy.controls.allowlist.models)];
 	const assembly: StageAssembly = { controls, semanticSkipped: false };
@@ -138,7 +138,17 @@ function assembleStages(policy: Policy, audit: AuditSink): StageAssembly {
 		);
 	}
 	if (enabled.detection) {
-		controls.push(createDeterministicControl(policy.controls.detection));
+		controls.push(
+			createLiveDetectionControl(() => {
+				const snapshot = loader.snapshot;
+				return snapshot === undefined
+					? undefined
+					: {
+							config: snapshot.policy.controls.detection,
+							policyVersion: snapshot.policyVersion,
+						};
+			}),
+		);
 	}
 	if (enabled.semantic) {
 		const semantic = buildSemanticControl();
@@ -174,16 +184,9 @@ async function buildControls(audit: AuditSink): Promise<BuiltControls> {
 	}
 	const policy = status.snapshot.policy;
 	const enabled = policy.profiles[policy.defaults.profile].enabledControls;
-	const assembly = assembleStages(policy, audit);
+	const assembly = assembleStages(policy, audit, loader);
 	return {
-		// The policy's consumer table is the known-key set: each key governs
-		// as its own subject. Unknown keys keep the previous default-subject
-		// behavior, so this only narrows, never widens, access.
-		consumers: {
-			defaultSubject: "default",
-			knownKeys: Object.keys(policy.consumers),
-			unknownKey: "default-subject",
-		},
+		consumers: consumerPolicyFromDocument(policy.consumers),
 		controls: assembly.controls,
 		failureVerdict: policy.defaults.failureVerdict,
 		policyProfile: policy.defaults.profile,
@@ -221,7 +224,6 @@ async function createHubAsync(): Promise<Hub> {
 			consumers,
 			egressAllowlist: parseAllowlist(env.MCP_EGRESS_ALLOWLIST),
 		}),
-		model: modelConnectionFromEnv(),
 		pipeline: createControlPipeline({ controls, failureVerdict }),
 	});
 }
@@ -270,26 +272,6 @@ function createProductAuditSink(): AuditSink & { events: AuditEvent[] } {
 		};
 	} catch {
 		return memory;
-	}
-}
-
-function modelConnectionFromEnv(): ModelConnection {
-	try {
-		return createOpenAICompatibleConnection({
-			apiKey: env.MODEL_API_KEY,
-			baseUrl: env.MODEL_BASE_URL,
-			modelName: env.MODEL_NAME,
-		});
-	} catch (error) {
-		if (error instanceof ModelConfigurationError) {
-			return {
-				complete: () => {
-					throw error;
-				},
-				modelName: "unconfigured",
-			};
-		}
-		throw error;
 	}
 }
 

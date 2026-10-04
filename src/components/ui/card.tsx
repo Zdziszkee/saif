@@ -1,7 +1,7 @@
-import type { ComponentProps } from "react";
+import type * as React from "react";
 import { cn } from "#/lib/utils.ts";
 
-function Card({ className, ...props }: ComponentProps<"div">) {
+function Card({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			className={cn(
@@ -14,7 +14,7 @@ function Card({ className, ...props }: ComponentProps<"div">) {
 	);
 }
 
-function CardHeader({ className, ...props }: ComponentProps<"div">) {
+function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			className={cn(
@@ -27,7 +27,7 @@ function CardHeader({ className, ...props }: ComponentProps<"div">) {
 	);
 }
 
-function CardTitle({ className, ...props }: ComponentProps<"div">) {
+function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			className={cn("leading-none font-semibold", className)}
@@ -37,7 +37,7 @@ function CardTitle({ className, ...props }: ComponentProps<"div">) {
 	);
 }
 
-function CardDescription({ className, ...props }: ComponentProps<"div">) {
+function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			className={cn("text-sm text-muted-foreground", className)}
@@ -47,7 +47,7 @@ function CardDescription({ className, ...props }: ComponentProps<"div">) {
 	);
 }
 
-function CardAction({ className, ...props }: ComponentProps<"div">) {
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			className={cn("col-start-2 row-span-2 row-start-1 self-start justify-self-end", className)}
@@ -57,11 +57,11 @@ function CardAction({ className, ...props }: ComponentProps<"div">) {
 	);
 }
 
-function CardContent({ className, ...props }: ComponentProps<"div">) {
+function CardContent({ className, ...props }: React.ComponentProps<"div">) {
 	return <div className={cn("px-6", className)} data-slot="card-content" {...props} />;
 }
 
-function CardFooter({ className, ...props }: ComponentProps<"div">) {
+function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			className={cn("flex items-center px-6 [.border-t]:pt-6", className)}

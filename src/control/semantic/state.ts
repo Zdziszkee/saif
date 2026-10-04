@@ -31,7 +31,7 @@ export function buildSemanticState(
 		content,
 		contentLength: content.length,
 		direction: input.direction,
-		flags: input.flags === undefined ? [] : [...input.flags],
+		flags: [...(input.flags ?? [])],
 		role: input.role,
 	};
 }

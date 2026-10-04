@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { createMCPClient } from "@tanstack/ai-mcp";
+import { file, Glob } from "bun";
 import { createHub } from "#/hub/mcp-server.ts";
-import type { AskModelResult } from "#/hub/tools.ts";
 import { hubFetchShim } from "./helpers/external-server.ts";
-import { auditSink, blockOn, modelDouble, pipelineWith, staticReply } from "./helpers/fixtures.ts";
+import { auditSink, blockOn, pipelineWith } from "./helpers/fixtures.ts";
 
 interface TextResult {
 	content: Array<{ text?: string }>;
@@ -15,85 +15,61 @@ function resultText(result: unknown): string {
 	return (typed.content ?? []).map((part) => part.text ?? "").join("");
 }
 
+const BUILTIN_TOOLS = ["addTodo", "deleteAllTodos", "fetchUrl", "listTodos"];
+const MODEL_BYPASS_PATTERN = /createOpenAICompatibleConnection|#\/hub\/model\.ts/;
+
+function surfaceClient(hub: Awaited<ReturnType<typeof createHub>>) {
+	return createMCPClient({
+		transport: {
+			fetch: hubFetchShim((request) => hub.server("alice").fetch(request)),
+			type: "http",
+			url: "https://hub.test/mcp",
+		},
+	});
+}
+
 describe("standard MCP surface", () => {
-	it("lets a standard MCP client list and invoke governed tools", async () => {
+	it("enumerates a tools-only catalog with no model-reaching tool", async () => {
 		const hub = await createHub({
 			audit: auditSink(),
-			model: modelDouble(() => staticReply("hi")),
 			pipeline: pipelineWith([]),
 		});
-		const client = await createMCPClient({
-			transport: {
-				fetch: hubFetchShim((request) => hub.server("alice").fetch(request)),
-				type: "http",
-				url: "https://hub.test/mcp",
-			},
-		});
+		expect(hub.toolNames().sort()).toEqual(BUILTIN_TOOLS);
 
+		const client = await surfaceClient(hub);
 		const tools = await client.tools();
-		expect(tools.map((tool) => tool.name).sort()).toEqual([
-			"addTodo",
-			"askModel",
-			"deleteAllTodos",
-			"fetchUrl",
-			"listTodos",
-		]);
-
-		const listed = await client.callTool("listTodos", {});
-		expect(listed.isError ?? false).toBe(false);
-		expect(resultText(listed)).toContain("todos");
+		expect(tools.map((tool) => tool.name).sort()).toEqual(BUILTIN_TOOLS);
 
 		await client.close();
 	});
 
-	it("subjects client tool calls to the same tool-call governance", async () => {
-		const model = modelDouble(() => staticReply("hi"));
+	it("subjects client tool calls to tool-call governance and serves governed results", async () => {
 		const hub = await createHub({
 			audit: auditSink(),
-			model,
 			pipeline: pipelineWith([blockOn("BLOCKME")]),
 		});
-		const client = await createMCPClient({
-			transport: {
-				fetch: hubFetchShim((request) => hub.server("alice").fetch(request)),
-				type: "http",
-				url: "https://hub.test/mcp",
-			},
-		});
+		const client = await surfaceClient(hub);
 
-		const blocked = await client.callTool("askModel", { prompt: "BLOCKME please" });
+		const blocked = await client.callTool("addTodo", { title: "BLOCKME please" });
 		expect(blocked.isError ?? false).toBe(true);
 		expect(resultText(blocked)).toContain("fixture-block");
-		expect(model.requests).toHaveLength(0);
 
-		const allowed = await client.callTool("askModel", { prompt: "a safe prompt" });
+		const allowed = await client.callTool("listTodos", {});
 		expect(allowed.isError ?? false).toBe(false);
-		expect(resultText(allowed)).toContain("hi");
+		expect(resultText(allowed)).toContain("todos");
 
 		await client.close();
 	});
 
-	it("serves askModel results with the governed answer", async () => {
-		const hub = await createHub({
-			audit: auditSink(),
-			model: modelDouble(() => staticReply("the governed answer")),
-			pipeline: pipelineWith([]),
-		});
-		const client = await createMCPClient({
-			transport: {
-				fetch: hubFetchShim((request) => hub.server("alice").fetch(request)),
-				type: "http",
-				url: "https://hub.test/mcp",
-			},
-		});
-
-		const called = await client.callTool("askModel", { prompt: "hello" });
-		const text = resultText(called);
-		expect(text).toContain("the governed answer");
-		const parsed = JSON.parse(text) as AskModelResult;
-		expect(parsed.status).toBe("ok");
-		expect(parsed.verdict).toBe("allow");
-
-		await client.close();
+	it("exposes no model-reaching route outside the hub", async () => {
+		const glob = new Glob("**/*.ts");
+		const offenders: string[] = [];
+		for await (const routeFile of glob.scan({ cwd: "src/routes" })) {
+			const text = await file(`src/routes/${routeFile}`).text();
+			if (MODEL_BYPASS_PATTERN.test(text)) {
+				offenders.push(routeFile);
+			}
+		}
+		expect(offenders).toEqual([]);
 	});
 });

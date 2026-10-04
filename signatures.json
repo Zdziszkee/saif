@@ -1,184 +1,567 @@
 [
 	{
-		"id": "inj-ignore-previous",
-		"name": "Ignore-previous-instructions injection",
-		"description": "Classic prompt-injection payload instructing the model to drop prior instructions",
-		"pattern": "ignore\\s+(?:all\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions|prompts|messages|rules)",
-		"kind": "injection",
-		"severity": "high",
-		"source": "owasp-llm-top10",
-		"references": ["https://owasp.org/www-project-top-10-for-large-language-model-applications/"],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
-	},
-	{
-		"id": "inj-system-marker",
-		"name": "Faked system chat marker",
-		"description": "Faked chat-template system markers used to smuggle instructions",
-		"pattern": "<\\|im_start\\|>\\s*system|<\\|system\\|>|\\[SYSTEM\\]\\s*:",
-		"kind": "injection",
-		"severity": "high",
-		"source": "owasp-llm-top10",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
-	},
-	{
-		"id": "inj-role-hijack",
-		"name": "Role-hijack persona override",
-		"description": "Role-hijack payload re-assigning the assistant an unrestricted persona",
-		"pattern": "(?:you\\s+are\\s+now|act\\s+as\\s+(?:if\\s+you\\s+are|an?\\s+unrestricted))\\s+(?:an?\\s+)?(?:unrestricted|jailbroken|uncensored|developer[- ]mode|evil\\s+assistant)",
-		"kind": "injection",
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Node child-process execution or require marker in tool content",
+		"enabled": true,
+		"id": "code-child-process",
+		"kind": "malicious-code",
+		"name": "Node child-process spawn",
+		"pattern": "child_process\\.(?:exec|execSync|spawn)\\s*\\(|require\\(['\"]child_process['\"]\\)",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
 		"severity": "high",
 		"source": "mitre-atlas",
-		"references": ["https://atlas.mitre.org/"],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
+		"updatedAt": "2026-10-04T00:00:00.000Z"
 	},
 	{
-		"id": "jail-dan",
-		"name": "DAN jailbreak template",
-		"description": "DAN-style jailbreak template ('do anything now')",
-		"pattern": "\\bDAN\\s+mode\\b|do\\s+anything\\s+now",
-		"kind": "jailbreak",
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Dynamic evaluation applied to prompt or request-derived input",
+		"enabled": true,
+		"id": "code-eval-input",
+		"kind": "malicious-code",
+		"name": "Evaluator over attacker input",
+		"pattern": "\\beval\\s*\\([^)]*(?:prompt|user_input|userInput|request\\.form)",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
 		"severity": "high",
 		"source": "mitre-atlas",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
+		"updatedAt": "2026-10-04T00:00:00.000Z"
 	},
 	{
-		"id": "jail-bypass-filters",
-		"name": "Safety-filter bypass request",
-		"description": "Explicit request to bypass safety or content filters",
-		"pattern": "bypass\\s+(?:your|the|all|any)\\s+(?:safety|content|security)\\s+(?:filters?|policies|restrictions|guardrails?)",
-		"kind": "jailbreak",
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Direct OS command execution from hosted code markers",
+		"enabled": true,
+		"id": "code-os-system",
+		"kind": "malicious-code",
+		"name": "OS command execution call",
+		"pattern": "\\bos\\.system\\s*\\(|subprocess\\.(?:run|call|Popen)\\s*\\(",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
 		"severity": "high",
-		"source": "owasp-llm-top10",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
-	},
-	{
-		"id": "jail-disable-safety",
-		"name": "Safety-control disable request",
-		"description": "Explicit request to disable or remove safety controls",
-		"pattern": "(?:disable|turn\\s+off|remove)\\s+(?:your|the|all|any)\\s+(?:safety|content|security)\\s+(?:filters?|policies|checks|guardrails?|restrictions)",
-		"kind": "jailbreak",
-		"severity": "high",
-		"source": "owasp-llm-top10",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
-	},
-	{
-		"id": "exfil-system-prompt",
-		"name": "System-prompt retrieval",
-		"description": "Prompt-injection attempt to make the model reveal its hidden system instructions",
-		"pattern": "(?:reveal|show|print|output|repeat|leak)\\s+(?:me\\s+)?(?:your|the|all)\\s+(?:system|initial|hidden|original)\\s+(?:prompt|instructions?|messages?)",
-		"kind": "injection",
-		"severity": "high",
-		"source": "owasp-llm-top10",
-		"references": ["https://owasp.org/www-project-top-10-for-large-language-model-applications/"],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
-	},
-	{
-		"id": "exfil-secret-file",
-		"name": "Credential-file read request",
-		"description": "Prompt-injection attempt to make the model read credential files or system identity files",
-		"pattern": "(?:cat|read|open|print|type|show)\\s+(?:the\\s+)?(?:\\.env\\b|\\.aws/credentials|id_rsa\\b|/etc/(?:passwd|shadow)|\\.ssh/)",
-		"kind": "injection",
-		"severity": "high",
-		"source": "owasp-llm-top10",
-		"references": ["https://owasp.org/www-project-top-10-for-large-language-model-applications/"],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
-	},
-	{
-		"id": "tool-shell-pipe",
-		"name": "Tool-call shell pipe",
-		"description": "Tool-call argument piping content into a shell interpreter",
-		"pattern": "\"(?:cmd|command|shell|script|args?)\"\\s*:\\s*\"[^\"]*\\|\\s*(?:ba|z)?sh\\b",
-		"kind": "tool-abuse",
-		"severity": "critical",
 		"source": "mitre-atlas",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
+		"updatedAt": "2026-10-04T00:00:00.000Z"
 	},
 	{
-		"id": "tool-delete-recursive",
-		"name": "Tool-call recursive delete",
-		"description": "Tool-call argument invoking recursive forced deletion",
-		"pattern": "\"(?:cmd|command|shell|script)\"\\s*:\\s*\"[^\"]*\\brm\\s+-rf?\\s",
-		"kind": "tool-abuse",
-		"severity": "critical",
-		"source": "mitre-atlas",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
-	},
-	{
-		"id": "tool-download-execute",
-		"name": "Download-and-execute chain",
-		"description": "Download-and-execute chain (curl/wget piped into a shell)",
-		"pattern": "(?:curl|wget)\\s+[^\\s\"']+\\s*\\|\\s*(?:ba|z)?sh\\b",
-		"kind": "tool-abuse",
-		"severity": "critical",
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Java native deserialization markers across common libraries",
+		"enabled": true,
+		"id": "deser-java-native",
+		"kind": "unsafe-deserialization",
+		"name": "Java native deserialization",
+		"pattern": "ObjectInputStream|\\.readObject\\s*\\(\\s*\\)|XStream\\.fromXML\\s*\\(",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "high",
 		"source": "owasp-llm-top10",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
+		"updatedAt": "2026-10-04T00:00:00.000Z"
 	},
 	{
-		"id": "deser-pickle",
-		"name": "Unsafe pickle deserialization",
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Python marshal loads or shelve open markers",
+		"enabled": true,
+		"id": "deser-marshal-shelve",
+		"kind": "unsafe-deserialization",
+		"name": "Marshal or shelve deserialization",
+		"pattern": "marshal\\.loads\\s*\\(|shelve\\.open\\s*\\(",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "PHP object injection entry point and its Node port",
+		"enabled": true,
+		"id": "deser-php-unserialize",
+		"kind": "unsafe-deserialization",
+		"name": "PHP unserialize marker",
+		"pattern": "\\bunserialize\\s*\\(|node-serialize\\.unserialize",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
 		"description": "Unsafe pickle deserialization marker",
+		"enabled": true,
+		"id": "deser-pickle",
+		"kind": "unsafe-deserialization",
+		"name": "Unsafe pickle deserialization",
 		"pattern": "pickle\\.(?:loads?|Unpickler)\\s*\\(|__reduce__",
-		"kind": "unsafe-deserialization",
+		"references": [],
 		"severity": "high",
 		"source": "owasp-llm-top10",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
+		"updatedAt": "2026-10-03T00:00:00.000Z"
 	},
 	{
-		"id": "deser-yaml-unsafe",
-		"name": "Unsafe YAML deserialization",
+		"addedAt": "2026-10-03T00:00:00.000Z",
 		"description": "Unsafe YAML deserialization marker",
-		"pattern": "yaml\\.(?:unsafe_load|full_load)\\s*\\(|yaml\\.load\\s*\\([^)]*Loader\\s*=\\s*(?:yaml\\.)?Loader",
+		"enabled": true,
+		"id": "deser-yaml-unsafe",
 		"kind": "unsafe-deserialization",
+		"name": "Unsafe YAML deserialization",
+		"pattern": "yaml\\.(?:unsafe_load|full_load)\\s*\\(|yaml\\.load\\s*\\([^)]*Loader\\s*=\\s*(?:yaml\\.)?Loader",
+		"references": [],
 		"severity": "high",
 		"source": "owasp-llm-top10",
-		"references": [],
-		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
+		"updatedAt": "2026-10-03T00:00:00.000Z"
 	},
 	{
-		"id": "supply-torch-hub",
-		"name": "torch.hub.load from arbitrary repo",
-		"description": "torch.hub.load from an arbitrary repository (model supply-chain vector)",
-		"pattern": "torch\\.hub\\.load\\s*\\(\\s*['\"][^'\"]+['\"]",
-		"kind": "supply-chain",
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Prompt-injection attempt to make the model read credential files or system identity files",
+		"enabled": true,
+		"id": "exfil-secret-file",
+		"kind": "injection",
+		"name": "Credential-file read request",
+		"pattern": "(?:cat|read|open|print|type|show)\\s+(?:the\\s+)?(?:\\.env\\b|\\.aws/credentials|id_rsa\\b|/etc/(?:passwd|shadow)|\\.ssh/)",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Prompt-injection attempt to make the model reveal its hidden system instructions",
+		"enabled": true,
+		"id": "exfil-system-prompt",
+		"kind": "injection",
+		"name": "System-prompt retrieval",
+		"pattern": "(?:reveal|show|print|output|repeat|leak)\\s+(?:me\\s+)?(?:your|the|all)\\s+(?:system|initial|hidden|original)\\s+(?:prompt|instructions?|messages?)",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Order to disregard the instructions above and act instead",
+		"enabled": true,
+		"id": "inj-above-override",
+		"kind": "injection",
+		"name": "Above-instructions override",
+		"pattern": "ignore\\s+(?:the\\s+)?above\\s+and\\s+do|disregard\\s+(?:all\\s+)?(?:prior|previous)\\s+rules\\s+and",
+		"references": [
+			"https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Directive to decode a base64 payload and then obey it",
+		"enabled": true,
+		"id": "inj-base64-directive",
+		"kind": "injection",
+		"name": "Base64 decode-and-follow",
+		"pattern": "decode\\s+(?:this\\s+)?base64\\s+(?:string\\s+)?and\\s+(?:follow|execute|run)\\s+it",
+		"references": [
+			"https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Closing delimiter smuggling a new privileged turn",
+		"enabled": true,
+		"id": "inj-delimiter-escape",
+		"kind": "injection",
+		"name": "Chat-template delimiter escape",
+		"pattern": "</\\s*(?:system|instructions|prompt)\\s*>|\\[\\s*/\\s*(?:SYSTEM|INSTRUCTIONS)\\s*\\]",
+		"references": [
+			"https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Classic prompt-injection payload instructing the model to drop prior instructions",
+		"enabled": true,
+		"id": "inj-ignore-previous",
+		"kind": "injection",
+		"name": "Ignore-previous-instructions injection",
+		"pattern": "ignore\\s+(?:all\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions|prompts|messages|rules)",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Reframe that swaps a refusal for a replacement task",
+		"enabled": true,
+		"id": "inj-instead-reframe",
+		"kind": "injection",
+		"name": "Refusal reframe",
+		"pattern": "instead\\s+of\\s+(?:answering|refusing)[^\\n]{0,40}?do\\s+the\\s+following",
+		"references": [
+			"https://github.com/tldrsec/prompt-injection-defenses"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Outbound markdown image pointing at an external collector",
+		"enabled": true,
+		"id": "inj-markdown-beacon",
+		"kind": "injection",
+		"name": "Markdown image exfil beacon",
+		"pattern": "![^\\]]*\\]\\(https?://[^)]+\\)",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "medium",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Demand to replay hidden instructions word for word",
+		"enabled": true,
+		"id": "inj-repeat-verbatim",
+		"kind": "injection",
+		"name": "Verbatim replay demand",
+		"pattern": "repeat\\s+(?:everything|all)\\s+(?:above|you\\s+were\\s+told)\\s+verbatim",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Role-hijack payload re-assigning the assistant an unrestricted persona",
+		"enabled": true,
+		"id": "inj-role-hijack",
+		"kind": "injection",
+		"name": "Role-hijack persona override",
+		"pattern": "(?:you\\s+are\\s+now|act\\s+as\\s+(?:if\\s+you\\s+are|an?\\s+unrestricted))\\s+(?:an?\\s+)?(?:unrestricted|jailbroken|uncensored|developer[- ]mode|evil\\s+assistant)",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
 		"severity": "high",
 		"source": "mitre-atlas",
-		"references": [],
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Demand to print back key material held by the model",
+		"enabled": true,
+		"id": "inj-secret-echo",
+		"kind": "injection",
+		"name": "Secret echo demand",
+		"pattern": "(?:print|output|echo)\\s+(?:your|the)\\s+(?:api\\s+key|secret\\s+key|access\\s+token)",
+		"references": [
+			"https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
 		"addedAt": "2026-10-03T00:00:00.000Z",
-		"updatedAt": "2026-10-03T00:00:00.000Z",
-		"enabled": true
+		"description": "Faked chat-template system markers used to smuggle instructions",
+		"enabled": true,
+		"id": "inj-system-marker",
+		"kind": "injection",
+		"name": "Faked system chat marker",
+		"pattern": "<\\|im_start\\|>\\s*system|<\\|system\\|>|\\[SYSTEM\\]\\s*:",
+		"references": [],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Obfuscation that asks for translation and then obedience",
+		"enabled": true,
+		"id": "inj-translate-follow",
+		"kind": "injection",
+		"name": "Translate-and-follow",
+		"pattern": "translate\\s+(?:the\\s+following|these)\\s+instructions\\s+and\\s+follow",
+		"references": [
+			"https://github.com/tldrsec/prompt-injection-defenses"
+		],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Explicit request to bypass safety or content filters",
+		"enabled": true,
+		"id": "jail-bypass-filters",
+		"kind": "jailbreak",
+		"name": "Safety-filter bypass request",
+		"pattern": "bypass\\s+(?:your|the|all|any)\\s+(?:safety|content|security)\\s+(?:filters?|policies|restrictions|guardrails?)",
+		"references": [],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "DAN-style jailbreak template ('do anything now')",
+		"enabled": true,
+		"id": "jail-dan",
+		"kind": "jailbreak",
+		"name": "DAN jailbreak template",
+		"pattern": "\\bDAN\\s+mode\\b|do\\s+anything\\s+now",
+		"references": [],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Versioned DAN/STAN/AIM developer-mode jailbreak invocation",
+		"enabled": true,
+		"id": "jail-developer-mode",
+		"kind": "jailbreak",
+		"name": "Developer-mode jailbreak",
+		"pattern": "\\bdeveloper\\s+mode\\b|\\bDAN\\s+\\d+\\.\\d+\\b|\\bSTAN\\s+mode\\b",
+		"references": [
+			"https://github.com/JailbreakBench/jailbreakbench"
+		],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Explicit request to disable or remove safety controls",
+		"enabled": true,
+		"id": "jail-disable-safety",
+		"kind": "jailbreak",
+		"name": "Safety-control disable request",
+		"pattern": "(?:disable|turn\\s+off|remove)\\s+(?:your|the|all|any)\\s+(?:safety|content|security)\\s+(?:filters?|policies|checks|guardrails?|restrictions)",
+		"references": [],
+		"severity": "high",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Order to drop morals, ethics, or guidelines before complying",
+		"enabled": true,
+		"id": "jail-drop-morals",
+		"kind": "jailbreak",
+		"name": "Morals-drop jailbreak",
+		"pattern": "forget\\s+(?:your|all)\\s+(?:morals|ethics|guidelines)|you\\s+have\\s+no\\s+(?:morals|ethics|restrictions)\\s+(?:now|anymore)",
+		"references": [
+			"https://github.com/JailbreakBench/jailbreakbench"
+		],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Game-framed role-play that assigns an evil or unrestricted part",
+		"enabled": true,
+		"id": "jail-roleplay-game",
+		"kind": "jailbreak",
+		"name": "Role-play game envelope",
+		"pattern": "let'?s\\s+play\\s+a\\s+game\\s+where\\s+you\\s+are\\s+(?:an?\\s+)?(?:evil|unrestricted|jailbroken)",
+		"references": [
+			"https://github.com/JailbreakBench/jailbreakbench"
+		],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Demand to respond as an uncensored persona without restrictions",
+		"enabled": true,
+		"id": "jail-uncensored-persona",
+		"kind": "jailbreak",
+		"name": "Uncensored persona demand",
+		"pattern": "act\\s+as\\s+(?:an?\\s+)?uncensored|respond\\s+without\\s+(?:any\\s+)?(?:restrictions|filters|censorship)",
+		"references": [
+			"https://github.com/JailbreakBench/jailbreakbench"
+		],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Install lifecycle script pulling a remote payload",
+		"enabled": true,
+		"id": "supply-npm-lifecycle",
+		"kind": "supply-chain",
+		"name": "NPM lifecycle fetch hook",
+		"pattern": "\"(?:postinstall|preinstall|install)\"\\s*:\\s*\"[^\"]*(?:curl|wget)\\b",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Package install pointed at an untrusted index host",
+		"enabled": true,
+		"id": "supply-pip-untrusted",
+		"kind": "supply-chain",
+		"name": "Pip untrusted index install",
+		"pattern": "pip\\s+install\\s+[^\\n]{0,60}?--(?:extra-index-url|trusted-host)\\s+\\S+",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Setup script shelling out during install",
+		"enabled": true,
+		"id": "supply-setup-hook",
+		"kind": "supply-chain",
+		"name": "Setup script command hook",
+		"pattern": "setup\\.py[^\\n]{0,120}?(?:os\\.system|subprocess)",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "torch.hub.load from an arbitrary repository (model supply-chain vector)",
+		"enabled": true,
+		"id": "supply-torch-hub",
+		"kind": "supply-chain",
+		"name": "torch.hub.load from arbitrary repo",
+		"pattern": "torch\\.hub\\.load\\s*\\(\\s*['\"][^'\"]+['\"]",
+		"references": [],
+		"severity": "high",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Windows certutil download primitive in tool content",
+		"enabled": true,
+		"id": "tool-certutil-fetch",
+		"kind": "tool-abuse",
+		"name": "Certutil fetch LOLBIN",
+		"pattern": "\\bcertutil\\b[^\\n]{0,80}?\\b(?:-urlcache|-split)\\b",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
+		"severity": "critical",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Permission flip staging a payload for execution",
+		"enabled": true,
+		"id": "tool-chmod-exec",
+		"kind": "tool-abuse",
+		"name": "Chmod executable flip",
+		"pattern": "\\bchmod\\s+\\+x\\s+\\S+",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
+		"severity": "critical",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Tool-call argument invoking recursive forced deletion",
+		"enabled": true,
+		"id": "tool-delete-recursive",
+		"kind": "tool-abuse",
+		"name": "Tool-call recursive delete",
+		"pattern": "\"(?:cmd|command|shell|script)\"\\s*:\\s*\"[^\"]*\\brm\\s+-rf?\\s",
+		"references": [],
+		"severity": "critical",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Download-and-execute chain (curl/wget piped into a shell)",
+		"enabled": true,
+		"id": "tool-download-execute",
+		"kind": "tool-abuse",
+		"name": "Download-and-execute chain",
+		"pattern": "(?:curl|wget)\\s+[^\\s\"']+\\s*\\|\\s*(?:ba|z)?sh\\b",
+		"references": [],
+		"severity": "critical",
+		"source": "owasp-llm-top10",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "PowerShell with encoded command or hidden window in tool content",
+		"enabled": true,
+		"id": "tool-powershell-encoded",
+		"kind": "tool-abuse",
+		"name": "Encoded PowerShell invocation",
+		"pattern": "powershell(?:\\.exe)?\\s+(?:-e(?:nc(?:odedCommand)?)?\\s+\\S+|-w\\s+hidden)",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
+		"severity": "critical",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-04T00:00:00.000Z",
+		"description": "Tool-call argument running inline Python in a shell",
+		"enabled": true,
+		"id": "tool-python-inline",
+		"kind": "tool-abuse",
+		"name": "Tool-call inline Python",
+		"pattern": "\"(?:cmd|command|shell|script)\"\\s*:\\s*\"[^\"]*\\bpython\\s+-c\\b",
+		"references": [
+			"https://atlas.mitre.org/"
+		],
+		"severity": "critical",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-04T00:00:00.000Z"
+	},
+	{
+		"addedAt": "2026-10-03T00:00:00.000Z",
+		"description": "Tool-call argument piping content into a shell interpreter",
+		"enabled": true,
+		"id": "tool-shell-pipe",
+		"kind": "tool-abuse",
+		"name": "Tool-call shell pipe",
+		"pattern": "\"(?:cmd|command|shell|script|args?)\"\\s*:\\s*\"[^\"]*\\|\\s*(?:ba|z)?sh\\b",
+		"references": [],
+		"severity": "critical",
+		"source": "mitre-atlas",
+		"updatedAt": "2026-10-03T00:00:00.000Z"
 	}
 ]

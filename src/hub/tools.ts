@@ -3,9 +3,9 @@
  *
  * The catalog includes ordinary tools (todo management) and demonstration
  * risky tools (`fetchUrl`, `deleteAllTodos`) so governance of network and
- * destructive calls is visible. `askModel` is the only model-reaching tool
- * and is assembled by the hub. The catalog is the single source for both the
- * MCP surface and the governed agentic loop, so the two cannot drift.
+ * destructive calls is visible. The catalog is tools-only (design D10): it is
+ * the single source for the MCP surface and for direct governed invocation,
+ * and it never contains a model-reaching tool.
  */
 
 import { z } from "zod";
@@ -13,24 +13,6 @@ import { addTodo, clearTodos, getTodos } from "#/mcp-todos.ts";
 import type { ToolImplementation } from "./catalog.ts";
 
 const FETCH_BODY_LIMIT_CHARS = 20_000;
-
-export const askModelInputSchema = z.object({ prompt: z.string().min(1) });
-
-export const askModelOutputSchema = z.object({
-	answer: z.string(),
-	control: z.string(),
-	status: z.enum(["blocked", "escalated", "failed", "ok", "over-budget"]),
-	verdict: z.enum(["allow", "redact", "block", "escalate"]),
-});
-
-export type AskModelResult = z.infer<typeof askModelOutputSchema>;
-
-export const askModelName = "askModel";
-
-export const askModelDescription =
-	"Send a prompt to the governed model connection and return its answer. " +
-	"The only path from clients to the model: the prompt and the answer are " +
-	"inspected by the control pipeline before forwarding.";
 
 export interface BuiltinToolSpec {
 	description: string;

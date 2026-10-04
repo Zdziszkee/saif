@@ -4,14 +4,7 @@ import { createToolCatalog } from "#/hub/catalog.ts";
 import { createHubConfig } from "#/hub/config.ts";
 import { createHub } from "#/hub/mcp-server.ts";
 import { createExternalServer } from "./helpers/external-server.ts";
-import {
-	auditSink,
-	blockOn,
-	modelDouble,
-	pipelineWith,
-	redactOn,
-	staticReply,
-} from "./helpers/fixtures.ts";
+import { auditSink, blockOn, pipelineWith, redactOn } from "./helpers/fixtures.ts";
 
 async function connectedHub(controls: readonly Control[]) {
 	const external = createExternalServer();
@@ -20,7 +13,6 @@ async function connectedHub(controls: readonly Control[]) {
 		audit,
 		config: createHubConfig({ egressAllowlist: ["https://ext.test"] }),
 		fetch: external.fetch,
-		model: modelDouble(() => staticReply("unused")),
 		pipeline: pipelineWith(controls),
 	});
 	const outcome = await hub.addConnection({

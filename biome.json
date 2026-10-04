@@ -153,6 +153,16 @@
 			}
 		},
 		{
+			"includes": ["**/scripts/build-signature-feed.ts", "**/tests/signature-feed-import.test.ts"],
+			"linter": {
+				"rules": {
+					"style": {
+						"useNamingConvention": "off"
+					}
+				}
+			}
+		},
+		{
 			"includes": ["**/vite.config.ts", "**/vitest.config.ts", "**/drizzle.config.ts"],
 			"linter": {
 				"rules": {
