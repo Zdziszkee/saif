@@ -278,7 +278,7 @@ describe("dashboard rendering against live data", () => {
 		for (const heading of [
 			"Security posture",
 			"Threat breakdown",
-			"Budget usage",
+			"Cost and tokens",
 			"Latency",
 			"Controls in force",
 			"Strictness profiles",

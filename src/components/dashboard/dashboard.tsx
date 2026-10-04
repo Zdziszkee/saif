@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { CostPlot } from "#/components/dashboard/cost-plot.tsx";
 import {
-	BudgetSection,
 	LatencySection,
 	PostureSection,
 	ThreatsSection,
@@ -16,6 +16,7 @@ import {
 	useConsumerScope,
 	useRoleScope,
 } from "#/components/dashboard/scope.ts";
+import { UserTokenUsageCard } from "#/components/dashboard/user-token-usage.tsx";
 import { ThemeSwitcher } from "#/components/theme-switcher.tsx";
 import { TierStatusBanner } from "#/components/tier-status.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
@@ -29,10 +30,14 @@ import {
 import { Separator } from "#/components/ui/separator.tsx";
 import { selectMetrics } from "#/dashboard/data.ts";
 import { formatTimestamp } from "#/dashboard/format.ts";
+import type { UserTokenUsage } from "#/dashboard/types.ts";
 import {
 	ALL_CONSUMERS,
 	type ConsumerMetrics,
 	type ControlSummary,
+	type CostSeriesPoint,
+	type CostTotals,
+	type CostUserSeries,
 	type DashboardData,
 	type ProfileSummary,
 } from "#/dashboard/types.ts";
@@ -247,13 +252,21 @@ function usePeopleScope(
  * budget (multi-line JSX prop lines count toward it).
  */
 function OverviewSections({
+	byUser,
 	controls,
+	costSeries,
+	costTotals,
 	metrics,
 	profiles,
+	usage,
 }: {
+	byUser: Readonly<Record<string, CostUserSeries>>;
 	controls: readonly ControlSummary[];
+	costSeries: readonly CostSeriesPoint[];
+	costTotals: CostTotals;
 	metrics: ConsumerMetrics;
 	profiles: readonly ProfileSummary[];
+	usage: UserTokenUsage[];
 }) {
 	return (
 		<>
@@ -276,11 +289,8 @@ function OverviewSections({
 			<Separator />
 
 			<div className="flex flex-col gap-3">
-				<SectionTitle
-					description="Resource and cost consumption over time against configured budget limits."
-					title="Budget usage"
-				/>
-				<BudgetSection metrics={metrics} />
+				<CostPlot byUser={byUser} series={costSeries} totals={costTotals} />
+				<UserTokenUsageCard usage={usage} />
 			</div>
 			<Separator />
 
@@ -433,6 +443,7 @@ export function Dashboard({
 	}, [onRefresh]);
 
 	const metrics = useMemo(() => selectMetrics(data, consumer), [data, consumer]);
+	const usage = data.userTokenUsage;
 
 	return (
 		<main className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6">
@@ -451,9 +462,13 @@ export function Dashboard({
 			</p>
 
 			<OverviewSections
+				byUser={data.costSeriesByUser}
 				controls={data.policy.controls}
+				costSeries={data.costSeries}
+				costTotals={data.costTotals}
 				metrics={metrics}
 				profiles={data.policy.profiles}
+				usage={usage}
 			/>
 
 			<FullVariantSections

@@ -684,6 +684,7 @@ describe("buildDashboardData with seeded decisions", () => {
 				seam: "mcp-tool",
 				subject: "manager",
 				timestamp: "2026-10-04T13:30:00.000Z",
+				userId: "bob",
 			},
 			{
 				consumerKey: "hr",
@@ -693,6 +694,7 @@ describe("buildDashboardData with seeded decisions", () => {
 				seam: "chat",
 				subject: "hr",
 				timestamp: "2026-10-04T12:00:00.000Z",
+				userId: "alice",
 			},
 		]);
 	});

@@ -6,11 +6,16 @@
  * returned. Blocked calls do not execute and are audited.
  *
  * Confirmation protocol (per-tool `requireConfirm` in `policy.mcp.json`):
- * the first call returns `confirmation-required` with an opaque token and
- * executes nothing; the caller repeats the call with `{ ..., "confirm": token }`
- * to execute the originally proposed arguments. Tokens are single-use,
- * group-bound, and expire after five minutes. The stored arguments run — not
- * the confirming call's — so approval cannot be re-targeted at new arguments.
+ * over MCP the handler first asks the human through elicitation
+ * (`elicitation/create`, rendered by the harness as an approve/decline
+ * prompt): accept executes the stored call once, decline/cancel/timeout
+ * denies and audits. Clients that cannot elicit keep the legacy token
+ * path: the first call returns `confirmation-required` with an opaque token
+ * and executes nothing; the caller repeats the call with
+ * `{ ..., "confirm": token }` to execute the originally proposed arguments.
+ * Tokens are single-use, group-bound, and expire after five minutes. The
+ * stored arguments run — not the confirming call's — so approval cannot be
+ * retargeted at new arguments.
  */
 
 import { type AuditSink, auditEvent, noopAuditSink } from "#/control/audit.ts";

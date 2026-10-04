@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { auditEvent } from "#/control/audit.ts";
 import { FilePolicySource, PolicyLoader, type PolicySnapshot } from "#/control/policy/loader.ts";
 import { SEMANTIC_DEFAULTS } from "#/control/semantic/index.ts";
 import { db } from "#/db/index.ts";
@@ -12,8 +13,8 @@ import {
 	runGatewayTurn,
 } from "#/gateway/lifecycle.ts";
 import { createPricingCache, type PriceTable, priceFor } from "#/gateway/pricing.ts";
-import type { GatewayStore } from "#/gateway/store.ts";
-import { getHub } from "#/hub/runtime.ts";
+import type { GatewayAuditRow, GatewayStore } from "#/gateway/store.ts";
+import { getAuditSink, getHub } from "#/hub/runtime.ts";
 import { describeError } from "#/lib/errors.ts";
 
 /**
@@ -113,6 +114,20 @@ async function handle(request: Request): Promise<Response> {
 	}
 	return runGatewayTurn({
 		identity: hub.identity,
+		onAudit: (row: GatewayAuditRow) => {
+			getAuditSink().record(
+				auditEvent("interaction", {
+					...(row.controlId === null ? {} : { controlId: row.controlId }),
+					...(row.model === null ? {} : { model: row.model }),
+					...(row.userId === null ? {} : { userId: row.userId }),
+					detail: row.detail ?? row.cause ?? undefined,
+					direction: "inbound",
+					groupId: row.groupId,
+					seam: "llm-gateway",
+					verdict: row.verdict,
+				}),
+			);
+		},
 		pipeline: hub.pipeline,
 		policy: { budget: snapshot.policy.controls.budget, policyVersion: snapshot.policyVersion },
 		priceFor: currentPriceFor(),

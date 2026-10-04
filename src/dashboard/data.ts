@@ -30,10 +30,14 @@ import {
 	type BudgetRuleView,
 	type BudgetSeriesPoint,
 	type ConsumerMetrics,
+	type CostSeriesPoint,
+	type CostTotals,
+	type CostUserSeries,
 	type DashboardData,
 	type EscalationRow,
 	type LatencyPercentiles,
 	type ThreatBreakdownRow,
+	type UserTokenUsage,
 } from "#/dashboard/types.ts";
 
 const VERDICTS: readonly Verdict[] = ["allow", "redact", "block", "escalate"];
@@ -422,6 +426,7 @@ function escalationFromDecision(consumerKey: string, event: AuditEvent): Escalat
 		seam: event.seam ?? DEFAULT_ESCALATION_SEAM,
 		subject: event.groupId ?? consumerKey,
 		timestamp: event.timestamp,
+		userId: event.userId ?? null,
 	};
 }
 
@@ -475,6 +480,246 @@ export function aggregateMetrics(parts: readonly ConsumerMetrics[]): ConsumerMet
 	};
 }
 
+/** One gateway usage row projected by the caller (see `GatewayUsageRow` in
+ * `#/gateway/store.ts`). Unknowns because callers project store rows;
+ * coerced defensively in `summarizeUserTokenUsage`. */
+export interface TokenUsageRow {
+	completionTokens: unknown;
+	costUsd: unknown;
+	model: unknown;
+	promptTokens: unknown;
+	/** Present on rows projected for cost aggregation; absent on older callers. */
+	ts?: unknown;
+	userId: unknown;
+}
+
+function asTokenCount(value: unknown): number {
+	const amount = asFiniteNumber(value);
+	return amount !== undefined && Number.isInteger(amount) ? amount : 0;
+}
+
+function asUsageName(value: unknown): string | undefined {
+	if (typeof value !== "string") {
+		return;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+interface UserTokenAccumulator {
+	completionTokens: number;
+	costUsd: number;
+	hasPriced: boolean;
+	models: Set<string>;
+	promptTokens: number;
+	requests: number;
+}
+
+function accumulatorFor(
+	byUser: Map<string, UserTokenAccumulator>,
+	userId: string,
+): UserTokenAccumulator {
+	const existing = byUser.get(userId);
+	if (existing !== undefined) {
+		return existing;
+	}
+	const fresh: UserTokenAccumulator = {
+		completionTokens: 0,
+		costUsd: 0,
+		hasPriced: false,
+		models: new Set<string>(),
+		promptTokens: 0,
+		requests: 0,
+	};
+	byUser.set(userId, fresh);
+	return fresh;
+}
+
+/**
+ * Roll gateway usage rows up per user: token counts (non-finite or
+ * non-integer counts coerce to 0), request counts, sorted unique models
+ * (blank models omitted but still counted), and cost (`null` when every row
+ * for the user is unpriced, summed otherwise). Sorted desc by totalTokens.
+ */
+export function summarizeUserTokenUsage(rows: readonly TokenUsageRow[]): UserTokenUsage[] {
+	const byUser = new Map<string, UserTokenAccumulator>();
+	for (const row of rows) {
+		const userId = asUsageName(row.userId);
+		if (userId === undefined) {
+			continue;
+		}
+		const acc = accumulatorFor(byUser, userId);
+		acc.requests += 1;
+		acc.promptTokens += asTokenCount(row.promptTokens);
+		acc.completionTokens += asTokenCount(row.completionTokens);
+		const cost = asFiniteNumber(row.costUsd);
+		if (cost !== undefined) {
+			acc.hasPriced = true;
+			acc.costUsd += cost;
+		}
+		const model = asUsageName(row.model);
+		if (model !== undefined) {
+			acc.models.add(model);
+		}
+	}
+	const summaries: UserTokenUsage[] = [];
+	for (const [userId, acc] of byUser) {
+		summaries.push({
+			completionTokens: acc.completionTokens,
+			costUsd: acc.hasPriced ? acc.costUsd : null,
+			models: [...acc.models].sort((left, right) => left.localeCompare(right)),
+			promptTokens: acc.promptTokens,
+			requests: acc.requests,
+			totalTokens: acc.promptTokens + acc.completionTokens,
+			userId,
+		});
+	}
+	return summaries.sort((left, right) => right.totalTokens - left.totalTokens);
+}
+
+/** One gateway usage row projected for cost aggregation. Unknowns because
+ * callers project store rows; coerced defensively in `summarizeCostSeries`. */
+export interface CostGatewayRow {
+	completionTokens: unknown;
+	costUsd: unknown;
+	promptTokens: unknown;
+	ts: unknown;
+	userId: unknown;
+}
+
+/** One MCP tool-call row projected for cost aggregation. MCP tokens are a
+ * chars/4 estimate and never contribute cost. */
+export interface CostMcpRow {
+	estimatedTokens: unknown;
+	ts: unknown;
+	userId: unknown;
+}
+
+const MS_PER_SECOND = 1000;
+/** Below this magnitude a numeric ts is unix seconds, otherwise millis. */
+const SECONDS_MS_CUTOFF = 100_000_000_000;
+const ISO_DATE_LENGTH = 10;
+
+/** Millis for a cost-row ts (Date, unix seconds/millis, or ISO string);
+ * undefined when the row carries no parseable timestamp. */
+function costRowTimeMs(value: unknown): number | undefined {
+	let time: number | undefined;
+	if (value instanceof Date) {
+		const got = value.getTime();
+		time = Number.isFinite(got) ? got : undefined;
+	} else if (typeof value === "number" && Number.isFinite(value)) {
+		time = value < SECONDS_MS_CUTOFF ? value * MS_PER_SECOND : value;
+	} else if (typeof value === "string") {
+		const parsed = Date.parse(value);
+		time = Number.isNaN(parsed) ? undefined : parsed;
+	}
+	return time;
+}
+
+function costPointFor(byDay: Map<string, CostSeriesPoint>, date: string): CostSeriesPoint {
+	const existing = byDay.get(date);
+	if (existing !== undefined) {
+		return existing;
+	}
+	const fresh: CostSeriesPoint = { costUsd: 0, date, gatewayTokens: 0, mcpTokens: 0 };
+	byDay.set(date, fresh);
+	return fresh;
+}
+
+/**
+ * Bucket gateway + MCP rows per UTC day (`YYYY-MM-DD`), ascending, one point
+ * per day with any activity. Gateway tokens are prompt+completion (non-finite
+ * coerces to 0); cost sums only finite gateway `costUsd` — MCP never
+ * contributes cost. Rows with an unparseable ts are skipped entirely (neither
+ * series nor totals). Priced/unpriced call counts cover gateway rows with a
+ * parseable ts only; `totals.costUsd` is null when no call was priced.
+ */
+export function summarizeCostSeries(
+	gateway: readonly CostGatewayRow[],
+	mcp: readonly CostMcpRow[],
+): { series: CostSeriesPoint[]; totals: CostTotals } {
+	const byDay = new Map<string, CostSeriesPoint>();
+	let gatewayTokens = 0;
+	let mcpTokens = 0;
+	let costUsd = 0;
+	let pricedCalls = 0;
+	let unpricedCalls = 0;
+	for (const row of gateway) {
+		const time = costRowTimeMs(row.ts);
+		if (time === undefined) {
+			continue;
+		}
+		const date = new Date(time).toISOString().slice(0, ISO_DATE_LENGTH);
+		const tokens =
+			(asFiniteNumber(row.promptTokens) ?? 0) + (asFiniteNumber(row.completionTokens) ?? 0);
+		gatewayTokens += tokens;
+		const cost = asFiniteNumber(row.costUsd);
+		if (cost === undefined) {
+			unpricedCalls += 1;
+		} else {
+			pricedCalls += 1;
+			costUsd += cost;
+		}
+		const point = costPointFor(byDay, date);
+		point.gatewayTokens += tokens;
+		point.costUsd += cost ?? 0;
+	}
+	for (const row of mcp) {
+		const time = costRowTimeMs(row.ts);
+		if (time === undefined) {
+			continue;
+		}
+		const tokens = asFiniteNumber(row.estimatedTokens) ?? 0;
+		mcpTokens += tokens;
+		costPointFor(byDay, new Date(time).toISOString().slice(0, ISO_DATE_LENGTH)).mcpTokens += tokens;
+	}
+	const series = [...byDay.values()].sort((left, right) => left.date.localeCompare(right.date));
+	return {
+		series,
+		totals: {
+			costUsd: pricedCalls > 0 ? costUsd : null,
+			gatewayTokens,
+			mcpTokens,
+			pricedCalls,
+			totalTokens: gatewayTokens + mcpTokens,
+			unpricedCalls,
+		},
+	};
+}
+
+/**
+ * Per-user cost/token series: the same day buckets and totals as
+ * `summarizeCostSeries`, computed independently per user id. Users are the
+ * sorted union of gateway and MCP attribution; blank user ids are skipped
+ * on both sides. Powers the plot's user filter inbox.
+ */
+export function summarizeCostSeriesByUser(
+	gateway: readonly CostGatewayRow[],
+	mcp: readonly CostMcpRow[],
+): Record<string, CostUserSeries> {
+	const users = new Set<string>();
+	for (const row of gateway) {
+		const userId = asUsageName(row.userId);
+		if (userId !== undefined) {
+			users.add(userId);
+		}
+	}
+	for (const row of mcp) {
+		const userId = asUsageName(row.userId);
+		if (userId !== undefined) {
+			users.add(userId);
+		}
+	}
+	const byUser: Record<string, CostUserSeries> = {};
+	for (const userId of [...users].sort()) {
+		byUser[userId] = summarizeCostSeries(
+			gateway.filter((row) => asUsageName(row.userId) === userId),
+			mcp.filter((row) => asUsageName(row.userId) === userId),
+		);
+	}
+	return byUser;
+}
+
 /**
  * Caller-supplied version stamps for the dashboard payload. Both default to
  * `"unavailable"` when omitted, matching the empty feed/semantic store state.
@@ -495,11 +740,14 @@ export interface VersionStamps {
  * versions. Consumers without decisions report zeros and empty rows so the
  * dashboard renders the "no activity" states.
  */
+// biome-ignore lint/complexity/useMaxParams: contract keeps existing 5 params for backward compat plus optional 6th mcpRows
 export function buildDashboardData(
 	snapshot: PolicySnapshot,
 	generatedAt: string,
 	auditEvents: readonly AuditEvent[] = [],
 	versions: VersionStamps = {},
+	usageRows: readonly TokenUsageRow[] = [],
+	mcpRows: readonly CostMcpRow[] = [],
 ): DashboardData {
 	const feedVersion = versions.feedVersion ?? "unavailable";
 	const semanticVersion = versions.semanticVersion ?? "unavailable";
@@ -532,10 +780,21 @@ export function buildDashboardData(
 		.filter((part): part is ConsumerMetrics => part !== undefined);
 	const pooled = aggregateMetrics(parts);
 	const escalations = escalationsFromAudit(decisions).sort(newestFirst);
+	const gatewayCostRows: CostGatewayRow[] = usageRows.map((row) => ({
+		completionTokens: row.completionTokens,
+		costUsd: row.costUsd,
+		promptTokens: row.promptTokens,
+		ts: row.ts,
+		userId: row.userId,
+	}));
+	const { series: costSeries, totals: costTotals } = summarizeCostSeries(gatewayCostRows, mcpRows);
 	return {
 		aggregate: { ...pooled, latency: percentiles(allLatency) },
 		byConsumer,
 		consumerKeys,
+		costSeries,
+		costSeriesByUser: summarizeCostSeriesByUser(gatewayCostRows, mcpRows),
+		costTotals,
 		escalations,
 		feedVersion: policyView.feedVersion,
 		generatedAt,
@@ -543,6 +802,7 @@ export function buildDashboardData(
 		policy: policyView.policy,
 		policyVersion: policyView.policyVersion,
 		semanticVersion: policyView.semanticVersion,
+		userTokenUsage: summarizeUserTokenUsage(usageRows),
 	};
 }
 

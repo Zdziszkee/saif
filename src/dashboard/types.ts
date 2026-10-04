@@ -66,6 +66,41 @@ export interface ConsumerMetrics {
 	verdicts: Record<Verdict, number>;
 }
 
+/** Per-user token spend rolled up from gateway usage rows. */
+export interface UserTokenUsage {
+	completionTokens: number;
+	costUsd: number | null;
+	models: string[];
+	promptTokens: number;
+	requests: number;
+	totalTokens: number;
+	userId: string;
+}
+
+/** One UTC-day bucket of metered spend: gateway tokens/cost + MCP estimate. */
+export interface CostSeriesPoint {
+	costUsd: number;
+	date: string;
+	gatewayTokens: number;
+	mcpTokens: number;
+}
+
+/** Rolled-up metered spend. `costUsd` is null when no call was priced. */
+export interface CostTotals {
+	costUsd: number | null;
+	gatewayTokens: number;
+	mcpTokens: number;
+	pricedCalls: number;
+	totalTokens: number;
+	unpricedCalls: number;
+}
+
+/** One user's day buckets plus rolled-up totals; drives the plot filter. */
+export interface CostUserSeries {
+	series: CostSeriesPoint[];
+	totals: CostTotals;
+}
+
 export interface EscalationRow {
 	consumerKey: string;
 	direction: Direction;
@@ -74,6 +109,8 @@ export interface EscalationRow {
 	seam: string;
 	subject: string;
 	timestamp: string;
+	/** Individual caller from `x-user-id`; null at group-scoped surfaces. */
+	userId: string | null;
 }
 
 export interface ControlSummary {
@@ -101,6 +138,9 @@ export interface DashboardData {
 	aggregate: ConsumerMetrics;
 	byConsumer: Readonly<Record<string, ConsumerMetrics>>;
 	consumerKeys: readonly string[];
+	costSeries: CostSeriesPoint[];
+	costSeriesByUser: Record<string, CostUserSeries>;
+	costTotals: CostTotals;
 	escalations: readonly EscalationRow[];
 	feedVersion: string;
 	generatedAt: string;
@@ -108,6 +148,7 @@ export interface DashboardData {
 	policy: PolicyView;
 	policyVersion: string;
 	semanticVersion: string;
+	userTokenUsage: UserTokenUsage[];
 }
 
 export const ALL_CONSUMERS = "all";
