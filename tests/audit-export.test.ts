@@ -1,14 +1,19 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
 	auditEvent,
 	auditEventsToCsv,
 	auditEventsToJsonl,
+	combineAuditSinks,
 	filterAuditEvents,
 	isAuditDecision,
 	readAuditEvents,
 	summarizeAuditDecisions,
 } from "#/control/audit.ts";
+import { createFileAuditSink } from "#/control/audit-file.ts";
 import { handleGuardRequest } from "#/control/guard-api.ts";
 import { createToolCatalog } from "#/hub/catalog.ts";
 
@@ -112,5 +117,38 @@ describe("audit decisions", () => {
 		expect(summary.byVerdict).toEqual([["block", 1]]);
 		expect(summary.byControl).toEqual([["fixture-block", 1]]);
 		expect(summary.recent).toHaveLength(1);
+	});
+});
+
+describe("file audit sink", () => {
+	it("appends one parseable JSONL line per event", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "saif-audit-"));
+		const path = join(dir, "audit.jsonl");
+		try {
+			const sink = createFileAuditSink(path);
+			sink.record(auditEvent("interaction", { subject: "alice", verdict: "allow" }));
+			sink.record(auditEvent("interaction", { subject: "bob", verdict: "block" }));
+			const lines = (await readFile(path, "utf8")).trim().split("\n");
+			expect(lines).toHaveLength(2);
+			expect((JSON.parse(lines[0] ?? "") as { subject?: string }).subject).toBe("alice");
+			expect((JSON.parse(lines[1] ?? "") as { verdict?: string }).verdict).toBe("block");
+		} finally {
+			await rm(dir, { force: true, recursive: true });
+		}
+	});
+
+	it("fans out to every combined sink", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "saif-audit-"));
+		const path = join(dir, "audit.jsonl");
+		try {
+			const memory = auditSink();
+			const combined = combineAuditSinks(memory, createFileAuditSink(path));
+			combined.record(auditEvent("interaction", { subject: "alice", verdict: "allow" }));
+			expect(memory.events).toHaveLength(1);
+			const lines = (await readFile(path, "utf8")).trim().split("\n");
+			expect(lines).toHaveLength(1);
+		} finally {
+			await rm(dir, { force: true, recursive: true });
+		}
 	});
 });

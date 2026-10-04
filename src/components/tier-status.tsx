@@ -1,58 +1,24 @@
-import { useEffect, useState } from "react";
-
 import { Badge } from "#/components/ui/badge.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "#/components/ui/card.tsx";
 
-interface TierStatus {
+export interface TierStatus {
 	feed: { ok: boolean; version: string };
 	policy: { profile: string; version: string };
-	semantic: { enabled: boolean; reason?: string };
-}
-
-function isTierStatus(value: unknown): value is TierStatus {
-	if (typeof value !== "object" || value === null) {
-		return false;
-	}
-	const record = value as { semantic?: unknown };
-	if (typeof record.semantic !== "object" || record.semantic === null) {
-		return false;
-	}
-	const semantic = record.semantic as { enabled?: unknown };
-	return typeof semantic.enabled === "boolean";
+	semantic: { enabled: boolean; reason?: string | undefined };
 }
 
 /**
  * Red banner shown when the JEV semantic tier is off (usually: no
- * TYPESAFE_API_KEY). Renders nothing while loading or when every tier is
- * live, so it never blocks the page it sits on.
+ * TYPESAFE_API_KEY). Purely presentational — pages feed it loader data so
+ * the indicator is in the server-rendered HTML, never dependent on a
+ * client-side fetch succeeding. Renders nothing when every tier is live.
  */
-export function TierStatusBanner() {
-	const [status, setStatus] = useState<TierStatus | null>(null);
-
-	useEffect(() => {
-		let cancelled = false;
-		fetch("/api/status")
-			.then((response) =>
-				response.ok
-					? (response.json() as Promise<unknown>)
-					: Promise.reject(new Error("status failed")),
-			)
-			.then((body) => {
-				if (!cancelled && isTierStatus(body)) {
-					setStatus(body);
-				}
-			})
-			.catch(() => undefined);
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
+export function TierStatusBanner({ status }: { status: TierStatus | null }) {
 	if (status === null || status.semantic.enabled) {
 		return null;
 	}
 	return (
-		<Card className="border-destructive">
+		<Card className="border-destructive" data-testid="tier-status-banner">
 			<CardHeader>
 				<CardTitle>
 					<Badge variant="destructive">JEV semantic tier off</Badge>

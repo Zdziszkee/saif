@@ -262,3 +262,24 @@ describe("known-consumer gate", () => {
 		expect(access.ok).toBe(false);
 	});
 });
+
+describe("decision logging", () => {
+	it("writes one line per guard decision to stdout", async () => {
+		const lines: string[] = [];
+		const original = process.stdout.write;
+		process.stdout.write = ((chunk: unknown): boolean => {
+			lines.push(String(chunk));
+			return true;
+		}) as typeof process.stdout.write;
+		try {
+			const response = await handleGuardRequest(guardRequest(envelope, "alice"), {
+				consumers: consumerResolver(),
+				pipeline: pipelineWith([]),
+			});
+			expect(response.status).toBe(200);
+		} finally {
+			process.stdout.write = original;
+		}
+		expect(lines.some((line) => line.includes("[guard]") && line.includes("allow"))).toBe(true);
+	});
+});

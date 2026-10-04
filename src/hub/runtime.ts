@@ -10,7 +10,13 @@
  */
 
 import { createAllowlistControl } from "#/control/allowlist.ts";
-import { type AuditSink, auditEvent, createInMemoryAuditSink } from "#/control/audit.ts";
+import {
+	type AuditSink,
+	auditEvent,
+	combineAuditSinks,
+	createInMemoryAuditSink,
+} from "#/control/audit.ts";
+import { createFileAuditSink } from "#/control/audit-file.ts";
 import { createDeterministicControl } from "#/control/deterministic/control.ts";
 import { createControlPipeline } from "#/control/pipeline.ts";
 import { FilePolicySource, PolicyLoader } from "#/control/policy/loader.ts";
@@ -240,8 +246,22 @@ export async function getHubStatus(): Promise<HubStatus> {
 }
 
 export function getAuditSink(): AuditSink {
-	auditSink ??= createInMemoryAuditSink();
+	auditSink ??= createProductAuditSink();
 	return auditSink;
+}
+
+/**
+ * Product sink: in-memory for the dashboard plus a durable JSONL file
+ * (`tail -f data/audit.jsonl` shows every decision live). A broken log
+ * file degrades to memory-only rather than taking down the hub.
+ */
+function createProductAuditSink(): AuditSink {
+	const memory = createInMemoryAuditSink();
+	try {
+		return combineAuditSinks(memory, createFileAuditSink("data/audit.jsonl"));
+	} catch {
+		return memory;
+	}
 }
 
 function modelConnectionFromEnv(): ModelConnection {

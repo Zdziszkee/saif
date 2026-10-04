@@ -1,7 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import { TierStatusBanner } from "#/components/tier-status.tsx";
+import { type TierStatus, TierStatusBanner } from "#/components/tier-status.tsx";
 import { Badge } from "#/components/ui/badge.tsx";
 import {
 	Card,
@@ -15,7 +15,7 @@ import {
 	readAuditEvents,
 	summarizeAuditDecisions,
 } from "#/control/audit.ts";
-import { getAuditSink } from "#/hub/runtime.ts";
+import { getAuditSink, getHubStatus } from "#/hub/runtime.ts";
 
 const RECENT_LIMIT = 20;
 const REFRESH_INTERVAL_MS = 5000;
@@ -24,12 +24,14 @@ export const Route = createFileRoute("/dashboard")({
 	component: Dashboard,
 	// Server-side: reads the audit sink directly, so the page works without a
 	// consumer key while the bulk JSONL/CSV export endpoint stays key-gated.
-	loader: (): AuditDecisionSummary =>
-		summarizeAuditDecisions(readAuditEvents(getAuditSink()), RECENT_LIMIT),
+	loader: async (): Promise<{ summary: AuditDecisionSummary; tierStatus: TierStatus }> => ({
+		summary: summarizeAuditDecisions(readAuditEvents(getAuditSink()), RECENT_LIMIT),
+		tierStatus: await getHubStatus(),
+	}),
 });
 
 function Dashboard() {
-	const data = Route.useLoaderData();
+	const { summary: data, tierStatus } = Route.useLoaderData();
 	const router = useRouter();
 
 	useEffect(() => {
@@ -60,7 +62,7 @@ function Dashboard() {
 					</span>
 				</p>
 			</header>
-			<TierStatusBanner />
+			<TierStatusBanner status={tierStatus} />
 			<div className="grid grid-cols-2 gap-4">
 				<Card>
 					<CardHeader>
