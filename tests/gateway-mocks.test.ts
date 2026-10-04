@@ -539,7 +539,7 @@ describe("mocked classifier through the gateway", () => {
 		expect(response.status).toBe(403);
 	});
 
-	it("30. redacts on mid probability", async () => {
+	it("30. escalates on mid probability instead of forwarding a span-less redact", async () => {
 		const classifier = createFixedClassifier(
 			{ probabilities: { prompt_injection: 0.7 } },
 			{ checks: [makeCheck()] },
@@ -559,7 +559,7 @@ describe("mocked classifier through the gateway", () => {
 			chatBody([{ content: "maybe", role: "user" }]),
 			deps,
 		);
-		expect(response.status).toBe(200);
+		expect(response.status).toBe(403);
 	});
 
 	it("31. allows on low probability", async () => {
