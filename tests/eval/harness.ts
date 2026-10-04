@@ -117,6 +117,7 @@ export interface EvalRequestOptions {
 	audit?: AuditSink | undefined;
 	direction?: string | undefined;
 	groupId?: string | undefined;
+	model?: string | undefined;
 	pipeline?: ControlPipeline | undefined;
 	seam?: string | undefined;
 	userId?: string | undefined;
@@ -137,6 +138,7 @@ export async function evaluate(
 			body: JSON.stringify({
 				content,
 				direction: options.direction ?? "inbound",
+				model: options.model,
 				seam: options.seam ?? "guard-api",
 			}),
 			headers,

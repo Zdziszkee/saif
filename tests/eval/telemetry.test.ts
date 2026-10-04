@@ -11,6 +11,7 @@
 import { describe, expect, it } from "bun:test";
 import type { AuditEvent } from "#/control/audit.ts";
 import {
+	auditEvent,
 	auditEventsToCsv,
 	auditEventsToJsonl,
 	createInMemoryAuditSink,
@@ -68,6 +69,12 @@ describe("eval: the trail exports for security review", () => {
 		expect(header).toContain("verdict");
 		expect(header).toContain("controlId");
 		expect(rows.length).toBe(events.length);
+	});
+
+	it("quotes CSV cells containing commas", () => {
+		const csv = auditEventsToCsv([auditEvent("interaction", { detail: "a, b", verdict: "block" })]);
+		const [, row] = csv.split("\n");
+		expect(row).toContain('"a, b"');
 	});
 });
 
